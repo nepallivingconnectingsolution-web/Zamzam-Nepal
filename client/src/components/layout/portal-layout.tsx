@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bell, Menu, Search, X } from "lucide-react";
+import { Bell, LogOut, Menu, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui.store";
 import { useAuthStore } from "@/stores/auth.store";
@@ -79,10 +79,19 @@ function SidebarBody({
   withClose?: boolean;
 }) {
   const { setSidebar } = useUiStore();
+  const { user, signOut } = useAuthStore();
+  const navigate = useNavigate();
   const nav = PORTAL_NAV[role];
+
+  function handleSignOut() {
+    signOut();
+    setSidebar(false);
+    navigate("/");
+  }
+
   return (
     <aside className={cn("flex-col border-r border-border bg-surface", className)}>
-      <div className="flex h-16 items-center justify-between border-b border-border px-5">
+      <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-5">
         <Link to="/">
           <Logo />
         </Link>
@@ -122,9 +131,26 @@ function SidebarBody({
               </NavLink>
             </li>
           ))}
-        </ul>
+    </ul>
       </nav>
 
+      {/* Footer — user info + sign out, present on every portal */}
+      <div className="shrink-0 space-y-1 border-t border-border p-3">
+        <div className="flex items-center gap-2.5 px-3 py-2">
+          <Avatar name={user?.name ?? "Guest"} className="size-7" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-semibold">{user?.name ?? "Guest user"}</p>
+            <p className="truncate text-[10px] text-muted-fg">{user?.email ?? user?.mobile ?? ""}</p>
+          </div>
+        </div>
+        <button
+          onClick={handleSignOut}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-fg transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+        >
+          <LogOut className="size-[18px]" />
+          Sign out
+        </button>
+      </div>
     </aside>
   );
 }

@@ -22,8 +22,13 @@ export function Tabs({
 
 export function TabsList({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn("inline-flex items-center gap-1 rounded-xl bg-surface-2 p-1", className)} role="tablist">
-      {children}
+    <div className="-mx-5 overflow-x-auto px-5 sm:mx-0 sm:overflow-visible sm:px-0">
+      <div
+        className={cn("inline-flex w-max items-center gap-1 rounded-xl bg-surface-2 p-1", className)}
+        role="tablist"
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -37,12 +42,13 @@ export function TabsTrigger({ value, children }: { value: string; children: Reac
       aria-selected={active}
       onClick={() => ctx.set(value)}
       className={cn(
-        "rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors",
+        "shrink-0 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors",
         active ? "bg-surface text-fg shadow-sm" : "text-muted-fg hover:text-fg",
       )}
     >
       {children}
     </button>
+    
   );
 }
 
