@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "users_mobile_unique_idx" ON "users" USING btree ("mobile");

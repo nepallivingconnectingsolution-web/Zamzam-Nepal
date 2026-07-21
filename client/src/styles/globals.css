@@ -1,0 +1,160 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ----------------------------------------------------------------------------
+   Zamzam surface tokens. Brand (slate/emerald) stays constant; these drive the
+   neutral surfaces so the whole app re-themes from one place.
+---------------------------------------------------------------------------- */
+@layer base {
+  :root {
+    --bg: 210 40% 98%;          /* #F8FAFC */
+    --surface: 0 0% 100%;
+    --surface-2: 210 40% 96%;
+    --card: 0 0% 100%;          /* #FFFFFF */
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 160 84% 39%;        /* emerald */
+    --fg: 222 47% 11%;          /* slate-900 */
+    --muted: 210 40% 96%;
+    --muted-fg: 215 16% 47%;
+  }
+
+  .dark {
+    --bg: 222 47% 7%;
+    --surface: 222 44% 11%;     /* #1E293B-ish */
+    --surface-2: 222 40% 14%;
+    --card: 222 44% 11%;
+    --border: 217 33% 20%;
+    --input: 217 33% 20%;
+    --ring: 160 84% 39%;
+    --fg: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-fg: 215 20% 65%;
+  }
+
+  /* ----------------------------------------------------------------------------
+   Native date / time controls follow the app theme. Without color-scheme the
+   browser draws the calendar-picker icon dark-on-dark (invisible) in dark mode.
+---------------------------------------------------------------------------- */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  color-scheme: light;
+}
+.dark input[type="date"],
+.dark input[type="time"],
+.dark input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+  }
+
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+ ::selection {
+    background: rgba(16, 185, 129, 0.22);
+  }
+
+  /* Slim pill scrollbars — default browser chrome is the fastest way for a
+     UI to feel unfinished. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-fg) / 0.28);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-fg) / 0.45);
+    background-clip: padding-box;
+  }
+
+  /* Visible keyboard focus everywhere */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-bg;
+  }
+
+  /* Honor reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .grain {
+    background-image: radial-gradient(
+      hsl(var(--border)) 0.5px,
+      transparent 0.5px
+    );
+    background-size: 16px 16px;
+  }
+  /* Map-grid motif — nods to Kathmandu Valley spatial matching */
+  .valley-grid {
+    background-image: linear-gradient(hsl(var(--border) / 0.5) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.5) 1px, transparent 1px);
+    background-size: 44px 44px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 0%, #000 30%, transparent 75%);
+    mask-image: radial-gradient(ellipse 70% 70% at 50% 0%, #000 30%, transparent 75%);
+  }
+  .skeleton {
+    @apply relative overflow-hidden bg-muted;
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--surface) / 0.6),
+      transparent
+    );
+    transform: translateX(-100%);
+    animation: shimmer 1.6s infinite;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   Print support for printable documents (e.g. the bus e-ticket modal, see
+   features/buses/BusTicketDocument.tsx). Any element tagged with
+   id="...-print-area" becomes the only thing visible when the browser's
+   print dialog opens — which is also how "Download" works here: every
+   desktop and mobile browser lets you pick "Save as PDF" as the print
+   destination, so this one mechanism covers print AND download without an
+   extra PDF-generation dependency.
+---------------------------------------------------------------------------- */
+@media print {
+  #root { display: none !important; }
+  #print-root { display: block !important; }
+  #bus-ticket-print-area { width: 100%; }
+  @page { margin: 12mm; }
+}
