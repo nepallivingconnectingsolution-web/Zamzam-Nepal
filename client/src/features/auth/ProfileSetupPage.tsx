@@ -41,7 +41,7 @@ export function ProfileSetupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+    <div className="min-h-[calc(100vh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] bg-bg flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3">
           <Logo />

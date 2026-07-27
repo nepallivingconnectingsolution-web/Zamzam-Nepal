@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -9,6 +9,7 @@ import {
   BrainCircuit,
   Building2,
   Car,
+  ChevronDown,
   FileText,
   Gauge,
   KeyRound,
@@ -90,7 +91,7 @@ export function SuperAdminLayout() {
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 280 }}
-              className="fixed inset-y-0 left-0 z-50 w-[260px] lg:hidden"
+              className="fixed left-0 top-[env(safe-area-inset-top)] bottom-[env(safe-area-inset-bottom)] z-50 w-[260px] lg:hidden"
             >
               <SidebarBody className="flex h-full" withClose />
             </motion.aside>
@@ -205,10 +206,32 @@ function SidebarBody({
 
 function SuperTopbar() {
   const { setSidebar } = useUiStore();
-  const { admin } = useSuperAdminStore();
+  const { admin, clearSession } = useSuperAdminStore();
+  const navigate = useNavigate();
+  const name = admin?.name ?? "Super Admin";
+
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    function onPointerDown(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [profileOpen]);
+
+  function handleSignOut() {
+    clearSession();
+    setProfileOpen(false);
+    navigate("/");
+  }
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-bg/80 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-30 flex h-[calc(4rem+env(safe-area-inset-top))] items-center gap-3 border-b border-border bg-bg/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl sm:px-6 lg:px-8">
       <Button
         variant="ghost"
         size="icon"
@@ -226,11 +249,60 @@ function SuperTopbar() {
       <div className="ml-auto flex items-center gap-1.5">
          <NotificationBell />
         <ThemeToggle />
-        <div className="ml-1 flex items-center gap-2.5 rounded-full border border-border py-1 pl-1 pr-3">
-          <Avatar name={admin?.name ?? "SA"} className="size-7" />
-          <span className="hidden text-sm font-medium sm:block">
-            {admin?.name ?? "Super Admin"}
-          </span>
+
+        <div ref={profileRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setProfileOpen((v) => !v)}
+            className="ml-1 flex items-center gap-2.5 rounded-full border border-border py-1 pl-1 pr-3 transition-colors hover:bg-surface-2"
+          >
+            <Avatar name={name} className="size-7" />
+            <span className="hidden text-sm font-medium sm:block">{name}</span>
+            <ChevronDown
+              className={cn(
+                "hidden size-3.5 text-muted-fg transition-transform sm:block",
+                profileOpen && "rotate-180",
+              )}
+            />
+          </button>
+
+          <AnimatePresence>
+            {profileOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                transition={{ type: "spring", damping: 26, stiffness: 320 }}
+                className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 overflow-hidden rounded-2xl border border-border bg-card shadow-lift"
+              >
+                <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+                  <Avatar name={name} className="size-9" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{name}</p>
+                    <p className="truncate text-xs text-muted-fg">{admin?.email ?? ""}</p>
+                  </div>
+                </div>
+                <div className="p-1.5">
+                  <Link
+                    to="/x-admin/settings"
+                    onClick={() => setProfileOpen(false)}
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-fg transition-colors hover:bg-surface-2"
+                  >
+                    <Settings className="size-[18px]" />
+                    Account settings
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-fg transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                  >
+                    <LogOut className="size-[18px]" />
+                    Sign out
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </header>

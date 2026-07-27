@@ -17,10 +17,10 @@ import { SERVICES } from "@/config";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/shared/page-header";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
+import { LiveMap, type LiveMapMarker } from "@/components/shared/live-map";
 import { useResource } from "@/hooks/useResource";
 import { api, ApiError, endpoints } from "@/api/client";
 import { toast } from "@/stores/toast.store";
@@ -72,6 +72,8 @@ interface NearbyDriver {
   category: string;
   makeModel: string;
   plateNumber: string;
+  lat: number;
+  lng: number;
   distanceKm: number;
   etaMin: number;
 }
@@ -87,6 +89,13 @@ interface ActiveRide {
   driverMobile: string | null;
   vehicleMakeModel: string | null;
   vehiclePlate: string | null;
+  pickupLat: number | null;
+  pickupLng: number | null;
+  dropLat: number | null;
+  dropLng: number | null;
+  /** The assigned driver's live position — null until they've broadcast at least once. */
+  driverLat: number | null;
+  driverLng: number | null;
 }
 
 /**
@@ -308,8 +317,63 @@ const svc = SERVICES.find((s) => s.id === service);
     }
   }
 
-  const selectClass =
+ const selectClass =
     "h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:ring-2 focus:ring-accent/40";
+
+  // Same condition the panel below switches on — kept in one place so the
+  // map and the panel never disagree about which state they're showing.
+  const showActivePanel = Boolean(ride && finishedTrip?.id !== ride.id && cancelledId !== ride.id);
+
+  /**
+   * Before a booking: pickup + drop-off pins, plus every nearby driver so
+   * the customer can see who's around. Once a ride is active: just the
+   * pickup/drop pins and the assigned driver's live position (their dot
+   * glides across the map as their broadcast updates every ~15s).
+   */
+  const mapMarkers: LiveMapMarker[] = showActivePanel && ride
+    ? [
+        ...(ride.pickupLat != null && ride.pickupLng != null
+          ? [{ id: "pickup", lat: ride.pickupLat, lng: ride.pickupLng, variant: "pickup" as const, label: ride.from }]
+          : []),
+        ...(ride.dropLat != null && ride.dropLng != null
+          ? [{ id: "drop", lat: ride.dropLat, lng: ride.dropLng, variant: "drop" as const, label: ride.to }]
+          : []),
+        ...(ride.driverLat != null && ride.driverLng != null
+          ? [
+              {
+                id: "driver",
+                lat: ride.driverLat,
+                lng: ride.driverLng,
+                variant: "driver" as const,
+                label: ride.driverName ?? "Your driver",
+              },
+            ]
+          : []),
+      ]
+    : [
+        { id: "pickup", lat: pickupCoords.lat, lng: pickupCoords.lng, variant: "pickup", label: pickupLabel },
+        { id: "drop", lat: drop.lat, lng: drop.lng, variant: "drop", label: drop.label },
+        ...(nearby.data ?? []).map((d) => ({
+          id: `nearby-${d.driverId}`,
+          lat: d.lat,
+          lng: d.lng,
+          variant: "nearby" as const,
+          label: `${d.makeModel} · ${d.distanceKm} km away`,
+        })),
+      ];
+
+  const mapRoute: [number, number][] | undefined =
+    showActivePanel && ride && ride.pickupLat != null && ride.pickupLng != null && ride.dropLat != null && ride.dropLng != null
+      ? [
+          [ride.pickupLat, ride.pickupLng],
+          [ride.dropLat, ride.dropLng],
+        ]
+      : !showActivePanel
+        ? [
+            [pickupCoords.lat, pickupCoords.lng],
+            [drop.lat, drop.lng],
+          ]
+        : undefined;
 
   return (
     <div className="space-y-6">
@@ -320,28 +384,13 @@ const svc = SERVICES.find((s) => s.id === service);
       />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-        {/* Map surface — wired for Mapbox / Google Maps via VITE_MAPBOX_TOKEN */}
+        {/* Live map — pickup/drop pins, nearby drivers, and (once matched) the assigned driver's live position. */}
         <Card className="relative min-h-[420px] overflow-hidden">
-          <div className="absolute inset-0 valley-grid opacity-60" aria-hidden />
-          <div className="absolute inset-0 grid place-items-center">
-            <div className="flex flex-col items-center text-center">
-              <span className="relative grid size-14 place-items-center">
-                <span className="absolute size-14 animate-pulse-ring rounded-full bg-accent/30" />
-                <span className="grid size-10 place-items-center rounded-full bg-accent text-white shadow-glow">
-                  <Icon name={svc.icon} className="size-5" />
-                </span>
-              </span>
-              <p className="mt-4 text-sm font-medium">Live map</p>
-              <p className="max-w-xs text-xs text-muted-fg">
-                Real-time vehicle positions render here once a Mapbox or Google Maps key is
-                connected. Matching already works — see nearby drivers on the right.
-              </p>
-            </div>
-          </div>
+          <LiveMap markers={mapMarkers} route={mapRoute} className="absolute inset-0" />
         </Card>
 
         <div className="space-y-4">
-          {ride && finishedTrip?.id !== ride.id && cancelledId !== ride.id ? (
+          {showActivePanel && ride ? (
             /* ── Active booking panel ─────────────────────────────────── */
             <Card className="space-y-4 p-5">
               <div className="flex items-center gap-2">

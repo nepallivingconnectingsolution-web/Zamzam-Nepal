@@ -233,8 +233,14 @@ export const endpoints = {
     confirmCash: (id: string) => `/rides/${id}/confirm-cash`,
     pay: (id: string) => `/rides/${id}/pay`,
   },
-  bookings: { list: "/bookings" },
+bookings: { list: "/bookings" },
   support: { tickets: "/support/tickets" },
+  notifications: {
+    list: "/notifications",
+    unreadCount: "/notifications/unread-count",
+    markRead: (id: string) => `/notifications/${id}/read`,
+    markAllRead: "/notifications/read-all",
+  },
   buses: {
     list: "/buses",
     detail: (id: string) => `/buses/${id}`,

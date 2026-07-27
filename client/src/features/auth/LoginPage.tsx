@@ -63,7 +63,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
+   <div className="grid min-h-[calc(100vh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] lg:grid-cols-2">
       <div className="relative hidden flex-col justify-between overflow-hidden bg-brand-900 p-10 text-white lg:flex">
         <div className="pointer-events-none absolute inset-0 valley-grid opacity-20" aria-hidden />
         <div

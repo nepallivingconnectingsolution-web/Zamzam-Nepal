@@ -29,7 +29,7 @@ export function PublicNavbar() {
   return (
     <header
       className={cn(
-        "fixed inset-x-0 top-0 z-50 transition-all",
+        "fixed inset-x-0 top-0 z-50 pt-[env(safe-area-inset-top)] transition-all",
         scrolled
           ? "border-b border-border bg-bg/80 backdrop-blur-xl"
           : "border-b border-transparent",

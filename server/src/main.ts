@@ -1,3 +1,6 @@
+import dns from 'dns';
+dns.setDefaultResultOrder('ipv4first');
+
 import 'reflect-metadata';
 import { join } from 'path';
 import { NestFactory } from '@nestjs/core';

@@ -1,13 +1,10 @@
 import { Global, Module } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
+import { NotificationsController } from './notifications.controller';
 
-/**
- * @Global() mirrors DatabaseModule's pattern (see database/database.module.ts):
- * imported once in AppModule, then injectable anywhere in the app without
- * every feature module needing its own explicit import.
- */
 @Global()
 @Module({
+  controllers: [NotificationsController],
   providers: [NotificationsService],
   exports: [NotificationsService],
 })

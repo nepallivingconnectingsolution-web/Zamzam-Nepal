@@ -35,6 +35,10 @@ export interface CurrentJob {
   status: "ACCEPTED" | "ONGOING" | "PAYMENT_PENDING";
   customerName: string | null;
   customerMobile: string | null;
+  pickupLat: number | null;
+  pickupLng: number | null;
+  dropLat: number | null;
+  dropLng: number | null;
 }
 
 /**
@@ -55,6 +59,8 @@ interface DriverPortalState {
   online: boolean;
   toggling: boolean;
   broadcasting: boolean;
+  /** The driver's own last-known GPS fix, captured by the same ping that broadcasts it. */
+  myLocation: { lat: number; lng: number } | null;
   toggleOnline: () => void;
   earnings: ReturnType<typeof useResource<Earnings>>;
   requests: ReturnType<typeof useResource<IncomingRequest[]>>;
@@ -92,9 +98,10 @@ export function DriverPortalProvider() {
   });
   const rating = useResource<RatingSummary>(() => api.get(endpoints.driver.reviewSummary));
 
-  const [online, setOnline] = useState(false);
+const [online, setOnline] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [broadcasting, setBroadcasting] = useState(false);
+  const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const geoWarned = useRef(false);
 
@@ -165,6 +172,10 @@ export function DriverPortalProvider() {
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
           if (cancelled) return;
+          // Captured locally regardless of whether the broadcast POST below
+          // succeeds — the driver's own map should still track their real
+          // position even during a brief network hiccup.
+          setMyLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
           try {
             await api.post(endpoints.driver.location, {
               lat: pos.coords.latitude,
@@ -303,7 +314,7 @@ export function DriverPortalProvider() {
 
   return (
     <DriverPortalContext.Provider
-      value={{ online, toggling, broadcasting, toggleOnline, earnings, requests, job, rating, actionBusy, acceptRequest, advanceJob, settleCash, lastTrip, clearLastTrip }}
+      value={{ online, toggling, broadcasting, myLocation, toggleOnline, earnings, requests, job, rating, actionBusy, acceptRequest, advanceJob, settleCash, lastTrip, clearLastTrip }}
     >
       <Outlet />
     </DriverPortalContext.Provider>

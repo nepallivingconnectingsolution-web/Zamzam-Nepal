@@ -5,7 +5,7 @@ import { Logo } from "@/components/layout/logo";
 export function NotFound() {
   const navigate = useNavigate();
   return (
-    <div className="grid min-h-screen place-items-center bg-bg px-6 text-center">
+  <div className="grid min-h-[calc(100vh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] place-items-center bg-bg px-6 text-center">
       <div className="max-w-md">
         <Logo className="justify-center" />
         <p className="mt-8 font-display text-6xl font-extrabold tracking-tight text-accent">404</p>

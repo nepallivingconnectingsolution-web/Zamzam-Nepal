@@ -5,6 +5,7 @@ import * as bcrypt from 'bcryptjs';
 import { and, desc, eq, gte, ilike, inArray, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { DATABASE_CONNECTION, type Database } from '../../database/database.module';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   auditLogs,
   bids,
@@ -50,6 +51,7 @@ export class SuperAdminService {
     @Inject(DATABASE_CONNECTION) private readonly db: Database,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async login(dto: SuperAdminLoginDto) {
@@ -313,6 +315,18 @@ export class SuperAdminService {
     .where(and(eq(transactions.id, transactionId), eq(transactions.type, 'REFUND'), eq(transactions.status, 'PENDING')))
     .returning();
   if (!txn) apiError(404, 'No pending refund found with that id.');
+
+  await this.notifications.notifyUser(txn.userId, {
+    type: outcome === 'SUCCESS' ? 'refund_processed' : 'refund_failed',
+    title: outcome === 'SUCCESS' ? 'Refund processed' : 'Refund could not be processed',
+    message:
+      outcome === 'SUCCESS'
+        ? `NPR ${txn.amount} has been refunded to your original payment method.`
+        : `Your NPR ${txn.amount} refund could not be completed. Please contact support.`,
+    entityType: txn.referenceType ?? undefined,
+    entityId: txn.referenceId ?? undefined,
+  });
+
   return txn;
 }
 

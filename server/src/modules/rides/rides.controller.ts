@@ -72,7 +72,13 @@ export class RidesService {
     return this.toDto(row);
   }
 
-  /** The customer's current non-terminal booking (or null), with driver info once accepted. */
+  /**
+   * The customer's current non-terminal booking (or null), with driver info
+   * once accepted. Also joins driverStatus so the assigned driver's live
+   * lat/lng comes back once they've been matched — this is what lets the
+   * customer's live map show the driver's dot moving toward them instead of
+   * just a static pickup/drop pin pair.
+   */
   async active(customerId: string) {
     const [row] = await this.db
       .select({
@@ -81,10 +87,13 @@ export class RidesService {
         driverMobile: users.mobile,
         vehicleMakeModel: vehicles.makeModel,
         vehiclePlate: vehicles.plateNumber,
+        driverLat: driverStatus.lat,
+        driverLng: driverStatus.lng,
       })
       .from(rides)
       .leftJoin(users, eq(rides.driverId, users.id))
       .leftJoin(vehicles, eq(rides.vehicleId, vehicles.id))
+      .leftJoin(driverStatus, eq(rides.driverId, driverStatus.userId))
       .where(and(eq(rides.customerId, customerId), inArray(rides.status, [...ACTIVE_STATUSES])))
       .orderBy(desc(rides.createdAt))
       .limit(1);
@@ -96,6 +105,8 @@ export class RidesService {
       driverMobile: row.driverMobile,
       vehicleMakeModel: row.vehicleMakeModel,
       vehiclePlate: row.vehiclePlate,
+      driverLat: row.driverLat != null ? Number(row.driverLat) : null,
+      driverLng: row.driverLng != null ? Number(row.driverLng) : null,
     };
   }
 

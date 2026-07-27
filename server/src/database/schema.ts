@@ -1378,6 +1378,43 @@ export const superAdminNotifications = pgTable(
   }),
 );
 
+/* ───────────────────────────── User notifications ───────────────────────
+ * The customer/driver/partner-facing counterpart to super_admin_notifications
+ * above — same shape, but scoped to a single user_id instead of being a
+ * global platform feed. Powers the notification bell in the portal topbar
+ * (PortalLayout) shared by every non-super-admin role.
+ */
+export const userNotificationTypeEnum = pgEnum('user_notification_type', [
+  'booking_confirmed',
+  'booking_cancelled',
+  'refund_processed',
+  'refund_failed',
+  'order_update',
+  'ride_update',
+  'system',
+]);
+
+export const userNotifications = pgTable(
+  'user_notifications',
+  {
+    id: varchar('id', { length: 32 }).primaryKey(),
+    userId: varchar('user_id', { length: 32 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: userNotificationTypeEnum('type').notNull(),
+    title: text('title').notNull(),
+    message: text('message').notNull(),
+    entityType: text('entity_type'),
+    entityId: text('entity_id'),
+    isRead: boolean('is_read').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userCreatedIdx: index('user_notifications_user_created_idx').on(t.userId, t.createdAt),
+    userUnreadIdx: index('user_notifications_user_unread_idx').on(t.userId, t.isRead),
+  }),
+);
+
 /* ───────────────────────────── Relations ───────────────────────────────── */
 
 export const usersRelations = relations(users, ({ one, many }) => ({

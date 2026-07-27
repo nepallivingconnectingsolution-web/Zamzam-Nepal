@@ -252,8 +252,8 @@ export class BusesService {
       await tx.update(trips).set({ bookedSeats: remaining }).where(eq(trips.id, trip.id));
     }
 
-    if (refundAmount <= 0) {
-      return { refundAmount: 0, policy };
+   if (refundAmount <= 0) {
+      return { refundAmount: 0, policy, bookingRef: ticket.bookingRef };
     }
 
     const walletRefund = refundsToWallet(ticket.method);
@@ -279,11 +279,26 @@ export class BusesService {
     return { refundAmount, policy, walletRefund, bookingRef: ticket.bookingRef };
   });
 
-  if (result && result.refundAmount > 0 && !result.walletRefund) {
+ if (result && result.refundAmount > 0 && !result.walletRefund) {
     await this.notifications.notify({
       type: 'refund_pending',
       title: 'Refund awaiting processing',
       message: `NPR ${result.refundAmount} refund pending for bus ticket ${result.bookingRef} (external payment method).`,
+      entityType: 'bus_ticket',
+      entityId: ticketId,
+    });
+  }
+
+  if (result) {
+    await this.notifications.notifyUser(customerId, {
+      type: result.refundAmount > 0 ? 'refund_processed' : 'booking_cancelled',
+      title: result.refundAmount > 0 ? 'Bus ticket cancelled — refund on the way' : 'Bus ticket cancelled',
+      message:
+        result.refundAmount > 0
+          ? `Your ${result.bookingRef} ticket was cancelled. NPR ${result.refundAmount.toFixed(2)} has been ${
+              result.walletRefund ? 'credited to your wallet' : 'queued for refund to your original payment method'
+            }.`
+          : `Your ${result.bookingRef} ticket was cancelled. This fare wasn't refundable under the cancellation window.`,
       entityType: 'bus_ticket',
       entityId: ticketId,
     });
@@ -564,13 +579,12 @@ await this.notifications.notify({
         .select()
         .from(tickets)
         .where(and(eq(tickets.tripId, tripId), eq(tickets.status, 'CONFIRMED')));
-
-      for (const ticket of affected) {
+for (const ticket of affected) {
         // Same refund policy as customer-initiated cancels: the wallet is
         // only credited when the money originally came out of the wallet.
+        const walletRefund = refundsToWallet(ticket.method);
         await this.db.transaction(async (tx) => {
           await tx.update(tickets).set({ status: 'CANCELLED' }).where(eq(tickets.id, ticket.id));
-          const walletRefund = refundsToWallet(ticket.method);
           if (walletRefund) {
             await creditWallet(tx, ticket.customerId, ticket.grandTotal);
           }
@@ -581,11 +595,23 @@ await this.notifications.notify({
             status: walletRefund ? 'SUCCESS' : 'PENDING',
             amount: ticket.grandTotal,
             currency: 'NPR',
+            referenceType: 'BUS_TICKET',
+            referenceId: ticket.id,
             description: walletRefund
               ? `Refund · operator cancelled departure (${ticket.bookingRef})`
               : `Refund · operator cancelled departure (${ticket.bookingRef}) — will be returned to your original payment method`,
             inbound: true,
           });
+        });
+
+        await this.notifications.notifyUser(ticket.customerId, {
+          type: 'refund_processed',
+          title: 'Your bus departure was cancelled',
+          message: `The operator cancelled your ${ticket.bookingRef} departure. NPR ${ticket.grandTotal} has been ${
+            walletRefund ? 'credited to your wallet' : 'queued for refund to your original payment method'
+          }.`,
+          entityType: 'bus_ticket',
+          entityId: ticket.id,
         });
       }
     }

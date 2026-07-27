@@ -108,7 +108,7 @@ export function FloatingAssistant() {
   return (
     <>
       {/* ── Launcher ── */}
-      <div className="fixed bottom-6 right-6 z-40">
+   <div className="fixed right-6 z-40" style={{ bottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}>
         {/* Sonar ping — a slim ring rather than a filled disc, so it reads as a
             signal, not a smudge. Only pings while the assistant is closed. */}
         {!open && (
@@ -181,8 +181,8 @@ export function FloatingAssistant() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: 16 }}
             transition={{ type: "spring", damping: 26, stiffness: 300 }}
-            style={{ transformOrigin: "bottom right" }}
-            className="fixed bottom-[104px] right-6 z-40 flex h-[min(640px,calc(100vh-160px))] w-[calc(100vw-3rem)] max-w-[380px] flex-col overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-lift ring-1 ring-black/5 dark:ring-white/5"
+            style={{ transformOrigin: "bottom right", bottom: "calc(104px + env(safe-area-inset-bottom))" }}
+            className="fixed right-6 z-40 flex h-[min(640px,calc(100vh-160px))] w-[calc(100vw-3rem)] max-w-[380px] flex-col overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-lift ring-1 ring-black/5 dark:ring-white/5"
             role="dialog"
             aria-modal="false"
             aria-label="Zamzam assistant"

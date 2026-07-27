@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
+import { LiveMap, type LiveMapMarker } from "@/components/shared/live-map";
 import { npr } from "@/lib/utils";
 import { useDriverPortal, type CompletedTrip, type CurrentJob } from "./driver-portal.context";
 
@@ -21,7 +22,7 @@ import { useDriverPortal, type CompletedTrip, type CurrentJob } from "./driver-p
  */
 export function CurrentTripPage() {
   const navigate = useNavigate();
-  const { job, actionBusy, advanceJob, settleCash, lastTrip, clearLastTrip, earnings } = useDriverPortal();
+  const { job, actionBusy, advanceJob, settleCash, lastTrip, clearLastTrip, earnings, myLocation } = useDriverPortal();
 
   // Stage 3: the fare just settled (cash confirmed, or wallet detected) —
   // show the recap even though /rides/current is null now.
@@ -70,7 +71,9 @@ export function CurrentTripPage() {
           (job.data.status === "PAYMENT_PENDING" ? (
             <CollectFare job={job.data} busy={actionBusy === job.data.id} onCashCollected={() => settleCash(job.data!)} />
           ) : (
-            <Card className="space-y-5 p-6">
+            <div className="space-y-4">
+              <TripMap job={job.data} myLocation={myLocation} />
+              <Card className="space-y-5 p-6">
               <div className="flex items-center justify-between">
                 <Badge variant="success" className="capitalize">
                   {job.data.status === "ACCEPTED" ? "Head to pickup" : "Trip in progress"}
@@ -112,12 +115,47 @@ export function CurrentTripPage() {
                 disabled={actionBusy === job.data.id}
                 onClick={() => advanceJob(job.data!)}
               >
-                {job.data.status === "ACCEPTED" ? "Start trip" : "End trip"}
+               {job.data.status === "ACCEPTED" ? "Start trip" : "End trip"}
               </Button>
-            </Card>
+              </Card>
+            </div>
           ))}
       </AsyncBoundary>
     </div>
+  );
+}
+
+/** Live map — pickup/drop pins plus the driver's own live position, with a route line to whichever stop is next. */
+function TripMap({ job, myLocation }: { job: CurrentJob; myLocation: { lat: number; lng: number } | null }) {
+  const markers: LiveMapMarker[] = [
+    ...(job.pickupLat != null && job.pickupLng != null
+      ? [{ id: "pickup", lat: job.pickupLat, lng: job.pickupLng, variant: "pickup" as const, label: job.from }]
+      : []),
+    ...(job.dropLat != null && job.dropLng != null
+      ? [{ id: "drop", lat: job.dropLat, lng: job.dropLng, variant: "drop" as const, label: job.to }]
+      : []),
+    ...(myLocation ? [{ id: "you", lat: myLocation.lat, lng: myLocation.lng, variant: "you" as const, label: "You" }] : []),
+  ];
+
+  // While heading to the customer, the next stop is pickup; once the trip
+  // has started, it's the drop-off — the route line always points at
+  // whichever one is actually still ahead.
+  const nextStopLat = job.status === "ACCEPTED" ? job.pickupLat : job.dropLat;
+  const nextStopLng = job.status === "ACCEPTED" ? job.pickupLng : job.dropLng;
+  const route: [number, number][] | undefined =
+    myLocation && nextStopLat != null && nextStopLng != null
+      ? [
+          [myLocation.lat, myLocation.lng],
+          [nextStopLat, nextStopLng],
+        ]
+      : undefined;
+
+  if (markers.length === 0) return null;
+
+  return (
+    <Card className="relative h-64 overflow-hidden sm:h-72">
+      <LiveMap markers={markers} route={route} className="absolute inset-0" />
+    </Card>
   );
 }
 
