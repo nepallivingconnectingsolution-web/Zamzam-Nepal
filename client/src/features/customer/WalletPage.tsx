@@ -131,9 +131,10 @@ export function WalletPage() {
 }
 
 /**
- * Top-up modal — posts to /wallet/topup, which credits the balance and
- * writes the TOPUP ledger entry atomically on the server. Runs in sandbox
- * mode (instant success) until live eSewa/Khalti gateway keys are wired in.
+ * Top-up modal — posts to /wallet/topup, which records a PENDING TOPUP
+ * ledger entry. Until live eSewa/Khalti gateway keys are wired in, there's
+ * no way to verify payment automatically, so the balance is only credited
+ * once a super-admin confirms the transaction — it does not land instantly.
  */
 function TopUpDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [amount, setAmount] = useState<string>("1000");
@@ -150,8 +151,11 @@ function TopUpDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     }
     setSubmitting(true);
     try {
-      await api.post(endpoints.wallet.topup, { amount: Math.round(parsed * 100) / 100, method });
-      toast.success(`${npr(parsed)} added to your wallet.`);
+      const res = await api.post<{ message?: string }>(endpoints.wallet.topup, {
+        amount: Math.round(parsed * 100) / 100,
+        method,
+      });
+      toast.success(res?.message ?? `${npr(parsed)} top-up requested — pending confirmation.`);
       onSuccess();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Top-up failed. Please try again.");
