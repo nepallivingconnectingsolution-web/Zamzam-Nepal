@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { SuperAdminService } from './super-admin.service';
-import { SuperAdminLoginDto, KycDecisionDto, UpdateCmsDto, UpdateSettingsDto } from './dto/super-admin.dto';
+import { SuperAdminLoginDto, KycDecisionDto, ResolveTransactionDto, UpdateCmsDto, UpdateSettingsDto } from './dto/super-admin.dto';
 import { SuperAdminAuthGuard } from './super-admin-auth.guard';
 import { CurrentSuperAdmin } from './current-super-admin.decorator';
 import type { AuthenticatedSuperAdmin } from './super-admin-jwt.strategy';
@@ -124,10 +124,14 @@ export class SuperAdminController {
   }
 
   @Post('transactions/:id/resolve')
-@UseGuards(SuperAdminAuthGuard)
-resolveRefund(@Param('id') id: string, @Body('outcome') outcome: 'SUCCESS' | 'FAILED') {
-  return this.superAdmin.resolveRefund(id, outcome);
-}
+  @UseGuards(SuperAdminAuthGuard)
+  resolveTransaction(
+    @CurrentSuperAdmin() admin: AuthenticatedSuperAdmin,
+    @Param('id') id: string,
+    @Body() dto: ResolveTransactionDto,
+  ) {
+    return this.superAdmin.resolveTransaction(admin.id, id, dto.outcome);
+  }
 
   @Patch('disputes/:id/resolve')
   @UseGuards(SuperAdminAuthGuard)

@@ -31,6 +31,7 @@ import {
   wallets,
 } from '../../database/schema';
 import { apiError } from '../../common/exceptions';
+import { creditWallet } from '../../common/wallet.util';
 import { id } from '../../common/id';
 import type { SuperAdminLoginDto, UpdateCmsDto, UpdateSettingsDto } from './dto/super-admin.dto';
 import { SERVICE_REGISTRY } from './service-registry';
@@ -308,27 +309,79 @@ export class SuperAdminService {
   }
 
 
-  async resolveRefund(transactionId: string, outcome: 'SUCCESS' | 'FAILED') {
-  const [txn] = await this.db
-    .update(transactions)
-    .set({ status: outcome })
-    .where(and(eq(transactions.id, transactionId), eq(transactions.type, 'REFUND'), eq(transactions.status, 'PENDING')))
-    .returning();
-  if (!txn) apiError(404, 'No pending refund found with that id.');
+  /**
+   * Resolves a PENDING REFUND or TOPUP transaction that has no live payment
+   * gateway behind it. REFUNDs never touch the wallet here — the money
+   * already left the platform via the customer's original payment method,
+   * this just records the outcome. TOPUPs are the opposite direction: no
+   * money has moved yet, so a SUCCESS outcome is the one place that credits
+   * the wallet, and it does so atomically with the status flip so the
+   * ledger and balance can never disagree. See AUDIT_REPORT.md — "Wallet
+   * top-up minted balance with zero verification."
+   */
+  async resolveTransaction(superAdminId: string, transactionId: string, outcome: 'SUCCESS' | 'FAILED') {
+    const [pending] = await this.db
+      .select()
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.id, transactionId),
+          inArray(transactions.type, ['REFUND', 'TOPUP']),
+          eq(transactions.status, 'PENDING'),
+        ),
+      )
+      .limit(1);
+    if (!pending) apiError(404, 'No pending refund or top-up found with that id.');
 
-  await this.notifications.notifyUser(txn.userId, {
-    type: outcome === 'SUCCESS' ? 'refund_processed' : 'refund_failed',
-    title: outcome === 'SUCCESS' ? 'Refund processed' : 'Refund could not be processed',
-    message:
-      outcome === 'SUCCESS'
-        ? `NPR ${txn.amount} has been refunded to your original payment method.`
-        : `Your NPR ${txn.amount} refund could not be completed. Please contact support.`,
-    entityType: txn.referenceType ?? undefined,
-    entityId: txn.referenceId ?? undefined,
-  });
+    let txn = pending;
+    if (pending.type === 'TOPUP' && outcome === 'SUCCESS') {
+      await this.db.transaction(async (tx) => {
+        await creditWallet(tx, pending.userId, pending.amount);
+        [txn] = await tx
+          .update(transactions)
+          .set({ status: outcome })
+          .where(eq(transactions.id, transactionId))
+          .returning();
+      });
+    } else {
+      [txn] = await this.db
+        .update(transactions)
+        .set({ status: outcome })
+        .where(eq(transactions.id, transactionId))
+        .returning();
+    }
 
-  return txn;
-}
+    await this.audit(
+      superAdminId,
+      pending.type === 'TOPUP' ? 'super_admin.topup.resolve' : 'super_admin.refund.resolve',
+      'transaction',
+      transactionId,
+    );
+
+    const isRefund = pending.type === 'REFUND';
+    // 'topup_processed'/'topup_failed' aren't in the user_notification_type
+    // enum (adding them needs a migration) — TOPUP outcomes reuse 'system'
+    // and rely on the title/message below to stay unambiguous.
+    await this.notifications.notifyUser(txn.userId, {
+      type: isRefund ? (outcome === 'SUCCESS' ? 'refund_processed' : 'refund_failed') : 'system',
+      title:
+        outcome === 'SUCCESS'
+          ? isRefund ? 'Refund processed' : 'Top-up confirmed'
+          : isRefund ? 'Refund could not be processed' : 'Top-up could not be verified',
+      message:
+        outcome === 'SUCCESS'
+          ? isRefund
+            ? `NPR ${txn.amount} has been refunded to your original payment method.`
+            : `NPR ${txn.amount} has been added to your wallet.`
+          : isRefund
+            ? `Your NPR ${txn.amount} refund could not be completed. Please contact support.`
+            : `Your NPR ${txn.amount} top-up could not be verified. Please contact support.`,
+      entityType: txn.referenceType ?? undefined,
+      entityId: txn.referenceId ?? undefined,
+    });
+
+    return txn;
+  }
 
   /* ───────────────────────── Rides & demand ─────────────────────────── */
 

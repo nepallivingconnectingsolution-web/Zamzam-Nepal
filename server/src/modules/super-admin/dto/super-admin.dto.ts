@@ -31,6 +31,11 @@ export class KycDecisionDto {
   kycStatus!: 'APPROVED' | 'SUSPENDED';
 }
 
+export class ResolveTransactionDto {
+  @IsIn(['SUCCESS', 'FAILED'], { message: 'outcome must be SUCCESS or FAILED.' })
+  outcome!: 'SUCCESS' | 'FAILED';
+}
+
 /** All fields optional — the Settings page PATCHes only what changed. */
 export class UpdateSettingsDto {
   @IsOptional()

@@ -2,7 +2,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import { desc, eq } from 'drizzle-orm';
 import { DATABASE_CONNECTION, type Database } from '../../database/database.module';
 import { transactions, wallets } from '../../database/schema';
-import { creditWallet } from '../../common/wallet.util';
 import { id } from '../../common/id';
 
 @Injectable()
@@ -22,34 +21,40 @@ export class WalletService {
   }
 
   /**
-   * Credits the wallet and records a TOPUP ledger entry atomically —
-   * both succeed or neither does, so the balance and the transaction
-   * history can never disagree.
+   * Records a TOPUP request as PENDING. It does NOT credit the wallet —
+   * eSewa/Khalti/card keys are not provisioned yet, so there is no way to
+   * verify a customer actually paid. Crediting instantly here previously
+   * let any authenticated user mint arbitrary spendable balance (see
+   * AUDIT_REPORT.md). The wallet is only ever credited when a super-admin
+   * resolves this transaction as SUCCESS (`SuperAdminService.resolveTransaction`),
+   * mirroring how PENDING refunds are already resolved.
    *
-   * Gateway note: eSewa/Khalti keys are not provisioned yet, so this runs
-   * as a sandbox top-up (instant SUCCESS). When live keys arrive, the
-   * gateway verification call slots in *before* this transaction and the
-   * status flow becomes PENDING -> SUCCESS on webhook confirmation.
+   * Gateway note: once live keys arrive, the gateway verification
+   * webhook should call the same resolution path instead of a human.
    */
   async topup(userId: string, amount: number, method: 'esewa' | 'khalti' | 'card') {
     const label = method === 'esewa' ? 'eSewa' : method === 'khalti' ? 'Khalti' : 'Card';
     const value = amount.toFixed(2); // numeric column — always store 2dp strings
 
-    await this.db.transaction(async (tx) => {
-      await creditWallet(tx, userId, value);
-      await tx.insert(transactions).values({
+    const [txn] = await this.db
+      .insert(transactions)
+      .values({
         id: id('txn'),
         userId,
         type: 'TOPUP',
-        status: 'SUCCESS',
+        status: 'PENDING',
         amount: value,
         currency: 'NPR',
         description: `Wallet top-up via ${label}`,
         inbound: true,
-      });
-    });
+      })
+      .returning();
 
-    return this.balance(userId);
+    return {
+      status: 'PENDING' as const,
+      transactionId: txn.id,
+      message: `Your NPR ${value} top-up via ${label} is being verified and will be added to your balance shortly.`,
+    };
   }
 
   async transactions(userId: string) {

@@ -92,6 +92,7 @@ export class RegisterBusDto {
 
   @IsOptional()
   @IsInt()
+  @Min(1, { message: 'totalRows must be at least 1.' })
   totalRows?: number;
 
   @IsArray()

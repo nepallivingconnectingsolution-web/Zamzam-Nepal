@@ -161,9 +161,11 @@ export function SuperAdminTransactions() {
                       {new Date(t.createdAt).toLocaleString("en-NP", { dateStyle: "medium", timeStyle: "short" })}
                     </td>
                     <td className="px-5 py-3">
-                    {t.type === "REFUND" && t.status === "PENDING" && (
+                    {(t.type === "REFUND" || t.type === "TOPUP") && t.status === "PENDING" && (
                        <div className="flex gap-1.5">
-                         <Button size="sm" variant="outline" onClick={() => resolve(t.id, "SUCCESS")}>Mark refunded</Button>
+                         <Button size="sm" variant="outline" onClick={() => resolve(t.id, "SUCCESS")}>
+                           {t.type === "REFUND" ? "Mark refunded" : "Confirm top-up"}
+                         </Button>
                        <Button size="sm" variant="outline" onClick={() => resolve(t.id, "FAILED")}>Mark failed</Button>
                      </div>
                      )}
@@ -206,9 +208,11 @@ export function SuperAdminTransactions() {
                   <span className="text-xs text-muted-fg">
                     {new Date(t.createdAt).toLocaleString("en-NP", { dateStyle: "medium", timeStyle: "short" })}
                   </span>
-                                   {t.type === "REFUND" && t.status === "PENDING" && (
+                                   {(t.type === "REFUND" || t.type === "TOPUP") && t.status === "PENDING" && (
                    <div className="mt-2 flex gap-1.5">
-                     <Button size="sm" variant="outline" onClick={() => resolve(t.id, "SUCCESS")}>Mark refunded</Button>
+                     <Button size="sm" variant="outline" onClick={() => resolve(t.id, "SUCCESS")}>
+                       {t.type === "REFUND" ? "Mark refunded" : "Confirm top-up"}
+                     </Button>
                      <Button size="sm" variant="outline" onClick={() => resolve(t.id, "FAILED")}>Mark failed</Button>
                    </div>
                 )}

@@ -232,6 +232,9 @@ export const endpoints = {
     // Post-trip settlement: driver confirms cash, customer pays in-app.
     confirmCash: (id: string) => `/rides/${id}/confirm-cash`,
     pay: (id: string) => `/rides/${id}/pay`,
+    // In-trip chat between the matched customer and driver.
+   messages: (id: string) => `/rides/${id}/messages`,
+    rateCustomer: (id: string) => `/rides/${id}/rate-customer`,
   },
 bookings: { list: "/bookings" },
   support: { tickets: "/support/tickets" },
