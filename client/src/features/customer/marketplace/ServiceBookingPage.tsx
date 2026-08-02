@@ -3,28 +3,37 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   CheckCircle2,
   Circle,
+  Gauge,
   LoaderCircle,
   LocateFixed,
   MapPin,
+  MessageCircle,
   Navigation,
   Package,
- Phone,
+  Phone,
   Search,
+  Share2,
+  ShieldAlert,
+  Star,
   Wallet,
   XCircle,
 } from "lucide-react";
 import { SERVICES } from "@/config";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Avatar } from "@/components/ui/avatar";
 import { PageHeader } from "@/components/shared/page-header";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { LiveMap, type LiveMapMarker } from "@/components/shared/live-map";
+import { RideChatPanel } from "@/components/shared/ride-chat-panel";
+import { TripStatusStepper } from "@/components/shared/trip-status-stepper";
+import { CancelReasonPrompt } from "@/components/shared/cancel-reason-prompt";
 import { useResource } from "@/hooks/useResource";
 import { api, ApiError, endpoints } from "@/api/client";
 import { toast } from "@/stores/toast.store";
-import { npr } from "@/lib/utils";
+import { cn, npr } from "@/lib/utils";
 import { RateTripPrompt } from "./RateTripPrompt";
 
 /* ── Booking-capable services on this page ─────────────────────────────── */
@@ -57,6 +66,16 @@ const FARES: Record<BookableService, { base: number; perKm: number; min: number 
   bike: { base: 50, perKm: 25, min: 80 },
   parcel: { base: 80, perKm: 30, min: 100 },
 };
+
+/** "Jun 2026" style tenure label for the driver trust card. */
+function memberSinceLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+}
+
+/** Mirrors the server's common/geo.ts rough-ETA formula (~20 km/h average). */
+function etaMinutes(distanceKm: number): number {
+  return Math.max(1, Math.round((distanceKm / 20) * 60));
+}
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -96,6 +115,17 @@ interface ActiveRide {
   /** The assigned driver's live position — null until they've broadcast at least once. */
   driverLat: number | null;
   driverLng: number | null;
+  /** Trust signals shown on the driver card once matched — Uber's "who's picking me up". */
+  driverAvatarUrl: string | null;
+  driverRating: number | null;
+  driverRatingCount: number | null;
+  driverTripsCompleted: number | null;
+  driverMemberSince: string | null;
+  /** Live distance/ETA from the driver's GPS to whichever stop is next (pickup, then drop-off). */
+  driverDistanceKm: number | null;
+  driverEtaMin: number | null;
+  /** Messages from the driver not yet opened — powers the Chat button badge. */
+  unreadMessages: number;
 }
 
 /**
@@ -141,6 +171,8 @@ const svc = SERVICES.find((s) => s.id === service);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelledId, setCancelledId] = useState<string | null>(null);
   const [cancelledTrip, setCancelledTrip] = useState<CancelledTrip | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [cancelPromptOpen, setCancelPromptOpen] = useState(false);
 
   const pickupCoords =
     pickup.kind === "gps" ? { lat: pickup.lat, lng: pickup.lng } : { lat: SPOTS[pickup.index].lat, lng: SPOTS[pickup.index].lng };
@@ -296,11 +328,36 @@ const svc = SERVICES.find((s) => s.id === service);
     }
   }
 
- async function cancelRide() {
+  async function shareTrip() {
+    if (!ride) return;
+    const summary = [
+      `I'm on a Zamzam ${service} trip.`,
+      `From ${ride.from} to ${ride.to}.`,
+      ride.driverName ? `Driver: ${ride.driverName}${ride.vehiclePlate ? ` (${ride.vehiclePlate})` : ""}.` : undefined,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "My Zamzam trip", text: summary });
+      } catch {
+        // User cancelled the share sheet — not an error worth surfacing.
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(summary);
+      toast.success("Trip details copied", "Paste them to whoever you'd like to share your trip with.");
+    } catch {
+      toast.error("Couldn't copy trip details.");
+    }
+  }
+
+ async function cancelRide(reason?: string) {
     if (!ride) return;
     setCancelBusy(true);
     try {
-      await api.post(endpoints.rides.cancel(ride.id));
+      await api.post(endpoints.rides.cancel(ride.id), { reason });
       toast.success("Booking cancelled", "Request a new ride whenever you're ready.");
       // Don't wait on the next /rides/active poll to flip `ride` to null —
       // that's the race that left the old panel stuck on screen with a
@@ -309,6 +366,8 @@ const svc = SERVICES.find((s) => s.id === service);
       // reappear immediately; the refetch just keeps this page's own
       // state in sync with the server underneath.
       setCancelledId(ride.id);
+      setCancelledTrip({ id: ride.id, fare: ride.fare, from: ride.from, to: ride.to, driverName: ride.driverName });
+      setCancelPromptOpen(false);
       activeRide.refetch();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Couldn't cancel this booking.");
@@ -415,6 +474,8 @@ const svc = SERVICES.find((s) => s.id === service);
                 </Badge>
               </div>
 
+              <TripStatusStepper status={ride.status} />
+
               <div className="space-y-1 text-sm">
                 <p className="flex items-center gap-2">
                   <Circle className="size-3 fill-accent text-accent" /> {ride.from}
@@ -425,17 +486,109 @@ const svc = SERVICES.find((s) => s.id === service);
               </div>
 
               {ride.driverName && (
-                <div className="rounded-xl border border-border bg-muted/40 p-3 text-sm">
-                  <p className="font-medium">{ride.driverName}</p>
-                  <p className="text-xs text-muted-fg">
-                    {ride.vehicleMakeModel} · <span className="uppercase">{ride.vehiclePlate}</span>
-                  </p>
-                  {ride.driverMobile && (
-                    <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-fg">
-                      <Phone className="size-3" /> {ride.driverMobile}
+                <div className="space-y-3 rounded-xl border border-border bg-muted/40 p-3 text-sm">
+                  <div className="flex items-center gap-3">
+                    <Avatar name={ride.driverName} src={ride.driverAvatarUrl ?? undefined} className="size-11 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{ride.driverName}</p>
+                      <p className="truncate text-xs text-muted-fg">
+                        {ride.vehicleMakeModel} · <span className="uppercase">{ride.vehiclePlate}</span>
+                      </p>
+                    </div>
+                    {ride.driverRating != null && ride.driverRatingCount != null && (
+                      <div className="shrink-0 text-right">
+                        <p className="flex items-center justify-end gap-1 text-sm font-semibold">
+                          <Star className="size-3.5 fill-warning text-warning" />
+                          {ride.driverRatingCount > 0 ? ride.driverRating.toFixed(1) : "New"}
+                        </p>
+                        <p className="text-[11px] text-muted-fg">
+                          {ride.driverRatingCount > 0 ? `${ride.driverRatingCount} ratings` : "no ratings yet"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Experience — completed trips and how long they've been on Zamzam. */}
+                  {(ride.driverTripsCompleted != null || ride.driverMemberSince) && (
+                    <p className="border-t border-border pt-2 text-xs text-muted-fg">
+                      {ride.driverTripsCompleted != null && (
+                        <>
+                          {ride.driverTripsCompleted} trip{ride.driverTripsCompleted === 1 ? "" : "s"} completed
+                        </>
+                      )}
+                      {ride.driverTripsCompleted != null && ride.driverMemberSince ? " · " : ""}
+                      {ride.driverMemberSince && <>On Zamzam since {memberSinceLabel(ride.driverMemberSince)}</>}
                     </p>
                   )}
+
+                  {/* Live distance/ETA to whichever stop is next — flips to a
+                      clear "arrived" callout once the driver is right outside. */}
+                  {ride.driverDistanceKm != null && (ride.status === "ACCEPTED" || ride.status === "ONGOING") && (
+                    <p
+                      className={cn(
+                        "flex items-center gap-1.5 border-t border-border pt-2 text-xs font-medium",
+                        ride.status === "ACCEPTED" && ride.driverDistanceKm <= 0.15 ? "text-success" : "text-accent",
+                      )}
+                    >
+                      {ride.status === "ACCEPTED" && ride.driverDistanceKm <= 0.15 ? (
+                        <>
+                          <CheckCircle2 className="size-3.5" /> Your driver has arrived — look for them outside.
+                        </>
+                      ) : (
+                        <>
+                          <Gauge className="size-3.5" />
+                          {ride.status === "ACCEPTED"
+                            ? `Driver is ${ride.driverDistanceKm} km from pickup · ~${ride.driverEtaMin} min`
+                            : `${ride.driverDistanceKm} km to drop-off · ~${ride.driverEtaMin} min`}
+                        </>
+                      )}
+                    </p>
+                  )}
+
+                  {/* Call + Chat — the two ways to reach a matched driver. */}
+                  <div className="flex gap-2 border-t border-border pt-3">
+                    {ride.driverMobile && (
+                      <a
+                        href={`tel:${ride.driverMobile}`}
+                        className={cn(buttonVariants({ variant: "outline", size: "sm" }), "flex-1")}
+                      >
+                        <Phone className="size-3.5" /> Call
+                      </a>
+                    )}
+                    <Button
+                      variant={chatOpen ? "accent" : "outline"}
+                      size="sm"
+                      className="relative flex-1"
+                      onClick={() => setChatOpen((v) => !v)}
+                    >
+                      <MessageCircle className="size-3.5" /> Chat
+                      {!chatOpen && ride.unreadMessages > 0 && (
+                        <span className="absolute -right-1.5 -top-1.5 grid size-4 place-items-center rounded-full bg-danger text-[10px] font-semibold text-white">
+                          {ride.unreadMessages > 9 ? "9+" : ride.unreadMessages}
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* Safety — share your trip with someone, or reach emergency
+                      services directly. Nepal's police line (100) is used
+                      here since Zamzam currently only operates in Nepal. */}
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" className="flex-1 text-muted-fg" onClick={shareTrip}>
+                      <Share2 className="size-3.5" /> Share trip
+                    </Button>
+                    <a
+                      href="tel:100"
+                      className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "flex-1 text-danger")}
+                    >
+                      <ShieldAlert className="size-3.5" /> Emergency
+                    </a>
+                  </div>
                 </div>
+              )}
+
+              {chatOpen && ride.driverName && (
+                <RideChatPanel rideId={ride.id} otherPartyName={ride.driverName} onClose={() => setChatOpen(false)} />
               )}
 
               <div className="flex items-center justify-between border-t border-border pt-3 text-sm">
@@ -443,11 +596,19 @@ const svc = SERVICES.find((s) => s.id === service);
                 <span className="font-display font-semibold">{npr(ride.fare)}</span>
               </div>
 
-              {(ride.status === "REQUESTED" || ride.status === "ACCEPTED") && (
-                <Button variant="outline" className="w-full" disabled={cancelBusy} onClick={cancelRide}>
-                  <XCircle className="size-4" /> Cancel booking
-                </Button>
-              )}
+              {(ride.status === "REQUESTED" || ride.status === "ACCEPTED") &&
+                (cancelPromptOpen ? (
+                  <CancelReasonPrompt
+                    reasons={["Driver is taking too long", "Changed my mind", "Wrong pickup point", "Booked by mistake"]}
+                    busy={cancelBusy}
+                    onPick={(reason) => cancelRide(reason)}
+                    onDismiss={() => setCancelPromptOpen(false)}
+                  />
+                ) : (
+                  <Button variant="outline" className="w-full" onClick={() => setCancelPromptOpen(true)}>
+                    <XCircle className="size-4" /> Cancel booking
+                  </Button>
+                ))}
               {ride.status === "ONGOING" && (
                 <p className="text-center text-xs text-muted-fg">
                   You'll settle {npr(ride.fare)} at drop-off — cash or Zamzam wallet.
@@ -586,11 +747,11 @@ const svc = SERVICES.find((s) => s.id === service);
 
                 <div className="mt-5 border-t border-border pt-4">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-fg">Estimated fare · {distanceKm.toFixed(1)} km</span>
+                    <span className="text-muted-fg">Estimated fare · {distanceKm.toFixed(1)} km · ~{etaMinutes(distanceKm)} min</span>
                     <span className="font-display font-semibold">{npr(fareEstimate)}</span>
                   </div>
                   <p className="mt-1 text-xs text-muted-fg">
-                    Straight-line estimate — the final fare is fixed when you book.
+                    Straight-line estimate — the final fare and time are fixed when you book.
                   </p>
                 </div>
               </Card>
