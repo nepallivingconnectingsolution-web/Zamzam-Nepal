@@ -8,6 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { useResource } from "@/hooks/useResource";
 import { useSuperAdminApi } from "@/features/super-admin/useSuperAdminApi";
+import { toast } from "@/stores/toast.store";
+
+/** Escape a value for CSV: wrap in quotes, double any embedded quotes. */
+function csvCell(v: string | number): string {
+  const s = String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
 
 interface Metrics {
   gmv: number;
@@ -62,6 +69,48 @@ export function SuperAdminOverview() {
   const fmt = (n?: number) =>
     n !== undefined ? `रू ${n.toLocaleString("en-NP")}` : "रू 0";
 
+  /**
+   * One-click CSV export of everything currently shown on this page: the
+   * top-line metrics, recent registrations, and open disputes. Generated
+   * client-side from data already loaded, same pattern as the Reports page.
+   */
+  function exportCsv() {
+    const m = metrics.data;
+    if (!m) {
+      toast.error("Nothing to export yet.");
+      return;
+    }
+    const lines = [
+      ["Metric", "Value"].map(csvCell).join(","),
+      ["GMV (today)", m.gmv.toFixed(2)].map(csvCell).join(","),
+      ["Active trips", m.activeTrips].map(csvCell).join(","),
+      ["Online drivers", m.onlineDrivers].map(csvCell).join(","),
+      ["New users (24h)", m.newUsers24h].map(csvCell).join(","),
+      ["Total users", m.totalUsers].map(csvCell).join(","),
+      ["Open disputes", m.openDisputes].map(csvCell).join(","),
+      ["Revenue (30d)", m.revenue30d.toFixed(2)].map(csvCell).join(","),
+      "",
+      ["Recent registrations"].map(csvCell).join(","),
+      ["Name", "Mobile", "Role", "KYC status"].map(csvCell).join(","),
+      ...(recentUsers.data ?? []).map((u) => [u.name, u.mobile, u.role, u.kycStatus].map(csvCell).join(",")),
+      "",
+      ["Open disputes"].map(csvCell).join(","),
+      ["Subject", "Status", "Amount"].map(csvCell).join(","),
+      ...(recentDisputes.data ?? []).map((d) => [d.subject, d.status, d.amount ?? ""].map(csvCell).join(",")),
+    ];
+    // \uFEFF is the UTF-8 BOM — without it Excel misreads the रू symbol and other non-ASCII text.
+    const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `zamzam-overview-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast.success("Overview exported.");
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -72,7 +121,7 @@ export function SuperAdminOverview() {
             <Badge variant="success" className="hidden sm:inline-flex">
               <span className="size-1.5 rounded-full bg-success" /> Live
             </Badge>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={!metrics.data}>
               <Download className="size-4" /> Export
             </Button>
           </>
