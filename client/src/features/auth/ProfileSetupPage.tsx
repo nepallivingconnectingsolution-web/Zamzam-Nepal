@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/layout/logo";
@@ -10,8 +10,12 @@ import { api, endpoints, ApiError } from "@/api/client";
 
 export function ProfileSetupPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
   const isBusiness = !!user && user.role !== "customer" && user.role !== "admin";
+  // The service page the person originally tapped (e.g. /app/book/taxi),
+  // carried all the way from the homepage tile through login/register.
+  const from = (location.state as { from?: string } | null)?.from;
 
   const [fullName, setFullName] = useState(user?.name && user.name !== "Zamzam user" ? user.name : "");
   const [email, setEmail] = useState(user?.email ?? "");
@@ -21,7 +25,7 @@ export function ProfileSetupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  if (!user) { navigate("/login"); return null; }
+  if (!user) { navigate("/login", { state: { from } }); return null; }
 
   async function save() {
     setLoading(true); setError(null);
@@ -34,7 +38,11 @@ export function ProfileSetupPage() {
         await api.post(endpoints.profile.customer, { fullName, email: email || undefined });
       }
       toast.success(isBusiness ? "Business saved" : "Profile saved", "You're all set.");
-      navigate(ROLE_HOME[user!.role as keyof typeof ROLE_HOME] ?? "/app");
+      if (!isBusiness && user!.role === "customer" && from) {
+        navigate(from);
+      } else {
+        navigate(ROLE_HOME[user!.role as keyof typeof ROLE_HOME] ?? "/app");
+      }
     } catch (e) {
       setError(e instanceof ApiError ? "Couldn't save your profile." : (e as Error).message);
     } finally { setLoading(false); }

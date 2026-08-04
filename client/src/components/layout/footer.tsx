@@ -56,7 +56,9 @@ export function Footer() {
       <div className="container py-16">
         <div className="grid gap-10 lg:grid-cols-[1.4fr_repeat(4,1fr)]">
           <div>
-            <Logo />
+            <Link to="/" aria-label="Zamzam home">
+              <Logo />
+            </Link>
             <p className="mt-4 max-w-xs text-sm text-muted-fg">
               Nepal's everything app for mobility, logistics and travel. One identity, one wallet,
               one assistant.

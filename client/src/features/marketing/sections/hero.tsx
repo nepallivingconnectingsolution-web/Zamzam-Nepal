@@ -4,9 +4,24 @@ import { ArrowRight, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SERVICES } from "@/config";
 import { Icon } from "@/components/ui/icon";
+import { useAuthStore } from "@/stores/auth.store";
+import type { ServiceVertical } from "@/types";
 
 export function Hero() {
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuthStore();
+
+  // Already signed in as a customer -> go straight to that service.
+  // Anyone else (guest, or signed in as a driver/partner/admin) -> sign in
+  // first, then land on the exact service they tapped instead of the
+  // generic marketplace home.
+  function handleServiceClick(service: ServiceVertical) {
+    if (isAuthenticated && user?.role === "customer") {
+      navigate(service.to);
+    } else {
+      navigate("/login", { state: { from: service.to } });
+    }
+  }
 
   return (
     <section className="relative overflow-hidden pt-28 sm:pt-36">
@@ -82,15 +97,17 @@ export function Hero() {
             </div>
             <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 lg:grid-cols-5">
               {SERVICES.slice(0, 10).map((s) => (
-                <div
+                <button
                   key={s.id}
-                  className="group flex flex-col items-center gap-2 rounded-2xl border border-transparent bg-surface px-2 py-4 text-center transition-all hover:-translate-y-0.5 hover:border-border hover:shadow-card"
+                  type="button"
+                  onClick={() => handleServiceClick(s)}
+                  className="group flex flex-col items-center gap-2 rounded-2xl border border-transparent bg-surface px-2 py-4 text-center transition-all hover:-translate-y-0.5 hover:border-border hover:shadow-card focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <span className="grid size-11 place-items-center rounded-xl bg-surface-2 text-fg transition-colors group-hover:bg-accent/10 group-hover:text-accent-600 dark:group-hover:text-accent">
                     <Icon name={s.icon} className="size-5" />
                   </span>
                   <span className="text-xs font-medium">{s.name}</span>
-                </div>
+                </button>
               ))}
             </div>
           </div>

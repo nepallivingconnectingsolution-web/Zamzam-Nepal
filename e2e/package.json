@@ -1,0 +1,17 @@
+{
+  "name": "zamzam-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "description": "End-to-end tests for Zamzam Super App — drives the real client and server against an ephemeral, in-memory Postgres (never the real Neon database).",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/pg": "^8.11.10",
+    "pg": "^8.13.1"
+  }
+}

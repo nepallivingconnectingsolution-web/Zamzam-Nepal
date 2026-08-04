@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { PasswordInput } from "@/components/ui/password-input";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, Building2, Phone, Mail, Lock, Clock, User as UserIcon } from "lucide-react";
 import { Logo } from "@/components/layout/logo";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { api, endpoints, ApiError } from "@/api/client";
 import { useAuthStore } from "@/stores/auth.store";
 import { toast } from "@/stores/toast.store";
 import type { Role, User } from "@/types";
+
 
 type RegisterResponse =
   | { registered: true; pending: true; message: string }
@@ -29,7 +30,11 @@ const ALL_ROLES: { role: Exclude<Role, "guest" | "admin">; icon: string }[] = [
 
 export function RegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { setSession } = useAuthStore();
+  // Where the person originally wanted to go (e.g. /app/book/taxi), carried
+  // over from the service tile on the homepage via the login page.
+  const from = (location.state as { from?: string } | null)?.from;
   const [step, setStep] = useState<"form" | "done">("form");
   const [role, setRole] = useState<typeof ALL_ROLES[number]["role"]>("customer");
   const [name, setName] = useState("");
@@ -56,7 +61,11 @@ export function RegisterPage() {
         setSession(res.accessToken, res.user, res.refreshToken);
         toast.success("Account created", "Let's finish setting up your profile.");
         const actualRole = res.user.role;
-        navigate(actualRole === "customer" ? "/profile/setup" : ROLE_HOME[actualRole]);
+        if (actualRole === "customer") {
+          navigate("/profile/setup", { state: { from } });
+        } else {
+          navigate(ROLE_HOME[actualRole]);
+        }
       } else {
         setStep("done");
         toast.info("Registration submitted", "We'll review your business shortly.");
@@ -75,7 +84,7 @@ export function RegisterPage() {
           <h1 className="font-display text-2xl font-bold tracking-tight">Create your account</h1>
           <p className="text-sm text-muted-fg text-center">
             Partners are verified by our team before going live. Already have an account?{" "}
-            <Link to="/login" className="text-accent hover:underline">Sign in</Link>.
+            <Link to="/login" state={{ from }} className="text-accent hover:underline">Sign in</Link>.
           </p>
         </div>
 
@@ -127,13 +136,14 @@ export function RegisterPage() {
               <p className="text-sm text-muted-fg">
                 Your account is awaiting super-admin verification. Once approved, sign in with your email and password.
               </p>
-              <Button variant="outline" onClick={() => navigate("/login")}>Back to sign in</Button>
+              <Button variant="outline" onClick={() => navigate("/login", { state: { from } })}>Back to sign in</Button>
             </div>
           )}
 
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600 dark:bg-red-900/20 dark:text-red-400">{error}</p>}
         </div>
       </div>
+      
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { PasswordInput } from "@/components/ui/password-input";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, Mail, Lock, ShieldCheck, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import { Logo } from "@/components/layout/logo";
@@ -18,7 +18,11 @@ type LoginResponse = { accessToken: string; refreshToken: string; user: User; pr
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { setSession } = useAuthStore();
+  // If the user got here by tapping a service tile (or hitting a protected
+  // /app URL directly) while signed out, this carries where they meant to go.
+  const from = (location.state as { from?: string } | null)?.from;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -48,8 +52,16 @@ export function LoginPage() {
       toast.success("Signed in", `Welcome back, ${res.user.name.split(" ")[0]}.`);
       // New partners finish their business profile on first sign-in; everyone
       // whose profile is already complete goes straight to their portal.
-      if (!res.profileComplete) navigate("/profile/setup");
-      else navigate(ROLE_HOME[res.user.role]);
+      if (!res.profileComplete) {
+        navigate("/profile/setup", { state: { from } });
+      } else if (from && res.user.role === "customer") {
+        // Only customers use the /app/* service pages, so only honor `from`
+        // for that role — a driver/partner/admin login always goes to their
+        // own portal home.
+        navigate(from);
+      } else {
+        navigate(ROLE_HOME[res.user.role]);
+      }
     } catch (e) {
       const detail = e instanceof ApiError ? (e.detail as { code?: string; message?: string }) : null;
       if (detail?.code === "PENDING_APPROVAL") {
@@ -126,7 +138,7 @@ export function LoginPage() {
             )}
 
             <p className="text-center text-xs text-muted-fg">
-              New here? <Link to="/register" className="text-accent hover:underline">Create an account</Link>
+              New here? <Link to="/register" state={{ from }} className="text-accent hover:underline">Create an account</Link>
             </p>
           </div>
         </motion.div>

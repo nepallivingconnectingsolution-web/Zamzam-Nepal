@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuthStore } from "@/stores/auth.store";
 import { ROLE_HOME } from "@/config";
 import type { Role } from "@/types";
@@ -16,9 +16,10 @@ import type { Role } from "@/types";
  */
 export function RequireRole({ role }: { role: Exclude<Role, "guest"> }) {
   const { isAuthenticated, user } = useAuthStore();
+  const location = useLocation();
 
   if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
   if (user.role !== role) {
