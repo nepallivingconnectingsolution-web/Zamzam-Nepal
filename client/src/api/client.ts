@@ -358,10 +358,15 @@ vehicles: {
     activate: (id: string) => `/vehicles/${id}/activate`,
     remove: (id: string) => `/vehicles/${id}`,
   },
-  driverDocuments: {
+ driverDocuments: {
     mine: "/driver/documents/mine",
     upload: (type: string) => `/driver/documents/${type}`,
   },
+  partnerDocuments: {
+    mine: "/partner/documents/mine",
+    upload: (type: string) => `/partner/documents/${type}`,
+  },
+  
   loads: {
     create: "/loads",
     mine: "/loads/mine",

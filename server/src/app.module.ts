@@ -12,6 +12,7 @@ import { BusesModule } from './modules/buses/buses.module';
 import { DriverModule } from './modules/driver/driver.module';
 import { VehiclesModule } from './modules/vehicles/vehicles.module';
 import { DriverDocumentsModule } from './modules/driver-documents/driver-documents.module';
+import { PartnerDocumentsModule } from './modules/partner-documents/partner-documents.module';
 import { OperatorModule } from './modules/operator/operator.module';
 import { FreightModule } from './modules/freight/freight.module';
 import { HotelModule } from './modules/hotel/hotel.module';
@@ -53,6 +54,7 @@ import { MaintenanceGuard } from './common/guards/maintenance.guard';
     DriverModule,
     VehiclesModule,
     DriverDocumentsModule,
+    PartnerDocumentsModule,
     OperatorModule,
     FreightModule,
     HotelModule,

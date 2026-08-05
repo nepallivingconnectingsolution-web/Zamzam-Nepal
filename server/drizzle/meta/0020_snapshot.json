@@ -1,6 +1,6 @@
 {
-  "id": "a533a76d-f18e-45b8-95de-759938b55df4",
-  "prevId": "a8c5cac3-0848-4e07-b149-009dd09fcc47",
+  "id": "ffc5d42a-762d-4149-85c4-543062d8dd37",
+  "prevId": "7d8c277f-e839-4582-90cc-c73ff88cf645",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2598,6 +2598,171 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.partner_documents": {
+      "name": "partner_documents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(32)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "partner_id": {
+          "name": "partner_id",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "partner_type": {
+          "name": "partner_type",
+          "type": "partner_document_partner_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_url": {
+          "name": "file_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mime_type": {
+          "name": "mime_type",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "kyc_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'PENDING'"
+        },
+        "review_note": {
+          "name": "review_note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "partner_documents_partner_idx": {
+          "name": "partner_documents_partner_idx",
+          "columns": [
+            {
+              "expression": "partner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "partner_documents_status_idx": {
+          "name": "partner_documents_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "partner_documents_partner_type_idx": {
+          "name": "partner_documents_partner_type_idx",
+          "columns": [
+            {
+              "expression": "partner_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "partner_documents_partner_type_unique_idx": {
+          "name": "partner_documents_partner_type_unique_idx",
+          "columns": [
+            {
+              "expression": "partner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "partner_documents_partner_id_users_id_fk": {
+          "name": "partner_documents_partner_id_users_id_fk",
+          "tableFrom": "partner_documents",
+          "tableTo": "users",
+          "columnsFrom": [
+            "partner_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.platform_settings": {
       "name": "platform_settings",
       "schema": "",
@@ -3112,112 +3277,6 @@
           "tableTo": "users",
           "columnsFrom": [
             "partner_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.ride_messages": {
-      "name": "ride_messages",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "varchar(32)",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "ride_id": {
-          "name": "ride_id",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sender_id": {
-          "name": "sender_id",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sender_role": {
-          "name": "sender_role",
-          "type": "ride_message_sender",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "body": {
-          "name": "body",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "read_at": {
-          "name": "read_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "ride_messages_ride_idx": {
-          "name": "ride_messages_ride_idx",
-          "columns": [
-            {
-              "expression": "ride_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "ride_messages_ride_id_rides_id_fk": {
-          "name": "ride_messages_ride_id_rides_id_fk",
-          "tableFrom": "ride_messages",
-          "tableTo": "rides",
-          "columnsFrom": [
-            "ride_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "ride_messages_sender_id_users_id_fk": {
-          "name": "ride_messages_sender_id_users_id_fk",
-          "tableFrom": "ride_messages",
-          "tableTo": "users",
-          "columnsFrom": [
-            "sender_id"
           ],
           "columnsTo": [
             "id"
@@ -5773,12 +5832,15 @@
         "system"
       ]
     },
-    "public.ride_message_sender": {
-      "name": "ride_message_sender",
+    "public.partner_document_partner_type": {
+      "name": "partner_document_partner_type",
       "schema": "public",
       "values": [
-        "customer",
-        "driver"
+        "hotel",
+        "restaurant",
+        "grocery",
+        "bus_operator",
+        "freight"
       ]
     },
     "public.ride_status": {

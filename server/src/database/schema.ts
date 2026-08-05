@@ -602,6 +602,39 @@ export const vehicles = pgTable(
   }),
 );
 
+export const partnerDocumentPartnerTypeEnum = pgEnum('partner_document_partner_type', [
+  'hotel',
+  'restaurant',
+  'grocery',
+  'bus_operator',
+  'freight',
+]);
+
+export const partnerDocuments = pgTable(
+  'partner_documents',
+  {
+    id: varchar('id', { length: 32 }).primaryKey(),
+    partnerId: varchar('partner_id', { length: 32 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    partnerType: partnerDocumentPartnerTypeEnum('partner_type').notNull(),
+    type: varchar('type', { length: 40 }).notNull(),
+    fileUrl: text('file_url').notNull(),
+    fileName: text('file_name').notNull(),
+    mimeType: varchar('mime_type', { length: 100 }).notNull(),
+    status: kycStatusEnum('status').notNull().default('PENDING'),
+    reviewNote: text('review_note'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    partnerIdx: index('partner_documents_partner_idx').on(t.partnerId),
+    statusIdx: index('partner_documents_status_idx').on(t.status),
+    partnerTypeIdx: index('partner_documents_partner_type_idx').on(t.partnerType),
+    partnerTypeUniqueIdx: uniqueIndex('partner_documents_partner_type_unique_idx').on(t.partnerId, t.type),
+  }),
+);
+
 /* ───────────────────────────── Driver status ─────────────────────────────
  * Extended from the original single boolean: it now also answers "where is
  * this driver" (lat/lng, refreshed by POST /driver/location while online)
@@ -1424,8 +1457,9 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   schedules: many(schedules),
   tickets: many(tickets, { relationName: 'customerTickets' }),
   driverStatus: one(driverStatus, { fields: [users.id], references: [driverStatus.userId] }),
-  vehicles: many(vehicles),
+ vehicles: many(vehicles),
   driverDocuments: many(driverDocuments),
+  partnerDocuments: many(partnerDocuments),
 }));
 
 export const vehiclesRelations = relations(vehicles, ({ one }) => ({
@@ -1434,6 +1468,10 @@ export const vehiclesRelations = relations(vehicles, ({ one }) => ({
 
 export const driverDocumentsRelations = relations(driverDocuments, ({ one }) => ({
   driver: one(users, { fields: [driverDocuments.driverId], references: [users.id] }),
+}));
+
+export const partnerDocumentsRelations = relations(partnerDocuments, ({ one }) => ({
+  partner: one(users, { fields: [partnerDocuments.partnerId], references: [users.id] }),
 }));
 
 export const driverStatusRelations = relations(driverStatus, ({ one }) => ({

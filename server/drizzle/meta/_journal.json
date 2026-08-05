@@ -141,6 +141,13 @@
       "when": 1785129467134,
       "tag": "0019_warm_patch",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1785924193077,
+      "tag": "0020_chilly_bill_hollister",
+      "breakpoints": true
     }
   ]
 }

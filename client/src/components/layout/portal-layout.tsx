@@ -5,7 +5,7 @@ import { ChevronDown, LogOut, Menu, Search, Settings, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui.store";
 import { useAuthStore } from "@/stores/auth.store";
-import { PORTAL_NAV } from "@/config";
+import { PORTAL_NAV, ROLE_HOME } from "@/config";
 import type { Role } from "@/types";
 import { Logo } from "./logo";
 import { Icon } from "@/components/ui/icon";
@@ -94,7 +94,7 @@ function SidebarBody({
   return (
     <aside className={cn("flex-col border-r border-border bg-surface", className)}>
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-5">
-        <Link to="/">
+        <Link to={ROLE_HOME[role]} aria-label="Zamzam home">
           <Logo />
         </Link>
         {withClose && (

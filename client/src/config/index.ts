@@ -1,4 +1,5 @@
 import type { ServiceVertical, NavItem, Role } from "@/types";
+import { icon } from "leaflet";
 
 /**
  * The Zamzam marketplace catalog. This is product configuration — the set of
@@ -61,6 +62,7 @@ export const PORTAL_NAV: Record<Exclude<Role, "guest">, { title: string; items: 
       { label: "Bookings", to: "/operator/bookings", icon: "Ticket" },
       { label: "Reviews", to: "/operator/reviews", icon: "Star" },
       { label: "Revenue", to: "/operator/revenue", icon: "TrendingUp" },
+      { label: "Documents", to: "/operator/documents", icon: "FileCheck" },   
     ],
   },
   freight: {
@@ -71,6 +73,7 @@ export const PORTAL_NAV: Record<Exclude<Role, "guest">, { title: string; items: 
       { label: "Shipments", to: "/freight/shipments", icon: "Truck" },
       { label: "Reviews", to: "/freight/reviews", icon: "Star" },
       { label: "Revenue", to: "/freight/revenue", icon: "TrendingUp" },
+      { label: "Documents", to: "/freight/documents", icon: "FileCheck" },
     ],
   },
 
@@ -82,6 +85,7 @@ export const PORTAL_NAV: Record<Exclude<Role, "guest">, { title: string; items: 
       { label: "Restaurants & menu", to: "/restaurant/menu", icon: "UtensilsCrossed" },
       { label: "Reviews", to: "/restaurant/reviews", icon: "Star" },
       { label: "Revenue", to: "/restaurant/revenue", icon: "TrendingUp" },
+      { label: "Documents", to: "/restaurant/documents", icon: "FileCheck" }, 
     ],
   },
 
@@ -93,6 +97,7 @@ export const PORTAL_NAV: Record<Exclude<Role, "guest">, { title: string; items: 
       { label: "Stores & catalog", to: "/grocery/catalog", icon: "ShoppingBasket" },
       { label: "Reviews", to: "/grocery/reviews", icon: "Star" },
       { label: "Revenue", to: "/grocery/revenue", icon: "TrendingUp" },
+      { label: "Documents", to: "/grocery/documents", icon: "FileCheck" }, 
     ],
   },
 
@@ -104,8 +109,10 @@ export const PORTAL_NAV: Record<Exclude<Role, "guest">, { title: string; items: 
       { label: "Properties",  to: "/hotel/properties",   icon: "Building2" },
       { label: "Reviews", to: "/hotel/reviews", icon: "Star" },
       { label: "Revenue", to: "/hotel/revenue", icon: "TrendingUp" },
+      { label: "Documents", to: "/hotel/documents", icon: "FileCheck" },
     ],
   },
+  
   admin: {
     title: "Command center",
     items: [

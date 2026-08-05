@@ -48,6 +48,7 @@ import { RestaurantPartnerManager } from "@/features/restaurants/RestaurantPartn
 import { RestaurantReviewsPage } from "@/features/restaurants/RestaurantReviewsPage";
 import { RestaurantRevenuePage } from "@/features/restaurants/RestaurantRevenuePage";
 
+
 import { GroceryListPage } from "@/features/grocery/GroceryListPage";
 import { GroceryDetailPage } from "@/features/grocery/GroceryDetailPage";
 import { GroceryOrdersPage } from "@/features/grocery/GroceryOrdersPage";
@@ -58,6 +59,7 @@ import { GroceryRevenuePage } from "@/features/grocery/GroceryRevenuePage";
 import { DriverDashboard } from "@/features/driver/DriverDashboard";
 import { VehiclePage } from "@/features/driver/VehiclePage";
 import { DriverDocumentsPage } from "@/features/driver/DriverDocumentsPage";
+import { PartnerDocumentsPage } from "@/features/partner/PartnerDocumentsPage";
 import { DriverPortalProvider } from "@/features/driver/driver-portal.context";
 import { RideRequestsPage } from "@/features/driver/RideRequestsPage";
 import { CurrentTripPage } from "@/features/driver/CurrentTripPage";
@@ -74,6 +76,7 @@ import { SuperAdminOverview } from "@/features/super-admin/SuperAdminOverview";
 import { SuperAdminUsers } from "@/features/super-admin/pages/SuperAdminUsers";
 import { SuperAdminApprovals } from "@/features/super-admin/pages/SuperAdminApprovals";
 import { SuperAdminVehicles } from "@/features/super-admin/pages/SuperAdminVehicles";
+import { SuperAdminPartnerDocuments } from "../features/super-admin/pages/SuperAdminPartnerDocuments";
 import { SuperAdminRegistrationReview } from "@/features/super-admin/pages/SuperAdminRegReview";
 import { SuperAdminPartners } from "@/features/super-admin/pages/SuperAdminPartners";
 import { SuperAdminPartnerDetail } from "@/features/super-admin/pages/SuperAdminPartnerDetail";
@@ -111,6 +114,7 @@ export const router = createBrowserRouter([
           { path: "drivers", element: <SuperAdminVehicles /> },
           { path: "partners", element: <SuperAdminPartners /> },
           { path: "partners/:id", element: <SuperAdminPartnerDetail /> },
+          { path: "partner-documents", element: <SuperAdminPartnerDocuments /> },
           { path: "wallet", element: <SuperAdminWallet /> },
           { path: "transactions", element: <SuperAdminTransactions /> },
           { path: "rides", element: <SuperAdminRides /> },
@@ -227,6 +231,7 @@ export const router = createBrowserRouter([
           { path: "bookings", element: <OperatorBusManager title="Bookings" subtitle="Tickets sold across your routes." /> },
           { path: "reviews", element: <OperatorReviewsPage /> },
           { path: "revenue", element: <BusRevenuePage /> },
+          { path: "documents", element: <PartnerDocumentsPage partnerType="bus_operator" /> },
         ],
       },
     ],
@@ -264,6 +269,7 @@ export const router = createBrowserRouter([
           { path: "reviews", element: <FreightReviewsPage /> },
           { path: "tracking", element: <ScaffoldPage title="Tracking" dataLabel="Live tracking" /> },
           { path: "revenue", element: <FreightRevenuePage /> },
+          { path: "documents", element: <PartnerDocumentsPage partnerType="freight" /> },
         ],
       },
     ],
@@ -317,6 +323,7 @@ export const router = createBrowserRouter([
           },
           { path: "reviews", element: <HotelReviewsPage /> },
           { path: "revenue", element: <HotelRevenuePage /> },
+          { path: "documents", element: <PartnerDocumentsPage partnerType="hotel" /> },
         ],
       },
     ],
@@ -370,6 +377,7 @@ export const router = createBrowserRouter([
           },
           { path: "reviews", element: <RestaurantReviewsPage /> },
           { path: "revenue", element: <RestaurantRevenuePage /> },
+          { path: "documents", element: <PartnerDocumentsPage partnerType="restaurant" /> },
         ],
       },
     ],
@@ -421,8 +429,9 @@ export const router = createBrowserRouter([
               />
             ),
           },
-          { path: "reviews", element: <GroceryReviewsPage /> },
+        { path: "reviews", element: <GroceryReviewsPage /> },
           { path: "revenue", element: <GroceryRevenuePage /> },
+          { path: "documents", element: <PartnerDocumentsPage partnerType="grocery" /> },
         ],
       },
     ],
