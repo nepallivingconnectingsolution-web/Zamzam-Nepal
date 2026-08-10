@@ -9,6 +9,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { TimeField } from "@/components/ui/time-field";
+import { SelectField } from "@/components/ui/select-field";
 import { cn } from "@/lib/utils";
 import { useResource } from "@/hooks/useResource";
 import { api, ApiError, endpoints } from "@/api/client";
@@ -141,14 +143,8 @@ function AddStoreForm({ onAdded }: { onAdded: () => void }) {
           <Input type="number" value={deliveryEtaMinutes} onChange={(e) => setDeliveryEtaMinutes(e.target.value)} />
         </label>
         <div className="grid grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1 text-xs font-medium text-muted-fg">
-            Opens
-            <Input type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} />
-          </label>
-          <label className="flex flex-col gap-1 text-xs font-medium text-muted-fg">
-            Closes
-            <Input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} />
-          </label>
+          <TimeField label="Opens" value={openTime} onChange={setOpenTime} />
+          <TimeField label="Closes" value={closeTime} onChange={setCloseTime} />
         </div>
         <label className="flex flex-col gap-1 text-xs font-medium text-muted-fg">
           Delivery fee (रू)
@@ -369,14 +365,13 @@ function AddProductForm({
       <div className="mt-2.5 grid gap-2.5 sm:grid-cols-4">
         <Input placeholder="Price (रू)" type="number" value={price} onChange={(e) => setPrice(e.target.value)} />
         <Input placeholder="MRP (रू, optional)" type="number" value={mrp} onChange={(e) => setMrp(e.target.value)} />
-        <select
+        <SelectField
+          className="sm:col-span-2"
           value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          className="h-10 rounded-xl border border-border bg-surface px-3 text-sm sm:col-span-2"
-        >
-          <option value="">No category</option>
-          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+          onChange={setCategoryId}
+          placeholder="No category"
+          options={[{ value: "", label: "No category" }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
+        />
       </div>
       <Input className="mt-2.5" placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
       {error && <p className="mt-2 text-xs text-danger">{error}</p>}

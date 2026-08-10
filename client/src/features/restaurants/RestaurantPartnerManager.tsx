@@ -8,6 +8,8 @@ import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TimeField } from "@/components/ui/time-field";
+import { SelectField } from "@/components/ui/select-field";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useResource } from "@/hooks/useResource";
@@ -132,14 +134,8 @@ function AddRestaurantForm({ onAdded }: { onAdded: () => void }) {
         <Input className="sm:col-span-2" placeholder="Short description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
         <Input placeholder="Cuisine (e.g. Newari, Momo)" value={cuisine} onChange={(e) => setCuisine(e.target.value)} />
         <div className="grid grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1 text-xs font-medium text-muted-fg">
-            Opens
-            <Input type="time" value={openTime} onChange={(e) => setOpenTime(e.target.value)} />
-          </label>
-          <label className="flex flex-col gap-1 text-xs font-medium text-muted-fg">
-            Closes
-            <Input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} />
-          </label>
+          <TimeField label="Opens" value={openTime} onChange={setOpenTime} />
+          <TimeField label="Closes" value={closeTime} onChange={setCloseTime} />
         </div>
         <label className="flex flex-col gap-1 text-xs font-medium text-muted-fg">
           Delivery fee (रू)
@@ -270,7 +266,7 @@ function MenuItemsPanel({ restaurantId }: { restaurantId: string }) {
                   <p className="text-sm font-medium">{i.name}</p>
                   {i.isVeg && <Badge variant="success" className="gap-1 text-[10px]"><Leaf className="size-3" /> Veg</Badge>}
                   {i.spiceLevel > 0 && (
-                    <span className="inline-flex items-center text-amber-500">
+                    <span className="inline-flex items-center text-warning">
                       {Array.from({ length: i.spiceLevel }).map((_, n) => <Flame key={n} className="size-3" />)}
                     </span>
                   )}
@@ -334,20 +330,18 @@ function AddMenuItemForm({
         <Input placeholder="Prep min" type="number" value={prepTimeMin} onChange={(e) => setPrepTimeMin(e.target.value)} />
       </div>
       <div className="mt-2.5 grid gap-2.5 sm:grid-cols-4">
-        <select
+        <SelectField
           value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          className="h-10 rounded-xl border border-border bg-surface px-3 text-sm"
-        >
-          <option value="">No category</option>
-          {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+          onChange={setCategoryId}
+          placeholder="No category"
+          options={[{ value: "", label: "No category" }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
+        />
         <Input placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} className="sm:col-span-3" />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-4">
         <button type="button" onClick={() => setIsVeg((v) => !v)}
           className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-            isVeg ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-fg hover:bg-surface-2")}
+            isVeg ? "border-teal-700 bg-teal-100 text-teal-700 dark:border-accent dark:bg-white/10 dark:text-accent" : "border-border text-muted-fg hover:bg-surface-2")}
         >
           <Leaf className="size-3.5" /> Vegetarian
         </button>
@@ -356,7 +350,7 @@ function AddMenuItemForm({
           {[0, 1, 2, 3].map((s) => (
             <button key={s} type="button" onClick={() => setSpiceLevel(s)}
               className={cn("rounded-md border px-2 py-0.5 text-xs",
-                spiceLevel === s ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-fg")}
+                spiceLevel === s ? "border-teal-700 bg-teal-100 text-teal-700 dark:border-accent dark:bg-white/10 dark:text-accent" : "border-border text-muted-fg")}
             >
               {s === 0 ? "None" : "🌶".repeat(s)}
             </button>

@@ -11,6 +11,7 @@ import { generateTripsForSchedule } from './trip-generator';
  import type { BookBusDto, CancelTicketDto, CreateScheduleDto, CreateTicketReviewDto, RegisterBusDto } from './dto/buses.dto';
 
 import { NotificationsService } from '../notifications/notifications.service';
+import { PartnerDocumentsService } from '../partner-documents/partner-documents.service';
 
 
 const SERVICE_FEE_RATE = 0.02;
@@ -19,6 +20,7 @@ const SERVICE_FEE_RATE = 0.02;
 export class BusesService {
   constructor(@Inject(DATABASE_CONNECTION) private readonly db: Database,
   private readonly notifications: NotificationsService,
+  private readonly partnerDocuments: PartnerDocumentsService,
 ) {}
 
   /* ───────────────────────────── Customer-facing ─────────────────────── */
@@ -411,6 +413,7 @@ export class BusesService {
   }
 
   async registerBus(operatorId: string, dto: RegisterBusDto) {
+    await this.partnerDocuments.assertRequiredDocsUploaded(operatorId, 'bus_operator');
     const totalRows = dto.totalRows ?? Math.ceil(dto.totalSeats / 4);
     const [bus] = await this.db
       .insert(buses)
@@ -478,6 +481,7 @@ await this.notifications.notify({
   }
 
   async createSchedule(operatorId: string, dto: CreateScheduleDto) {
+    await this.partnerDocuments.assertRequiredDocsUploaded(operatorId, 'bus_operator');
     const [bus] = await this.db.select().from(buses).where(eq(buses.id, dto.busId)).limit(1);
     if (!bus) apiError(400, 'Pick one of your buses for this schedule.');
     if (bus.operatorId !== operatorId) throw new ForbiddenException('Not your bus.');

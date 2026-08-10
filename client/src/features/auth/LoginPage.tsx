@@ -4,9 +4,11 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, Mail, Lock, ShieldCheck, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import { Logo } from "@/components/layout/logo";
+import { AppFrame } from "@/components/layout/app-frame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { ForgotPasswordFlow } from "@/components/auth/ForgotPasswordFlow";
 import { useAuthStore } from "@/stores/auth.store";
 import { toast } from "@/stores/toast.store";
 import { ROLE_HOME } from "@/config";
@@ -29,6 +31,7 @@ export function LoginPage() {
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -74,33 +77,14 @@ export function LoginPage() {
     } finally { setLoading(false); }
   }
 
+  // Sign-in is the app's front door now (see RootEntry in routes/index.tsx),
+  // so it renders in the same phone frame as every in-app screen. The old
+  // lg:grid-cols-2 split with a marketing panel down the left was a website
+  // pattern — fine for a page you arrive at from an ad, wrong for the first
+  // screen of an application.
   return (
-   <div className="grid min-h-[calc(100vh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] lg:grid-cols-2">
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-brand-900 p-10 text-white lg:flex">
-        <div className="pointer-events-none absolute inset-0 valley-grid opacity-20" aria-hidden />
-        <div
-          className="pointer-events-none absolute -left-20 top-1/3 size-96 rounded-full bg-accent/20 blur-[120px]"
-          aria-hidden
-        />
-        <Link to="/" className="relative"><Logo /></Link>
-        <motion.div
-          className="relative"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <h1 className="font-display text-4xl font-bold leading-tight">One account for<br />all of Zamzam.</h1>
-          <p className="mt-4 max-w-sm text-white/60">
-            Sign in with your email and password. Partners register and go live once our team verifies the business.
-          </p>
-          <div className="mt-6 flex items-center gap-2 text-sm text-white/70">
-            <ShieldCheck className="size-4 text-accent" /> Secured with your password
-          </div>
-        </motion.div>
-        <div className="relative text-xs text-white/40">© {new Date().getFullYear()} Zamzam Technologies</div>
-      </div>
-
-      <div className="relative flex items-center justify-center p-6">
+   <AppFrame>
+      <div className="relative flex flex-1 items-center justify-center p-6">
         <div className="absolute right-4 top-4"><ThemeToggle /></div>
         <motion.div
           className="w-full max-w-sm"
@@ -108,7 +92,7 @@ export function LoginPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="mb-8 lg:hidden"><Logo /></div>
+          <div className="mb-8"><Logo /></div>
           <h2 className="font-display text-2xl font-bold tracking-tight">Welcome back</h2>
           <p className="mt-1 text-sm text-muted-fg">Sign in with your email and password.</p>
 
@@ -124,17 +108,28 @@ export function LoginPage() {
             placeholder="Password"
             value={password} onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && login()} />
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setForgotOpen(true)}
+                className="text-xs font-medium text-accent-600 hover:underline dark:text-accent"
+              >
+                Forgot password?
+              </button>
+            </div>
+
             <Button variant="accent" className="w-full" size="lg" onClick={login} disabled={loading}>
               {loading ? "Signing in…" : <>Sign in <ArrowRight className="size-4" /></>}
             </Button>
 
             {pending && (
-              <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
+              <div className="flex items-start gap-2 rounded-lg bg-warning/10 px-3 py-2 text-xs font-medium text-warning">
                 <Clock className="mt-0.5 size-3.5 shrink-0" /> {pending}
               </div>
             )}
             {error && (
-              <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600 dark:bg-red-900/20 dark:text-red-400">{error}</p>
+              <p className="rounded-lg bg-danger/10 px-3 py-2 text-xs font-medium text-danger">{error}</p>
             )}
 
             <p className="text-center text-xs text-muted-fg">
@@ -143,6 +138,8 @@ export function LoginPage() {
           </div>
         </motion.div>
       </div>
-    </div>
+
+      <ForgotPasswordFlow open={forgotOpen} onClose={() => setForgotOpen(false)} mode="user" />
+    </AppFrame>
   );
 }

@@ -87,7 +87,7 @@ export function SuperAdminReports() {
               onClick={() => setDays(p)}
               className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                 days === p
-                  ? "border-accent bg-accent/10 text-accent"
+                  ? "border-teal-700 bg-teal-100 text-teal-700 dark:border-accent dark:bg-white/10 dark:text-accent"
                   : "border-border text-muted-fg hover:border-accent/50"
               }`}
             >
@@ -111,7 +111,7 @@ export function SuperAdminReports() {
           }
         >
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm font-tabular">
               <thead>
                 <tr className="border-b border-border bg-surface-2 text-left text-xs font-semibold text-muted-fg">
                   <th className="px-5 py-3">Vertical</th>

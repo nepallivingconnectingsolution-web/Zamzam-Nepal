@@ -1,7 +1,8 @@
-import { Armchair, Bus, Clock, CreditCard, MapPin, Printer, ShieldCheck, X } from "lucide-react";
+import { Armchair, Bus, Clock, CreditCard, MapPin, Printer, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { QrCode } from "@/components/ui/qr-code";
 import type { BusTicket } from "./types";
 import { createPortal } from "react-dom";
 
@@ -47,35 +48,46 @@ export function BusTicketDocument({ ticket }: { ticket: BusTicket }) {
 
   return (
     <div className="w-full bg-white text-slate-900">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 border-b-2 border-dashed border-slate-300 pb-4">
+      {/* Header. The divider below is the terrain line doing structural work
+          — the signature as the ticket's perforation rather than a plain
+          dashed rule. See .ticket-divider in globals.css. */}
+      <div className="flex items-start justify-between gap-4 pb-4">
         <div>
           <p className="font-display text-lg font-bold tracking-tight text-slate-900">zamzam</p>
           <p className="text-xs text-slate-500">Intercity Bus E-Ticket</p>
         </div>
-        <div className="text-right">
-          <Badge variant={statusVariant[ticket.status]} className="border border-slate-300">
-            {ticket.status}
-          </Badge>
+        <div className="flex items-start gap-3">
+          <div className="text-right">
+            <Badge variant={statusVariant[ticket.status]} className="border border-slate-300">
+              {ticket.status}
+            </Badge>
+            {ticket.bookingRef && (
+              <p className="mt-1 font-mono text-sm font-semibold text-slate-900">{ticket.bookingRef}</p>
+            )}
+          </div>
+          {/* Only a confirmed booking has a real reference worth encoding —
+              a "pending" ticket has nothing stable to scan yet. */}
           {ticket.bookingRef && (
-            <p className="mt-1 font-mono text-sm font-semibold text-slate-900">{ticket.bookingRef}</p>
+            <QrCode value={ticket.bookingRef} size={64} className="shrink-0 rounded border border-slate-200" />
           )}
         </div>
       </div>
+
+      <div className="ticket-divider" aria-hidden />
 
       {/* Journey details */}
       <section className="mt-4 grid gap-4 sm:grid-cols-2">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Operator</p>
           <p className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
-            <Bus className="size-4 text-emerald-600" /> {bus?.operator ?? "—"}
+            <Bus className="size-4 text-brand-600" /> {bus?.operator ?? "—"}
             {bus?.type ? ` · ${bus.type}` : ""}
           </p>
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Route</p>
           <p className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
-            <MapPin className="size-4 text-emerald-600" /> {bus?.from ?? "—"} → {bus?.to ?? "—"}
+            <MapPin className="size-4 text-brand-600" /> {bus?.from ?? "—"} → {bus?.to ?? "—"}
           </p>
         </div>
         <div>
@@ -87,13 +99,13 @@ export function BusTicketDocument({ ticket }: { ticket: BusTicket }) {
             Departure — Arrival
           </p>
           <p className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
-            <Clock className="size-4 text-emerald-600" /> {bus?.departure ?? "—"} – {bus?.arrival ?? "—"}
+            <Clock className="size-4 text-brand-600" /> {bus?.departure ?? "—"} – {bus?.arrival ?? "—"}
           </p>
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Seat(s)</p>
           <p className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
-            <Armchair className="size-4 text-emerald-600" /> {ticket.seats.join(", ")}
+            <Armchair className="size-4 text-brand-600" /> {ticket.seats.join(", ")}
           </p>
         </div>
         <div>
@@ -146,22 +158,22 @@ export function BusTicketDocument({ ticket }: { ticket: BusTicket }) {
           <dl className="space-y-1.5 text-sm">
             <div className="flex items-center justify-between">
               <dt className="text-slate-500">Seat fare</dt>
-              <dd className="font-medium text-slate-900">रू {ticket.totalPrice.toLocaleString()}</dd>
+              <dd className="font-medium text-slate-900 font-tabular">रू {ticket.totalPrice.toLocaleString()}</dd>
             </div>
             <div className="flex items-center justify-between">
               <dt className="text-slate-500">Service fee</dt>
-              <dd className="font-medium text-slate-900">रू {ticket.serviceFee.toLocaleString()}</dd>
+              <dd className="font-medium text-slate-900 font-tabular">रू {ticket.serviceFee.toLocaleString()}</dd>
             </div>
             <div className="flex items-center justify-between border-t border-slate-200 pt-1.5">
               <dt className="font-semibold text-slate-900">Grand total</dt>
-              <dd className="font-display font-bold text-slate-900">
+              <dd className="font-display font-bold text-slate-900 font-tabular">
                 रू {ticket.grandTotal.toLocaleString()}
               </dd>
             </div>
             <div className="flex items-center justify-between">
               <dt className="text-slate-500">Payment method</dt>
               <dd className="flex items-center gap-1.5 font-medium text-slate-900">
-                <CreditCard className="size-3.5 text-emerald-600" />
+                <CreditCard className="size-3.5 text-brand-600" />
                 {ticket.method ? (PAYMENT_LABELS[ticket.method] ?? ticket.method) : "—"}
               </dd>
             </div>
@@ -189,7 +201,8 @@ export function BusTicketDocument({ ticket }: { ticket: BusTicket }) {
         </div>
       </section>
 
-      <div className="mt-5 border-t-2 border-dashed border-slate-300 pt-3 text-center text-[11px] text-slate-400">
+      <div className="ticket-divider mt-5" aria-hidden />
+      <div className="pt-3 text-center text-[11px] text-slate-400">
         This is a computer-generated e-ticket and does not require a signature. · support@zamzam.com.np ·
         +977-1-4000000
       </div>
@@ -198,9 +211,12 @@ export function BusTicketDocument({ ticket }: { ticket: BusTicket }) {
 }
 
 /**
- * Modal wrapper around BusTicketDocument with Print/Download and Close
- * controls. Follows the same fixed-overlay pattern as the wallet "Add
- * money" modal (see WalletPage.tsx) for visual consistency.
+ * Sheet wrapper around BusTicketDocument with Print/Download and Close
+ * controls. `ticket` stays whatever it last was while `open` is false, so
+ * the sheet can play its close animation instead of unmounting instantly —
+ * pass `open={!!ticket}` and keep the last non-null ticket at the call site
+ * (or just gate rendering on a separate boolean, as BusBookingsPage/
+ * BusDetailPage do).
  *
  * "Download" is implemented via the browser's native print dialog rather
  * than a PDF-generation library: every desktop and mobile browser offers
@@ -208,45 +224,46 @@ export function BusTicketDocument({ ticket }: { ticket: BusTicket }) {
  * paginated, no-extra-dependency download/print path that works
  * identically on phone, tablet and desktop.
  */
-export function BusTicketModal({ ticket, onClose }: { ticket: BusTicket; onClose: () => void }) {
+export function BusTicketModal({
+  ticket,
+  open,
+  onClose,
+}: {
+  ticket: BusTicket | null;
+  open: boolean;
+  onClose: () => void;
+}) {
   const printRoot = document.getElementById("print-root");
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Bus e-ticket"
-        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      <BottomSheet
+        open={open}
+        onClose={onClose}
+        title="Your e-ticket"
+        description="Download or print a copy for your journey."
+        className="sm:mx-auto sm:max-w-2xl"
       >
-        <Card className="max-h-[90vh] w-full max-w-2xl overflow-y-auto">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
-            <div>
-              <h2 className="font-display text-base font-semibold">Your e-ticket</h2>
-              <p className="text-xs text-muted-fg">Download or print a copy for your journey.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="accent" size="sm" onClick={() => window.print()}>
-                <Printer className="size-4" /> Print / Download
-              </Button>
-              <button type="button" onClick={onClose} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-fg hover:bg-surface-2" aria-label="Close">
-                <X className="size-4" />
-              </button>
+        {ticket && (
+          <div className="space-y-4 pb-2">
+            <Button variant="accent" className="w-full" onClick={() => window.print()}>
+              <Printer className="size-4" /> Print / Download
+            </Button>
+            <div className="overflow-hidden rounded-2xl border border-border">
+              <BusTicketDocument ticket={ticket} />
             </div>
           </div>
-          <div className="p-5 sm:p-6">
-            <BusTicketDocument ticket={ticket} />
-          </div>
-        </Card>
-      </div>
+        )}
+      </BottomSheet>
 
-      {printRoot && createPortal(
-        <div id="bus-ticket-print-area">
-          <BusTicketDocument ticket={ticket} />
-        </div>,
-        printRoot,
-      )}
+      {ticket &&
+        printRoot &&
+        createPortal(
+          <div id="bus-ticket-print-area">
+            <BusTicketDocument ticket={ticket} />
+          </div>,
+          printRoot,
+        )}
     </>
   );
 }

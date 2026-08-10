@@ -26,6 +26,7 @@ import type {
   UpdateRestaurantDto,
 } from './dto/restaurant.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PartnerDocumentsService } from '../partner-documents/partner-documents.service';
 
 
 const SERVICE_FEE_RATE = 0.02; // Zamzam's platform commission, same rate as hotels.
@@ -65,6 +66,7 @@ function todayIso(): string {
 export class RestaurantService {
   constructor(@Inject(DATABASE_CONNECTION) private readonly db: Database,
   private readonly notifications: NotificationsService,
+    private readonly partnerDocuments: PartnerDocumentsService,
 ) {}
 
   /* ───────────────────────────── Customer-facing ─────────────────────── */
@@ -385,6 +387,7 @@ export class RestaurantService {
   }
 
   async createRestaurant(partnerId: string, dto: CreateRestaurantDto) {
+    await this.partnerDocuments.assertRequiredDocsUploaded(partnerId, 'restaurant');
     const [restaurant] = await this.db
       .insert(restaurants)
       .values({

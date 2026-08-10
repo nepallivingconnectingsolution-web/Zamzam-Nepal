@@ -223,6 +223,42 @@ export const refreshTokens = pgTable(
   }),
 );
 
+/* ───────────────────────────── Password reset tokens ─────────────────────
+ * Backs the in-app forgot-password OTP flow (POST /auth/forgot-password →
+ * /auth/verify-reset-otp → /auth/reset-password, and the mirrored
+ * /super-admin/auth/* routes). One row per requested code.
+ *
+ * Exactly one of userId/superAdminId is set, matching the split between
+ * `users` and `superAdmins` above — a real FK per identity table catches a
+ * wiring bug that a single polymorphic (accountType, accountId) pair would
+ * silently swallow. `email` is denormalized onto the row so lookups don't
+ * need a join before the account is known to exist (and so the
+ * forgot-password endpoint's generic response never has to branch on it).
+ * `otpHash` is SHA-256 (not bcrypt) — same reasoning as refreshTokens.tokenHash:
+ * this is a short-lived, single-use, server-generated value, not a
+ * user-chosen password. `attempts` caps brute-forcing the 6-digit space
+ * within the expiry window independently of the endpoint's rate limit.
+ */
+export const passwordResetTokens = pgTable(
+  'password_reset_tokens',
+  {
+    id: varchar('id', { length: 32 }).primaryKey(),
+    userId: varchar('user_id', { length: 32 }).references(() => users.id, { onDelete: 'cascade' }),
+    superAdminId: varchar('super_admin_id', { length: 32 }).references(() => superAdmins.id, {
+      onDelete: 'cascade',
+    }),
+    email: varchar('email', { length: 255 }).notNull(),
+    otpHash: varchar('otp_hash', { length: 64 }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    used: boolean('used').notNull().default(false),
+    attempts: integer('attempts').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    emailIdx: index('password_reset_tokens_email_idx').on(t.email),
+  }),
+);
+
 /* ───────────────────────────── Wallets ────────────────────────────────── */
 export const wallets = pgTable('wallets', {
   userId: varchar('user_id', { length: 32 })

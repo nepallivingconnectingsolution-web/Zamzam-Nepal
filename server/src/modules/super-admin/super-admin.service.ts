@@ -35,6 +35,7 @@ import { creditWallet } from '../../common/wallet.util';
 import { id } from '../../common/id';
 import type { SuperAdminLoginDto, UpdateCmsDto, UpdateSettingsDto } from './dto/super-admin.dto';
 import { SERVICE_REGISTRY } from './service-registry';
+import { PasswordResetService } from '../../common/password-reset/password-reset.service';
 
 const PARTNER_ROLES = ['bus_operator', 'hotel', 'restaurant', 'grocery', 'driver', 'freight'] as const;
 const PARTNER_TYPE_LABEL: Record<(typeof PARTNER_ROLES)[number], string> = {
@@ -53,6 +54,7 @@ export class SuperAdminService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly notifications: NotificationsService,
+    private readonly passwordReset: PasswordResetService,
   ) {}
 
   async login(dto: SuperAdminLoginDto) {
@@ -80,6 +82,38 @@ export class SuperAdminService {
       accessToken,
       admin: { id: admin.id, name: admin.name, email: admin.email },
     };
+  }
+
+  /** Same generic-response contract as AuthService.forgotPassword — never reveals whether the email is a real admin account. */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const [admin] = await this.db
+      .select({ id: superAdmins.id })
+      .from(superAdmins)
+      .where(eq(superAdmins.email, email))
+      .limit(1);
+    await this.passwordReset.requestOtp(email, admin ? { id: admin.id, type: 'super_admin' } : null);
+    return { message: "If an account exists for that email, we've sent a reset code." };
+  }
+
+  async verifyResetOtp(email: string, otp: string): Promise<{ valid: true }> {
+    const valid = await this.passwordReset.verifyOtp(email, otp);
+    if (!valid) apiError(400, 'That code is incorrect or has expired.');
+    return { valid: true };
+  }
+
+  async resetPassword(email: string, otp: string, newPassword: string): Promise<{ message: string }> {
+    const consumed = await this.passwordReset.consumeOtp(email, otp);
+    if (!consumed?.superAdminId) apiError(400, 'That code is incorrect or has expired.');
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await this.db
+      .update(superAdmins)
+      .set({ passwordHash, updatedAt: new Date() })
+      .where(eq(superAdmins.id, consumed.superAdminId));
+
+    await this.audit(consumed.superAdminId, 'super_admin.password_reset', null, null);
+
+    return { message: 'Your password has been updated.' };
   }
 
   async metrics() {

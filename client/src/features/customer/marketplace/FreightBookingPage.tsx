@@ -13,6 +13,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Chip } from "@/components/ui/chip";
+import { DateField } from "@/components/ui/date-field";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { useResource } from "@/hooks/useResource";
 import { api, ApiError, endpoints } from "@/api/client";
@@ -158,26 +160,28 @@ export function FreightBookingPage() {
                 <label className="text-xs font-medium text-muted-fg">Weight (kg)</label>
                 <Input type="number" min={1} placeholder="e.g. 2000" value={weight} onChange={(e) => setWeight(e.target.value)} />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:col-span-2">
                 <label className="text-xs font-medium text-muted-fg">Preferred vehicle</label>
-                <select
-                  className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:ring-2 focus:ring-accent/40"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                >
+                <div className="flex flex-wrap gap-2">
                   {CATEGORY_OPTIONS.map((c) => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
+                    <Chip key={c.value} selected={category === c.value} onClick={() => setCategory(c.value)}>
+                      {c.label}
+                    </Chip>
                   ))}
-                </select>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-fg">Budget, NPR (optional)</label>
-                <Input type="number" min={0} placeholder="Your target price" value={budget} onChange={(e) => setBudget(e.target.value)} />
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Your target price"
+                  value={budget}
+                  onChange={(e) => setBudget(e.target.value)}
+                  className="font-tabular"
+                />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-fg">Pickup date (optional)</label>
-                <Input type="date" value={pickupDate} onChange={(e) => setPickupDate(e.target.value)} />
-              </div>
+              <DateField label="Pickup date (optional)" value={pickupDate} onChange={setPickupDate} />
             </div>
             <div className="flex justify-end">
               <Button type="submit" variant="accent" disabled={saving}>
@@ -220,7 +224,9 @@ export function FreightBookingPage() {
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     <Badge variant={badge.variant}>{badge.label}</Badge>
                     {load.acceptedAmount != null && (
-                      <span className="text-xs text-muted-fg">Awarded {npr(load.acceptedAmount)}</span>
+                      <span className="text-xs text-muted-fg">
+                        Awarded <span className="font-tabular">{npr(load.acceptedAmount)}</span>
+                      </span>
                     )}
                   </div>
                 </div>
@@ -309,7 +315,7 @@ function BidList({ loadId, loadStatus, onChanged }: { loadId: string; loadStatus
         <div key={b.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/40 p-3">
           <div className="min-w-0">
             <p className="text-sm font-medium">
-              {npr(b.amount)}
+              <span className="font-tabular">{npr(b.amount)}</span>
               <span className="ml-2 text-xs font-normal text-muted-fg">{b.transporterName}</span>
             </p>
             <p className="text-xs text-muted-fg">
@@ -375,7 +381,7 @@ function LoadReviewPanel({ loadId }: { loadId: string }) {
       <div className="flex items-center gap-1">
         {[1, 2, 3, 4, 5].map((s) => (
           <button key={s} type="button" onClick={() => setRating(s)}>
-            <Star className={cn("size-5", s <= rating ? "fill-amber-400 text-amber-400" : "text-muted-fg")} />
+            <Star className={cn("size-5", s <= rating ? "fill-warning text-warning" : "text-muted-fg")} />
           </button>
         ))}
       </div>

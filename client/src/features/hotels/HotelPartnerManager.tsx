@@ -18,6 +18,7 @@ import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TimeField } from "@/components/ui/time-field";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useResource } from "@/hooks/useResource";
@@ -131,21 +132,15 @@ function AddHotelForm({ onAdded }: { onAdded: () => void }) {
         <Input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
         <Input className="sm:col-span-2" placeholder="Address" value={address} onChange={(e) => setAddress(e.target.value)} />
         <Input className="sm:col-span-2" placeholder="Short description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
-        <label className="flex flex-col gap-1 text-xs font-medium text-muted-fg">
-          Check-in time
-          <Input type="time" value={checkInTime} onChange={(e) => setCheckInTime(e.target.value)} />
-        </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-muted-fg">
-          Check-out time
-          <Input type="time" value={checkOutTime} onChange={(e) => setCheckOutTime(e.target.value)} />
-        </label>
+        <TimeField label="Check-in time" value={checkInTime} onChange={setCheckInTime} />
+        <TimeField label="Check-out time" value={checkOutTime} onChange={setCheckOutTime} />
       </div>
       <p className="mb-2 mt-4 text-xs font-medium text-muted-fg">Amenities</p>
       <div className="flex flex-wrap gap-2">
         {COMMON_HOTEL_AMENITIES.map((a) => (
           <button key={a} type="button" onClick={() => toggleAmenity(a)}
             className={cn("rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-              amenities.includes(a) ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-fg hover:bg-surface-2"
+              amenities.includes(a) ? "border-teal-700 bg-teal-100 text-teal-700 dark:border-accent dark:bg-white/10 dark:text-accent" : "border-border text-muted-fg hover:bg-surface-2"
             )}
           >{a}</button>
         ))}

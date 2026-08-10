@@ -83,7 +83,7 @@ export function FoodOrdersPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <p className="font-display text-lg font-bold">रू {o.grandTotal.toLocaleString()}</p>
+                    <p className="font-display text-lg font-bold font-tabular">रू {o.grandTotal.toLocaleString()}</p>
                     {o.status === "PENDING" && (
                       <Button variant="outline" size="sm" disabled={cancellingId === o.id}
                         onClick={(e) => { e.stopPropagation(); cancel(o.id); }}
@@ -100,16 +100,16 @@ export function FoodOrdersPage() {
                       {o.items.map((i) => (
                         <div key={i.id} className="flex items-center justify-between">
                           <span className="text-muted-fg">{i.quantity} × {i.name}</span>
-                          <span>रू {i.lineTotal.toLocaleString()}</span>
+                          <span className="font-tabular">रू {i.lineTotal.toLocaleString()}</span>
                         </div>
                       ))}
                       <div className="flex items-center justify-between border-t border-border pt-2">
                         <span className="text-muted-fg">Delivery + service fee</span>
-                        <span>रू {(o.deliveryFee + o.serviceFee).toLocaleString()}</span>
+                        <span className="font-tabular">रू {(o.deliveryFee + o.serviceFee).toLocaleString()}</span>
                       </div>
                       <div className="flex items-center justify-between font-display font-bold">
                         <span>Total</span>
-                        <span>रू {o.grandTotal.toLocaleString()}</span>
+                        <span className="font-tabular">रू {o.grandTotal.toLocaleString()}</span>
                       </div>
                     </div>
                     {o.deliveryAddress && <p className="text-xs text-muted-fg">Deliver to: {o.deliveryAddress}</p>}
@@ -171,7 +171,7 @@ function ReviewPanel({ orderId }: { orderId: string }) {
       <div className="flex items-center gap-1">
         {[1, 2, 3, 4, 5].map((s) => (
           <button key={s} type="button" onClick={() => setRating(s)}>
-            <Star className={cn("size-5", s <= rating ? "fill-amber-400 text-amber-400" : "text-muted-fg")} />
+            <Star className={cn("size-5", s <= rating ? "fill-warning text-warning" : "text-muted-fg")} />
           </button>
         ))}
       </div>

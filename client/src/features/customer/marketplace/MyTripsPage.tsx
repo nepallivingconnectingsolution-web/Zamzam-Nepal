@@ -181,7 +181,7 @@ function ReviewPanel({ rideId }: { rideId: string }) {
       <div className="flex items-center gap-1">
         {[1, 2, 3, 4, 5].map((s) => (
           <button key={s} type="button" onClick={() => setRating(s)}>
-            <Star className={cn("size-5", s <= rating ? "fill-amber-400 text-amber-400" : "text-muted-fg")} />
+            <Star className={cn("size-5", s <= rating ? "fill-warning text-warning" : "text-muted-fg")} />
           </button>
         ))}
       </div>

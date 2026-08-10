@@ -156,8 +156,8 @@ export class PlaceOrderDto {
   @MinLength(1)
   customerName!: string;
 
-  @IsString()
-  @MinLength(1)
+  // Was @IsString() @MinLength(1) — a single character passed validation.
+  @Matches(/^\+?[0-9]{7,15}$/, { message: 'Enter a valid phone number.' })
   customerPhone!: string;
 
   @IsOptional()

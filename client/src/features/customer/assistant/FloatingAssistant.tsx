@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowRight, Send, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -45,8 +45,18 @@ const msgId = () => `m${Date.now()}_${nextId++}`;
  * (still persisted to sessionStorage) — just presented as an overlay so it
  * never gets in the way of the page underneath it.
  */
+/**
+ * Detail/checkout routes render their own sticky action bar pinned above the
+ * tab bar, which is exactly where this launcher sits — they collide, and the
+ * FAB ends up half-hidden behind the bar. It also shouldn't be competing for
+ * attention mid-checkout in the first place, so it's hidden on those routes
+ * rather than repositioned.
+ */
+const CHECKOUT_ROUTE = /^\/app\/(buses|hotels|restaurants|grocery)\/(?!tickets|bookings|orders)[^/]+$/;
+
 export function FloatingAssistant() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const saved = useRef(loadSaved()).current;
 
   const [open, setOpen] = useState(() => {
@@ -105,38 +115,30 @@ export function FloatingAssistant() {
     navigate(to);
   }
 
+  // Placed after every hook so the hook order stays stable across routes.
+  if (CHECKOUT_ROUTE.test(pathname)) return null;
+
   return (
     <>
       {/* ── Launcher ── */}
-   <div className="fixed right-6 z-40" style={{ bottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}>
-        {/* Sonar ping — a slim ring rather than a filled disc, so it reads as a
-            signal, not a smudge. Only pings while the assistant is closed. */}
-        {!open && (
-          <span
-            className="absolute inset-0 rounded-full border-2 border-accent/60 animate-pulse-ring"
-            aria-hidden
-          />
-        )}
-
+   {/* Persistent chrome, deliberately NOT amber: this button is on every
+       screen, so an amber fill here would spend each screen's single accent
+       before that screen even got to choose its own primary action. Solid
+       teal, Level-2 elevation, and nothing else — the previous version
+       stacked a sonar ping, a three-stop gradient, a glossy sheen, a custom
+       amber glow shadow and a decorative sparkle badge, none of which
+       carried information. */}
+   <div className="fixed right-6 z-40" style={{ bottom: "calc(6rem + env(safe-area-inset-bottom))" }}>
         <button
           onClick={() => setOpen((v) => !v)}
           aria-label={open ? "Close assistant" : "Open Zamzam assistant"}
           aria-expanded={open}
           className={cn(
-            "group relative grid size-16 place-items-center rounded-full",
-            "bg-gradient-to-br from-brand-800 via-brand-900 to-black",
-            "ring-1 ring-white/10",
-            "shadow-[0_10px_36px_-8px_rgba(16,185,129,0.55),0_2px_10px_rgba(2,6,23,0.45)]",
-            "transition-all duration-300 ease-out",
-            "hover:scale-[1.06] hover:shadow-[0_16px_46px_-6px_rgba(16,185,129,0.7),0_2px_10px_rgba(2,6,23,0.45)]",
-            "active:scale-95",
+            "group relative grid size-14 place-items-center rounded-full",
+            "bg-teal-700 text-white shadow-e2",
+            "transition-transform duration-fast ease-standard active:scale-[0.95]",
           )}
         >
-          {/* Glossy top sheen — the "premium" cue: a highlight, not a flat fill */}
-          <span
-            className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-b from-white/25 via-white/0 to-transparent"
-            aria-hidden
-          />
 
           <AnimatePresence mode="wait" initial={false}>
             {open ? (
@@ -159,17 +161,10 @@ export function FloatingAssistant() {
                 transition={{ duration: 0.18 }}
                 className="relative"
               >
-                <AssistantMark className="size-6 text-accent drop-shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
+                <AssistantMark className="size-6 text-white" />
               </motion.span>
             )}
           </AnimatePresence>
-
-          {/* AI sparkle badge — the "there's intelligence here" cue */}
-          {!open && (
-            <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-accent ring-[3px] ring-bg">
-              <Sparkles className="size-2.5 text-white" />
-            </span>
-          )}
         </button>
       </div>
 
@@ -181,7 +176,7 @@ export function FloatingAssistant() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: 16 }}
             transition={{ type: "spring", damping: 26, stiffness: 300 }}
-            style={{ transformOrigin: "bottom right", bottom: "calc(104px + env(safe-area-inset-bottom))" }}
+            style={{ transformOrigin: "bottom right", bottom: "calc(150px + env(safe-area-inset-bottom))" }}
             className="fixed right-6 z-40 flex h-[min(640px,calc(100vh-160px))] w-[calc(100vw-3rem)] max-w-[380px] flex-col overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-lift ring-1 ring-black/5 dark:ring-white/5"
             role="dialog"
             aria-modal="false"
@@ -218,7 +213,7 @@ export function FloatingAssistant() {
               {messages.map((m) =>
                 m.role === "user" ? (
                   <div key={m.id} className="flex justify-end">
-                    <div className="max-w-[85%] rounded-2xl rounded-br-md bg-accent px-3.5 py-2 text-sm text-white">
+                    <div className="max-w-[85%] rounded-2xl rounded-br-md bg-accent px-3.5 py-2 text-sm text-accent-fg">
                       {m.text}
                     </div>
                   </div>
@@ -296,7 +291,7 @@ export function FloatingAssistant() {
                 onClick={() => send(draft)}
                 disabled={thinking || !draft.trim()}
                 aria-label="Send"
-                className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-white transition-all hover:bg-accent-600 hover:shadow-glow disabled:pointer-events-none disabled:opacity-50"
+                className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-accent-fg transition-all hover:bg-accent-600 hover:shadow-glow disabled:pointer-events-none disabled:opacity-50"
               >
                 <Send className="size-4" />
               </button>

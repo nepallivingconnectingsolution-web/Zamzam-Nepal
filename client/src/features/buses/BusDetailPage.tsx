@@ -17,6 +17,8 @@ import { AsyncBoundary } from "@/components/shared/async-states";
 import { Card } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import { PhoneField, NameInput, isValidPhone } from "@/components/ui/phone-field";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useResource } from "@/hooks/useResource";
@@ -124,10 +126,22 @@ function BookingFlow({ bus, onDone }: { bus: BusScheduleDetail; onDone: () => vo
     );
   }
 
+  const primaryAction =
+    step === "seats"
+      ? { label: "Continue", disabled: selected.length === 0, onClick: goPassengers }
+      : step === "passengers"
+        ? { label: "Continue", disabled: !passengersValid(passengers), onClick: () => setStep("payment") }
+        : { label: submitting ? "Booking…" : `Pay रू ${grandTotal.toLocaleString()}`, disabled: submitting, onClick: submit };
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-      <div className="space-y-6">
+    <div className="space-y-6">
+      {/* Bottom padding clears the fixed summary bar below */}
+      <div className="min-w-0 space-y-6 pb-24">
         <Stepper step={step} />
+
+        {/* Moved out of the old desktop-only rail: which bus, which route and
+            when is worth seeing on a phone too, not just on a wide screen. */}
+        <TripSummary bus={bus} />
 
         {step === "seats" && (
           <SeatPicker bus={bus} selected={selected} setSelected={setSelected} />
@@ -146,56 +160,57 @@ function BookingFlow({ bus, onDone }: { bus: BusScheduleDetail; onDone: () => vo
         )}
       </div>
 
-      {/* Summary rail */}
-      <div className="space-y-4">
-        <TripSummary bus={bus} />
-        <Card className="p-5">
-          <h3 className="mb-3 font-display text-sm font-semibold">Fare summary</h3>
-          <dl className="space-y-2 text-sm">
-            <Row label={`Seats (${selected.length} × रू ${bus.price})`} value={`रू ${totalPrice.toLocaleString()}`} />
-            <Row label="Service fee (2%)" value={`रू ${serviceFee.toLocaleString()}`} />
-            <div className="border-t border-border pt-2">
-              <Row label="Total" value={`रू ${grandTotal.toLocaleString()}`} bold />
-            </div>
-          </dl>
+      {/* The desktop summary rail that used to sit here has been removed: the
+          customer app renders inside a fixed phone-width frame now, so a
+          340px side rail had nowhere to go — and because Tailwind breakpoints
+          key off the viewport rather than the frame, it was still firing on
+          desktop and squeezing the content column to 44px. The sticky bar
+          below is the single summary. */}
 
-          <div className="mt-4 flex gap-2">
-            {step !== "seats" && (
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setStep(step === "payment" ? "passengers" : "seats")}
-              >
-                <ArrowLeft className="size-4" /> Back
-              </Button>
-            )}
-            {step === "seats" && (
-              <Button
-                variant="accent"
-                className="flex-1"
-                disabled={selected.length === 0}
-                onClick={goPassengers}
-              >
-                Continue <ArrowRight className="size-4" />
-              </Button>
-            )}
-            {step === "passengers" && (
-              <Button
-                variant="accent"
-                className="flex-1"
-                disabled={!passengersValid(passengers)}
-                onClick={() => setStep("payment")}
-              >
-                Continue <ArrowRight className="size-4" />
-              </Button>
-            )}
-            {step === "payment" && (
-              <Button variant="accent" className="flex-1" disabled={submitting} onClick={submit}>
-                {submitting ? "Booking…" : `Pay रू ${grandTotal.toLocaleString()}`}
-              </Button>
-            )}
+      {/* Sticky booking bar — the primary CTA stays reachable without scrolling
+          past the seat map / forms, per the mobile-first sticky-summary pattern. */}
+      {/* bottom-[4.75rem] — the customer shell's own bottom tab bar (see
+          CustomerShell) is a separate fixed element pinned to bottom-0; this
+          sits directly above it instead of underneath/behind it. */}
+      {/* The only Level-2-elevation element on this screen — nothing else is
+          allowed to compete with it for visual weight. On the payment step
+          the total becomes the largest text anywhere on screen, including
+          the page title, because that's the number being committed to. */}
+      <div className="fixed inset-x-0 bottom-[4.75rem] z-50 border-t border-border bg-card/95 px-4 py-3 shadow-e2 backdrop-blur-xl ">
+        <div className="mx-auto flex max-w-lg items-center gap-3">
+          {step !== "seats" && (
+            <Button
+              variant="secondary"
+              size="icon"
+              aria-label="Back"
+              onClick={() => setStep(step === "payment" ? "passengers" : "seats")}
+            >
+              <ArrowLeft className="size-4" />
+            </Button>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-caption text-muted-fg">
+              {selected.length > 0 ? `${selected.length} seat${selected.length > 1 ? "s" : ""}` : "No seats yet"}
+            </p>
+            <p
+              className={cn(
+                "font-display font-extrabold font-tabular leading-none",
+                step === "payment" ? "text-display" : "text-h1",
+              )}
+            >
+              रू {grandTotal.toLocaleString()}
+            </p>
           </div>
-        </Card>
+          <Button
+            variant="accent"
+            className="shrink-0"
+            loading={submitting}
+            disabled={primaryAction.disabled}
+            onClick={primaryAction.onClick}
+          >
+            {primaryAction.label}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -217,7 +232,7 @@ function Stepper({ step }: { step: Step }) {
           <div
             className={cn(
               "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium",
-              i <= idx ? "bg-accent/10 text-accent" : "bg-surface-2 text-muted-fg",
+              i <= idx ? "bg-teal-100 text-teal-700 dark:bg-white/10 dark:text-accent" : "bg-surface-2 text-muted-fg",
             )}
           >
             {s.icon} <span className="hidden sm:inline">{s.label}</span>
@@ -252,19 +267,24 @@ function SeatPicker({
     setSelected(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
   }
 
+  const availableCount = seats.filter((s) => !s.booked).length;
+
   return (
     <Card className="p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-display text-sm font-semibold">Choose your seats</h3>
-        <div className="flex items-center gap-3 text-xs text-muted-fg">
-          <Legend className="bg-surface-2 border border-border" label="Available" />
-          <Legend className="bg-accent text-white" label="Selected" />
-          <Legend className="bg-muted opacity-50" label="Booked" />
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="font-display text-sm font-semibold">Choose your seats</h3>
+          <p className="text-xs text-muted-fg">{availableCount} of {seats.length} seats available</p>
+        </div>
+        <div className="flex items-center gap-3 text-caption text-muted-fg">
+          <Legend className="border border-border bg-surface" label="Available" />
+          <Legend className="bg-teal-700" label="Selected" />
+          <Legend className="bg-muted" label="Booked" />
         </div>
       </div>
 
       <div className="mx-auto max-w-sm rounded-2xl border border-border bg-surface/60 p-4">
-        <div className="mb-3 flex items-center justify-end gap-1 text-xs text-muted-fg">
+        <div className="mb-3 flex items-center justify-end gap-1.5 text-xs text-muted-fg">
           <Bus className="size-4" /> front
         </div>
         <div className="space-y-2">
@@ -325,13 +345,28 @@ function SeatButton({
       type="button"
       disabled={booked}
       onClick={onClick}
+      aria-pressed={selected}
+      aria-label={`Seat ${id}${booked ? ", booked" : selected ? ", selected" : ", available"}`}
       className={cn(
-        "grid size-9 place-items-center rounded-lg text-xs font-medium transition-colors",
-        booked && "cursor-not-allowed bg-muted text-muted-fg opacity-50",
-        !booked && selected && "bg-accent text-white shadow-sm",
-        !booked && !selected && "border border-border bg-surface-2 hover:border-accent",
+        "relative grid size-10 place-items-center rounded-sm font-display text-body-sm font-semibold",
+        "transition-[background-color,border-color,color,transform] duration-fast ease-micro",
+        "active:scale-[0.92]",
+        booked && "cursor-not-allowed bg-muted text-muted-fg/60",
+        !booked && selected && "scale-[1.04] bg-teal-700 text-white",
+        !booked && !selected && "border border-border bg-surface text-fg hover:border-teal-700",
       )}
     >
+      {/* The one delight flourish in the app, spent at the moment closest to
+          a purchase decision: a single amber ring expanding out of the seat
+          as it's chosen. `key` restarts the CSS animation on every fresh
+          selection instead of it only ever playing once. */}
+      {selected && !booked && (
+        <span
+          key={`${id}-pulse`}
+          aria-hidden
+          className="pointer-events-none absolute inset-0 animate-seat-pulse rounded-sm ring-2 ring-amber-500"
+        />
+      )}
       {id}
     </button>
   );
@@ -358,25 +393,40 @@ function PassengerForm({
             <span className="text-sm font-medium">Passenger {i + 1}</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Input placeholder="First name" value={p.firstName} onChange={(e) => update(i, { firstName: e.target.value })} />
-            <Input placeholder="Last name" value={p.lastName} onChange={(e) => update(i, { lastName: e.target.value })} />
-            <Input placeholder="Email" type="email" value={p.email} onChange={(e) => update(i, { email: e.target.value })} />
-            <Input placeholder="Phone" value={p.phone} onChange={(e) => update(i, { phone: e.target.value })} />
+            <NameInput placeholder="First name" value={p.firstName} onChange={(v) => update(i, { firstName: v })} />
+            <NameInput placeholder="Last name" value={p.lastName} onChange={(v) => update(i, { lastName: v })} />
+            <Input
+              placeholder="Email"
+              type="email"
+              inputMode="email"
+              value={p.email}
+              onChange={(e) => update(i, { email: e.target.value })}
+              error={p.email.trim().length > 0 && !isValidEmail(p.email)}
+            />
+            <PhoneField value={p.phone} onChange={(v) => update(i, { phone: v })} showError />
             <Input
               placeholder="Age"
               type="number"
+              inputMode="numeric"
+              min={1}
+              max={120}
               value={p.age || ""}
-              onChange={(e) => update(i, { age: parseInt(e.target.value, 10) || 0 })}
+              // Cap at a real human age: the old field accepted any positive
+              // integer, so "9999" submitted happily.
+              onChange={(e) =>
+                update(i, { age: Math.min(120, Math.max(0, parseInt(e.target.value, 10) || 0)) })
+              }
+              error={p.age > 0 && (p.age < 1 || p.age > 120)}
             />
-            <select
+            <SegmentedControl
+              options={[
+                { value: "male", label: "Male" },
+                { value: "female", label: "Female" },
+                { value: "other", label: "Other" },
+              ]}
               value={p.gender}
-              onChange={(e) => update(i, { gender: e.target.value as Passenger["gender"] })}
-              className="flex h-10 w-full rounded-xl border border-input bg-surface px-3.5 text-sm text-fg focus-visible:border-accent focus-visible:outline-none"
-            >
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="other">Other</option>
-            </select>
+              onChange={(gender) => update(i, { gender })}
+            />
           </div>
         </Card>
       ))}
@@ -396,7 +446,7 @@ function PaymentPicker({ method, setMethod }: { method: string; setMethod: (m: s
             onClick={() => setMethod(m.id)}
             className={cn(
               "flex items-center justify-between rounded-xl border px-4 py-3 text-sm font-medium transition-colors",
-              method === m.id ? "border-accent bg-accent/10 text-accent" : "border-border hover:bg-surface-2",
+              method === m.id ? "border-teal-700 bg-teal-100 text-teal-700 dark:border-accent dark:bg-white/10 dark:text-accent" : "border-border hover:bg-surface-2",
             )}
           >
             {m.label}
@@ -486,7 +536,7 @@ function Confirmation({
         </div>
       </Card>
 
-      {showTicket && <BusTicketModal ticket={ticket} onClose={() => setShowTicket(false)} />}
+      <BusTicketModal ticket={ticket} open={showTicket} onClose={() => setShowTicket(false)} />
     </>
   );
 }
@@ -497,7 +547,7 @@ function TripSummary({ bus }: { bus: BusScheduleDetail }) {
   return (
     <Card className="p-5">
       <div className="flex items-center gap-2">
-        <div className="grid size-10 place-items-center rounded-xl bg-accent/10 text-accent">
+        <div className="grid size-10 place-items-center rounded-xl bg-teal-100 text-teal-700 dark:bg-white/10 dark:text-accent">
           <Bus className="size-5" />
         </div>
         <div>
@@ -522,7 +572,7 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
   return (
     <div className="flex items-center justify-between">
       <dt className="text-muted-fg">{label}</dt>
-      <dd className={cn(bold ? "font-display font-semibold" : "font-medium")}>{value}</dd>
+      <dd className={cn("font-tabular", bold ? "font-display font-semibold" : "font-medium")}>{value}</dd>
     </div>
   );
 }
@@ -535,11 +585,27 @@ function Legend({ className, label }: { className?: string; label: string }) {
   );
 }
 
+/** Deliberately permissive shape check — real deliverability isn't knowable here. */
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+}
+
+/**
+ * Every field now has to be genuinely valid, not merely non-empty. The old
+ * version passed on `.trim()` truthiness alone, so "a" was an acceptable
+ * email, "1" an acceptable phone, and 9999 an acceptable age.
+ */
 function passengersValid(passengers: Passenger[]): boolean {
   return (
     passengers.length > 0 &&
     passengers.every(
-      (p) => p.firstName.trim() && p.lastName.trim() && p.email.trim() && p.phone.trim() && p.age > 0,
+      (p) =>
+        p.firstName.trim().length > 0 &&
+        p.lastName.trim().length > 0 &&
+        isValidEmail(p.email) &&
+        isValidPhone(p.phone) &&
+        p.age >= 1 &&
+        p.age <= 120,
     )
   );
 }

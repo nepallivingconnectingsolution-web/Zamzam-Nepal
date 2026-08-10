@@ -35,7 +35,7 @@ export function StatCard({
         ) : (
           <p
             className={cn(
-              "truncate font-display text-2xl font-bold tracking-tight",
+              "truncate font-display text-2xl font-bold font-tabular tracking-tight",
               state !== "success" && "text-muted-fg",
             )}
           >

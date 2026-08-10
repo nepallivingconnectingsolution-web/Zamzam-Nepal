@@ -82,15 +82,15 @@ function RestaurantCard({ restaurant: r }: { restaurant: RestaurantSearchResult 
   return (
     <Link to={`/app/restaurants/${r.id}`}>
       <Card className="h-full overflow-hidden transition-shadow hover:shadow-md">
-        <div className="flex h-36 items-center justify-center bg-gradient-to-br from-rose-500/15 to-rose-500/0">
-          <UtensilsCrossed className="size-10 text-rose-500/60" />
+        <div className="flex h-36 items-center justify-center bg-gradient-to-br from-vertical-restaurant/15 to-vertical-restaurant/0">
+          <UtensilsCrossed className="size-10 text-vertical-restaurant/70" />
         </div>
         <div className="p-4">
           <div className="flex items-start justify-between gap-2">
             <h3 className="font-display text-base font-semibold">{r.name}</h3>
             {r.rating && (
               <span className="inline-flex items-center gap-1 text-xs font-medium">
-                <Star className="size-3.5 fill-amber-400 text-amber-400" /> {r.rating.average.toFixed(1)}
+                <Star className="size-3.5 fill-warning text-warning" /> {r.rating.average.toFixed(1)}
                 <span className="text-muted-fg">({r.rating.count})</span>
               </span>
             )}
@@ -112,7 +112,7 @@ function RestaurantCard({ restaurant: r }: { restaurant: RestaurantSearchResult 
               {r.fromPrice != null ? (
                 <>
                   <span className="text-xs text-muted-fg">From </span>
-                  <span className="font-display text-lg font-bold">रू {r.fromPrice.toLocaleString()}</span>
+                  <span className="font-display text-lg font-bold font-tabular">रू {r.fromPrice.toLocaleString()}</span>
                 </>
               ) : (
                 <Badge variant="outline" className="text-[10px]">No dishes listed yet</Badge>

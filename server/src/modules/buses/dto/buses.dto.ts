@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsEmail,
   IsIn,
   IsInt,
   IsOptional,
@@ -33,14 +34,18 @@ export class PassengerDto {
   @MinLength(1)
   lastName!: string;
 
-  @IsString()
+  // Was a bare @IsString(), so "a" was an acceptable email and "1" an
+  // acceptable phone. The client validates these too, but a client can be
+  // bypassed entirely — this is the authoritative check.
+  @IsEmail({}, { message: 'Enter a valid email address.' })
   email!: string;
 
-  @IsString()
+  @Matches(/^\+?[0-9]{7,15}$/, { message: 'Enter a valid phone number.' })
   phone!: string;
 
   @IsInt()
   @Min(1)
+  @Max(120)
   age!: number;
 
   @IsIn(['male', 'female', 'other'])

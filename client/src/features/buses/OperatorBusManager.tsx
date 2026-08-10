@@ -6,6 +6,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { DateField } from "@/components/ui/date-field";
+import { TimeField } from "@/components/ui/time-field";
+import { SelectField } from "@/components/ui/select-field";
 import { cn } from "@/lib/utils";
 import { useResource } from "@/hooks/useResource";
 import { api, ApiError, endpoints } from "@/api/client";
@@ -22,17 +25,6 @@ function to12Hour(hhmm: string): string {
   h = h % 12;
   if (h === 0) h = 12;
   return `${String(h).padStart(2, "0")}:${mStr} ${period}`;
-}
-
-/** Reverse of to12Hour — "07:00 AM" -> "07:00" (24h) for pre-filling <input type="time">. */
-function to24Hour(time12: string): string {
-  const m = time12.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (!m) return "";
-  let h = parseInt(m[1], 10);
-  const isPM = m[3].toUpperCase() === "PM";
-  if (isPM && h !== 12) h += 12;
-  if (!isPM && h === 12) h = 0;
-  return `${String(h).padStart(2, "0")}:${m[2]}`;
 }
 
 /** "YYYY-MM-DD" + n days -> "YYYY-MM-DD", for the 1-week / 1-month quick-fill buttons. */
@@ -82,7 +74,9 @@ function FleetTab() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button variant="accent" onClick={() => setOpen((v) => !v)}>
+        {/* Secondary for the same reason as the Schedules tab: the form's
+            own submit button is the screen's one amber action. */}
+        <Button variant="secondary" onClick={() => setOpen((v) => !v)}>
           <Plus className="size-4" /> {open ? "Close form" : "Add bus"}
         </Button>
       </div>
@@ -186,12 +180,18 @@ function AddBusForm({ onAdded }: { onAdded: () => void }) {
         <Labeled label="Bus number"><Input value={form.busNumber} onChange={(e) => set("busNumber", e.target.value)} placeholder="BA 1 KHA 1234" /></Labeled>
         <Labeled label="Registration no."><Input value={form.registrationNo} onChange={(e) => set("registrationNo", e.target.value)} placeholder="LU-01-002-1234" /></Labeled>
         <Labeled label="Total seats"><Input type="number" value={form.totalSeats} onChange={(e) => set("totalSeats", Number(e.target.value))} /></Labeled>
-        <Labeled label="Bus type">
-          <Select value={form.type} onChange={(v) => set("type", v)} options={[...BUS_TYPES]} />
-        </Labeled>
-        <Labeled label="Fuel type">
-          <Select value={form.fuelType} onChange={(v) => set("fuelType", v)} options={[...FUEL_TYPES]} />
-        </Labeled>
+        <SelectField
+          label="Bus type"
+          value={form.type}
+          onChange={(v) => set("type", v)}
+          options={BUS_TYPES.map((t) => ({ value: t, label: t }))}
+        />
+        <SelectField
+          label="Fuel type"
+          value={form.fuelType}
+          onChange={(v) => set("fuelType", v)}
+          options={FUEL_TYPES.map((t) => ({ value: t, label: t }))}
+        />
       </div>
 
       <div className="mt-4">
@@ -204,7 +204,7 @@ function AddBusForm({ onAdded }: { onAdded: () => void }) {
               onClick={() => toggleAmenity(a.id)}
               className={cn(
                 "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
-                form.amenities.includes(a.id) ? "border-accent bg-accent/10 text-accent" : "border-border hover:bg-surface-2",
+                form.amenities.includes(a.id) ? "border-teal-700 bg-teal-100 text-teal-700 dark:border-accent dark:bg-white/10 dark:text-accent" : "border-border hover:bg-surface-2",
               )}
             >
               {a.label}
@@ -239,7 +239,11 @@ function SchedulesTab() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button variant="accent" onClick={() => setOpen((v) => !v)} disabled={fleet.state === "empty"}>
+        {/* Secondary: this only opens/closes the form. The form's own
+            "Publish schedule" is the commit action and owns the screen's one
+            amber fill — two amber buttons visible at once made it ambiguous
+            which one actually creates the schedule. */}
+        <Button variant="secondary" onClick={() => setOpen((v) => !v)} disabled={fleet.state === "empty"}>
           <Plus className="size-4" /> {open ? "Close form" : "Add schedule"}
         </Button>
       </div>
@@ -403,14 +407,23 @@ function AddScheduleForm({ buses, onAdded }: { buses: OperatorBus[]; onAdded: ()
     set("operatingDays", form.operatingDays.includes(d) ? form.operatingDays.filter((x) => x !== d) : [...form.operatingDays, d]);
   }
 
-  const canSubmit =
-    !!form.busId &&
-    !!form.fromCity &&
-    !!form.toCity &&
-    !!form.departureTime24 &&
-    !!form.arrivalTime24 &&
-    (form.frequency !== "once" || !!form.onceDate) &&
-    (form.frequency !== "weekly" || form.operatingDays.length > 0);
+  /**
+   * What's still missing, in the order the fields appear. Previously this was
+   * a single boolean and the button just sat greyed out — filling in every
+   * visible field and still not being able to submit (because "Just this
+   * once" needs a date further down) gave the user no way to work out why.
+   */
+  const missing: string[] = [
+    !form.busId && "a bus",
+    !form.fromCity.trim() && "departure city",
+    !form.toCity.trim() && "destination city",
+    !form.departureTime24 && "departure time",
+    !form.arrivalTime24 && "arrival time",
+    form.frequency === "once" && !form.onceDate && "a date",
+    form.frequency === "weekly" && form.operatingDays.length === 0 && "at least one weekday",
+  ].filter(Boolean) as string[];
+
+  const canSubmit = missing.length === 0;
 
   function buildPayload(fromCity: string, toCity: string) {
     return {
@@ -448,26 +461,20 @@ function AddScheduleForm({ buses, onAdded }: { buses: OperatorBus[]; onAdded: ()
   return (
     <Card className="p-5">
       <h3 className="mb-4 font-display text-sm font-semibold">Publish a schedule</h3>
+      <CityOptions />
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Labeled label="Bus">
-          <Select value={form.busId} onChange={(v) => set("busId", v)} options={buses.map((b) => b.id)} labels={buses.map((b) => `${b.busName} (${b.busNumber})`)} />
-        </Labeled>
-        <Labeled label="Price (रू)"><Input type="number" value={form.price} onChange={(e) => set("price", Number(e.target.value))} /></Labeled>
+        <SelectField
+          label="Bus"
+          value={form.busId}
+          onChange={(v) => set("busId", v)}
+          options={buses.map((b) => ({ value: b.id, label: `${b.busName} (${b.busNumber})` }))}
+        />
+        <Labeled label="Price (रू)"><Input type="number" className="font-tabular" value={form.price} onChange={(e) => set("price", Number(e.target.value))} /></Labeled>
         <Labeled label="From"><CityInput value={form.fromCity} onChange={(v) => set("fromCity", v)} /></Labeled>
         <Labeled label="To"><CityInput value={form.toCity} onChange={(v) => set("toCity", v)} /></Labeled>
-        <Labeled label="Departure time">
-          <Input type="time" value={form.departureTime24} onChange={(e) => set("departureTime24", e.target.value)} />
-          {form.departureTime24 && (
-            <span className="mt-1 block text-xs text-muted-fg">Saved as {to12Hour(form.departureTime24)}</span>
-          )}
-        </Labeled>
-        <Labeled label="Arrival time">
-          <Input type="time" value={form.arrivalTime24} onChange={(e) => set("arrivalTime24", e.target.value)} />
-          {form.arrivalTime24 && (
-            <span className="mt-1 block text-xs text-muted-fg">Saved as {to12Hour(form.arrivalTime24)}</span>
-          )}
-        </Labeled>
+        <TimeField label="Departure time" value={form.departureTime24} onChange={(v) => set("departureTime24", v)} />
+        <TimeField label="Arrival time" value={form.arrivalTime24} onChange={(v) => set("arrivalTime24", v)} />
       </div>
 
       <label className="mt-4 flex items-start gap-2.5 rounded-xl border border-dashed border-border p-3">
@@ -498,7 +505,7 @@ function AddScheduleForm({ buses, onAdded }: { buses: OperatorBus[]; onAdded: ()
 
         {form.frequency === "once" && (
           <div className="mt-4">
-            <Labeled label="Date"><Input type="date" min={todayIso} value={form.onceDate} onChange={(e) => set("onceDate", e.target.value)} /></Labeled>
+            <DateField label="Date" value={form.onceDate} onChange={(v) => set("onceDate", v)} minDate={todayIso} />
           </div>
         )}
 
@@ -513,7 +520,7 @@ function AddScheduleForm({ buses, onAdded }: { buses: OperatorBus[]; onAdded: ()
                   onClick={() => toggleDay(w.value)}
                   className={cn(
                     "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
-                    form.operatingDays.includes(w.value) ? "border-accent bg-accent/10 text-accent" : "border-border hover:bg-surface-2",
+                    form.operatingDays.includes(w.value) ? "border-teal-700 bg-teal-100 text-teal-700 dark:border-accent dark:bg-white/10 dark:text-accent" : "border-border hover:bg-surface-2",
                   )}
                 >
                   {w.short}
@@ -526,12 +533,13 @@ function AddScheduleForm({ buses, onAdded }: { buses: OperatorBus[]; onAdded: ()
         {(form.frequency === "daily" || form.frequency === "weekly") && (
           <div className="mt-4">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Labeled label="Starting from">
-                <Input type="date" min={todayIso} value={form.validFrom} onChange={(e) => set("validFrom", e.target.value)} />
-              </Labeled>
-              <Labeled label="Ends on (optional — leave blank to run indefinitely)">
-                <Input type="date" min={form.validFrom || todayIso} value={form.validUntil} onChange={(e) => set("validUntil", e.target.value)} />
-              </Labeled>
+              <DateField label="Starting from" value={form.validFrom} onChange={(v) => set("validFrom", v)} minDate={todayIso} />
+              <DateField
+                label="Ends on (optional — leave blank to run indefinitely)"
+                value={form.validUntil}
+                onChange={(v) => set("validUntil", v)}
+                minDate={form.validFrom || todayIso}
+              />
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               <span className="text-xs text-muted-fg">Quick fill:</span>
@@ -549,11 +557,16 @@ function AddScheduleForm({ buses, onAdded }: { buses: OperatorBus[]; onAdded: ()
         )}
       </div>
 
-      {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+      {error && <p className="mt-3 text-body text-error">{error}</p>}
 
-      <div className="mt-4 flex justify-end">
-        <Button variant="accent" disabled={busy || !canSubmit} onClick={submit}>
-          {busy ? "Saving…" : form.addReturn ? "Publish both schedules" : "Publish schedule"}
+      <div className="mt-4 flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+        {!canSubmit && (
+          <p className="text-body-sm text-muted-fg">
+            Still needed: <span className="font-medium text-fg">{missing.join(", ")}</span>
+          </p>
+        )}
+        <Button variant="accent" loading={busy} disabled={!canSubmit} onClick={submit}>
+          {form.addReturn ? "Publish both schedules" : "Publish schedule"}
         </Button>
       </div>
     </Card>
@@ -567,7 +580,7 @@ function FrequencyOption({ label, active, onClick }: { label: string; active: bo
       onClick={onClick}
       className={cn(
         "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
-        active ? "border-accent bg-accent/10 text-accent" : "border-border hover:bg-surface-2",
+        active ? "border-teal-700 bg-teal-100 text-teal-700 dark:border-accent dark:bg-white/10 dark:text-accent" : "border-border hover:bg-surface-2",
       )}
     >
       {label}
@@ -611,7 +624,7 @@ function BookingsTab() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <p className="font-display text-lg font-bold">रू {b.grandTotal.toLocaleString()}</p>
+                  <p className="font-display text-lg font-bold font-tabular">रू {b.grandTotal.toLocaleString()}</p>
                   {isOpen ? <ChevronUp className="size-4 shrink-0 text-muted-fg" /> : <ChevronDown className="size-4 shrink-0 text-muted-fg" />}
                 </div>
               </button>
@@ -640,9 +653,9 @@ function BookingsTab() {
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="rounded-xl border border-border bg-card p-3 text-sm">
                       <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-fg">Payment</h4>
-                      <div className="flex justify-between text-muted-fg"><span>Fare</span><span>रू {b.totalPrice.toLocaleString()}</span></div>
-                      <div className="flex justify-between text-muted-fg"><span>Service fee</span><span>रू {b.serviceFee.toLocaleString()}</span></div>
-                      <div className="mt-1 flex justify-between border-t border-border pt-1 font-medium"><span>Total paid</span><span>रू {b.grandTotal.toLocaleString()}</span></div>
+                      <div className="flex justify-between text-muted-fg"><span>Fare</span><span className="font-tabular">रू {b.totalPrice.toLocaleString()}</span></div>
+                      <div className="flex justify-between text-muted-fg"><span>Service fee</span><span className="font-tabular">रू {b.serviceFee.toLocaleString()}</span></div>
+                      <div className="mt-1 flex justify-between border-t border-border pt-1 font-medium"><span>Total paid</span><span className="font-tabular">रू {b.grandTotal.toLocaleString()}</span></div>
                       <p className="mt-1.5 text-xs capitalize text-muted-fg">Method: {b.method ?? "—"}</p>
                     </div>
                     <div className="rounded-xl border border-border bg-card p-3 text-sm">
@@ -689,42 +702,24 @@ function Labeled({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-function Select({
-  value,
-  onChange,
-  options,
-  labels,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
-  labels?: string[];
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="flex h-10 w-full rounded-xl border border-input bg-surface px-3.5 text-sm text-fg focus-visible:border-accent focus-visible:outline-none"
-    >
-      {options.map((o, i) => (
-        <option key={o} value={o}>
-          {labels?.[i] ?? o}
-        </option>
-      ))}
-    </select>
-  );
+/**
+ * The datalist lives OUTSIDE this component. It used to be rendered inside,
+ * and since the form uses CityInput twice (From and To) that put two elements
+ * with id="op-cities" in the DOM — duplicate ids are invalid, and which one a
+ * browser binds `list=` to is not guaranteed.
+ */
+function CityInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return <Input list="op-cities" value={value} onChange={(e) => onChange(e.target.value)} placeholder="City" />;
 }
 
-function CityInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+/** Rendered once per form, not once per input. */
+function CityOptions() {
   return (
-    <>
-      <Input list="op-cities" value={value} onChange={(e) => onChange(e.target.value)} placeholder="City" />
-      <datalist id="op-cities">
-        {NEPAL_CITIES.map((c) => (
-          <option key={c} value={c} />
-        ))}
-      </datalist>
-    </>
+    <datalist id="op-cities">
+      {NEPAL_CITIES.map((c) => (
+        <option key={c} value={c} />
+      ))}
+    </datalist>
   );
 }
 

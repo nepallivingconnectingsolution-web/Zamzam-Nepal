@@ -26,6 +26,7 @@ import type {
   UpdateStoreDto,
 } from './dto/grocery.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PartnerDocumentsService } from '../partner-documents/partner-documents.service';
 
 
 const SERVICE_FEE_RATE = 0.02; // Same platform commission as every other vertical.
@@ -64,6 +65,7 @@ function todayIso(): string {
 export class GroceryService {
   constructor(@Inject(DATABASE_CONNECTION) private readonly db: Database,
     private readonly notifications: NotificationsService,
+    private readonly partnerDocuments: PartnerDocumentsService,
 ) {}
 
   /* ───────────────────────────── Customer-facing ─────────────────────── */
@@ -387,6 +389,7 @@ export class GroceryService {
   }
 
   async createStore(partnerId: string, dto: CreateStoreDto) {
+    await this.partnerDocuments.assertRequiredDocsUploaded(partnerId, 'grocery');
     const [store] = await this.db
       .insert(groceryStores)
       .values({
@@ -517,6 +520,7 @@ export class GroceryService {
   }
 
   async createProduct(partnerId: string, storeId: string, dto: CreateProductDto) {
+    await this.partnerDocuments.assertRequiredDocsUploaded(partnerId, 'grocery');
     await this.assertOwnedStore(partnerId, storeId);
     if (dto.categoryId) await this.assertOwnedCategory(partnerId, storeId, dto.categoryId);
     const [product] = await this.db

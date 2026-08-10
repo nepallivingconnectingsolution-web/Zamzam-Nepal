@@ -37,7 +37,7 @@ export function SettingsPage() {
           <ShieldCheck className="size-4 text-muted-fg" />
           <h2 className="font-display text-base font-semibold">Account</h2>
         </div>
-        <dl className="grid gap-4 text-sm sm:grid-cols-3">
+        <dl className="grid gap-4 text-sm">
           <div>
             <dt className="text-xs text-muted-fg">Mobile (login ID)</dt>
             <dd className="mt-1 font-medium">{user?.mobile ?? "—"}</dd>
@@ -131,7 +131,7 @@ function ProfileSection({
         />
       </div>
 
-      <Button variant="accent" onClick={save} disabled={saving || !dirty}>
+      <Button variant="primary" onClick={save} disabled={saving || !dirty}>
         {saving ? "Saving…" : "Save changes"}
       </Button>
     </Card>
@@ -210,7 +210,7 @@ function PasswordSection() {
         />
       </div>
 
-      <Button variant="accent" onClick={save} disabled={saving || !current || !next || !confirm}>
+      <Button variant="primary" onClick={save} disabled={saving || !current || !next || !confirm}>
         {saving ? "Changing…" : "Change password"}
       </Button>
     </Card>

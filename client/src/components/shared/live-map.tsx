@@ -26,7 +26,7 @@ export interface LiveMapMarker {
   label?: string;
 }
 
-interface LiveMapProps {
+interface LiveMapProps {  
   markers: LiveMapMarker[];
   /** Optional straight route line, as [lat, lng] pairs. */
   route?: [number, number][];
@@ -35,28 +35,33 @@ interface LiveMapProps {
   fallbackCenter?: [number, number];
 }
 
+// Colors here are literal (not CSS-var surface tokens) on purpose: the
+// CARTO dark basemap never changes with the app's light/dark toggle, so
+// markers need fixed brand hex values rather than theme-reactive ones —
+// success/danger/accent already compile to fixed hex in tailwind.config.ts,
+// so bg-success/bg-danger/bg-accent are safe to use as-is here.
 const ICON_HTML: Record<LiveMapMarkerVariant, string> = {
   pickup: `
     <span class="relative grid size-6 place-items-center">
-      <span class="absolute size-6 animate-pulse-ring rounded-full bg-emerald-500/30"></span>
-      <span class="grid size-3.5 place-items-center rounded-full bg-emerald-500 ring-2 ring-white/85 shadow"></span>
+      <span class="absolute size-6 animate-pulse-ring rounded-full bg-success/30"></span>
+      <span class="grid size-3.5 place-items-center rounded-full bg-success ring-2 ring-white/85 shadow"></span>
     </span>`,
   drop: `
     <span class="grid size-6 place-items-center">
-      <span class="size-3.5 rotate-45 rounded-sm bg-red-500 ring-2 ring-white/85 shadow"></span>
+      <span class="size-3.5 rotate-45 rounded-sm bg-danger ring-2 ring-white/85 shadow"></span>
     </span>`,
   driver: `
     <span class="relative grid size-8 place-items-center">
       <span class="absolute size-8 animate-pulse-ring rounded-full bg-accent/35"></span>
-      <span class="grid size-6 place-items-center rounded-full bg-accent text-[12px] text-white shadow-lg ring-2 ring-white/70">🚘</span>
+      <span class="grid size-6 place-items-center rounded-full bg-accent text-[12px] text-accent-fg shadow-lg ring-2 ring-white/70">🚘</span>
     </span>`,
   you: `
     <span class="relative grid size-8 place-items-center">
-      <span class="absolute size-8 animate-pulse-ring rounded-full bg-sky-500/35"></span>
-      <span class="grid size-6 place-items-center rounded-full bg-sky-500 text-[12px] text-white shadow-lg ring-2 ring-white/70">➤</span>
+      <span class="absolute size-8 animate-pulse-ring rounded-full bg-brand-600/35"></span>
+      <span class="grid size-6 place-items-center rounded-full bg-brand-700 text-[12px] text-white shadow-lg ring-2 ring-white/70">➤</span>
     </span>`,
   nearby: `
-    <span class="grid size-5 place-items-center rounded-full bg-slate-400/90 ring-2 ring-white/70 shadow"></span>`,
+    <span class="grid size-5 place-items-center rounded-full bg-[#8C8074]/90 ring-2 ring-white/70 shadow"></span>`,
 };
 
 const ICON_SIZE: Record<LiveMapMarkerVariant, number> = {
@@ -170,9 +175,9 @@ export function LiveMap({ markers, route, className, fallbackCenter }: LiveMapPr
     }
     if (route && route.length >= 2) {
       routeLayerRef.current = L.polyline(route, {
-        color: "#10b981",
+        color: "#E2952B", // brand marigold (accent.500) — matches the driver marker
         weight: 3,
-        opacity: 0.75,
+        opacity: 0.85,
         dashArray: "6 8",
       }).addTo(map);
     }

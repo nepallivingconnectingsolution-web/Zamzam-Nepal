@@ -25,6 +25,42 @@ export class PartnerDocumentsService {
     private readonly notifications: NotificationsService,
   ) {}
 
+  /**
+   * Throws 403 unless every REQUIRED document for this partner type has been
+   * uploaded. Called by each vertical before a partner is allowed to publish
+   * anything customers can buy (a bus schedule, a room type, a menu item, a
+   * product, a freight bid).
+   *
+   * The gate is on *uploaded*, not *approved*, deliberately: approval needs a
+   * super-admin round trip, and blocking on it would leave a partner who has
+   * done everything asked of them unable to work for an unbounded time. A
+   * rejected document is separately actionable — the admin sets it SUSPENDED,
+   * which this treats as not-uploaded, so the partner is blocked again until
+   * they replace it.
+   */
+  async assertRequiredDocsUploaded(partnerId: string, partnerType: PartnerType) {
+    const required = PARTNER_DOCUMENT_CATALOG[partnerType].filter((d) => d.required);
+    if (required.length === 0) return;
+
+    const rows = await this.db
+      .select()
+      .from(partnerDocuments)
+      .where(eq(partnerDocuments.partnerId, partnerId));
+
+    // SUSPENDED (rejected) counts as missing — the partner must replace it.
+    const usable = new Set(
+      rows.filter((r) => r.status === 'PENDING' || r.status === 'APPROVED').map((r) => r.type),
+    );
+    const missing = required.filter((d) => !usable.has(d.type));
+    if (missing.length === 0) return;
+
+    throw apiError(
+      403,
+      `Upload your ${missing.map((d) => d.label.toLowerCase()).join(', ')} before publishing. Go to Documents to complete verification.`,
+      'DOCUMENTS_REQUIRED',
+    );
+  }
+
   async mine(partnerId: string, partnerType: PartnerType) {
     const catalog = PARTNER_DOCUMENT_CATALOG[partnerType];
     const rows = await this.db.select().from(partnerDocuments).where(eq(partnerDocuments.partnerId, partnerId));
@@ -35,6 +71,7 @@ export class PartnerDocumentsService {
       if (!row) {
         return {
           id: null, type: spec.type, label: spec.label, hint: spec.hint,
+          required: spec.required,
           fileUrl: null, fileName: null, status: 'NOT_UPLOADED' as const,
           reviewNote: null, updatedAt: null,
         };
@@ -127,6 +164,7 @@ export class PartnerDocumentsService {
     const spec = PARTNER_DOCUMENT_CATALOG[row.partnerType as PartnerType].find((d) => d.type === row.type);
     return {
       id: row.id, type: row.type, label: spec?.label ?? row.type, hint: spec?.hint ?? '',
+      required: spec?.required ?? true,
       fileUrl: row.fileUrl, fileName: row.fileName, status: row.status,
       reviewNote: row.reviewNote, updatedAt: row.updatedAt.toISOString(),
     };

@@ -84,8 +84,15 @@ export function NotificationBell() {
         setOpen(false);
       }
     }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
     document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
 
   const unread = feed.data?.unread ?? 0;
@@ -116,6 +123,8 @@ export function NotificationBell() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="Notifications"
+        aria-haspopup="true"
+        aria-expanded={open}
         className="relative grid size-10 place-items-center rounded-xl text-fg transition-colors hover:bg-surface-2"
       >
         <Bell className="size-[18px]" />

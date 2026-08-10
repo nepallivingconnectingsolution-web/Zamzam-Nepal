@@ -44,10 +44,18 @@ export default defineConfig({
     chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {
+        // Only vendor libs actually needed for the very first paint (the
+        // router shell + its animations) get pinned into named, eagerly
+        // preloaded chunks. recharts/apexcharts deliberately have NO manual
+        // chunk: now that every chart-using page (PartnerDashboard, the
+        // *RevenuePage screens, AdminOverview) is React.lazy-loaded (see
+        // routes/index.tsx), Rollup's automatic chunking already gives them
+        // their own async chunk(s) fetched only when one of those routes is
+        // visited. A manual `charts` bucket previously forced Vite to treat
+        // it as a vendor chunk and <link rel="modulepreload"> it from
+        // index.html on every single page load, defeating the split.
         manualChunks: {
           react: ["react", "react-dom", "react-router-dom"],
-          // charts: ["recharts"],
-          charts: ["recharts", "apexcharts", "react-apexcharts"],
           motion: ["framer-motion"],
         },
       },

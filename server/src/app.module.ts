@@ -23,6 +23,8 @@ import { GroceryModule } from './modules/grocery/grocery.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SupportModule } from './modules/support/support.module';
 import { MaintenanceGuard } from './common/guards/maintenance.guard';
+import { MailerModule } from './common/mailer/mailer.module';
+import { PasswordResetModule } from './common/password-reset/password-reset.module';
 
 
 @Module({
@@ -46,6 +48,8 @@ import { MaintenanceGuard } from './common/guards/maintenance.guard';
     ScheduleModule.forRoot(),
     DatabaseModule,
     NotificationsModule,
+    MailerModule,
+    PasswordResetModule,
     AuthModule,
     ProfileModule,
     WalletModule,

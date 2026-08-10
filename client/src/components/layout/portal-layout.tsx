@@ -1,70 +1,127 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, LogOut, Menu, Search, Settings, X } from "lucide-react";
+import { ChevronDown, LogOut, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useUiStore } from "@/stores/ui.store";
 import { useAuthStore } from "@/stores/auth.store";
-import { PORTAL_NAV, ROLE_HOME } from "@/config";
+import { PORTAL_NAV, ROLE_HOME, type PortalNavRole } from "@/config";
 import type { Role } from "@/types";
 import { Logo } from "./logo";
 import { Icon } from "@/components/ui/icon";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Avatar } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { TabBar, type TabBarItem } from "@/components/ui/tab-bar";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { NotificationBell } from "./NotificationBell";
-import { FloatingAssistant } from "@/features/customer/assistant/FloatingAssistant";
+import { CustomerShell } from "./customer-shell";
+import { DriverShell } from "./driver-shell";
+import { RouteFallback } from "@/components/shared/route-fallback";
+import { ErrorBoundary } from "@/components/shared/error-boundary";
 
+/**
+ * Partner / admin portal shell.
+ *
+ * These portals are genuinely used at a desk — they're dense management
+ * consoles with tables and bulk actions — so at `lg` and up they keep a
+ * sidebar. But a hotel owner or bus operator checking today's bookings is
+ * very often doing it on a phone, and the old mobile treatment was a
+ * hamburger opening a slide-out drawer: the website pattern, and the single
+ * clearest tell that a screen isn't a real app.
+ *
+ * Below `lg` the same routes now get the same bottom tab bar the customer
+ * and driver apps use — first four nav items as tabs, everything else behind
+ * "More". Only the CHROME swaps at the breakpoint; `<Outlet />` is rendered
+ * exactly once either way, so route state is never duplicated or remounted.
+ */
 export function PortalLayout({ role }: { role: Exclude<Role, "guest"> }) {
-  const { sidebarOpen, setSidebar } = useUiStore();
   const location = useLocation();
-  const nav = PORTAL_NAV[role];
+  const navigate = useNavigate();
+  const { signOut } = useAuthStore();
+  const [moreOpen, setMoreOpen] = useState(false);
 
-  // Close the mobile drawer on navigation.
-  useEffect(() => setSidebar(false), [location.pathname, setSidebar]);
+  // Close the "More" sheet on navigation.
+  useEffect(() => setMoreOpen(false), [location.pathname]);
+
+  // Customer and driver have purpose-built shells of their own. These guards
+  // sit above the PORTAL_NAV lookup on purpose: PORTAL_NAV no longer has keys
+  // for those two roles, and returning here first is what narrows `role` to
+  // PortalNavRole so the lookup below type-checks.
+  if (role === "customer") return <CustomerShell />;
+  if (role === "driver") return <DriverShell />;
+
+  const nav = PORTAL_NAV[role];
+  const primary = nav.items.slice(0, 4);
+  const overflow = nav.items.slice(4);
+
+  const tabs: TabBarItem[] = [
+    ...primary.map((item) => ({
+      label: item.label,
+      icon: item.icon,
+      to: item.to,
+      end: item.to === ROLE_HOME[role],
+    })),
+    ...(overflow.length > 0
+      ? [
+          {
+            label: "More",
+            icon: "MoreHorizontal",
+            action: { onClick: () => setMoreOpen(true), active: moreOpen },
+          } satisfies TabBarItem,
+        ]
+      : []),
+  ];
+
+  function handleSignOut() {
+    signOut();
+    setMoreOpen(false);
+    navigate("/");
+  }
 
   return (
     <div className="min-h-screen bg-bg lg:grid lg:grid-cols-[260px_1fr]">
-      {/* Sidebar */}
       <SidebarBody role={role} navTitle={nav.title} className="hidden lg:flex" />
 
-      {/* Mobile drawer */}
-      <AnimatePresence>
-        {sidebarOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSidebar(false)}
-              className="fixed inset-0 z-40 bg-brand-950/50 backdrop-blur-sm lg:hidden"
-            />
-            <motion.aside
-              initial={{ x: "-100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 280 }}
-              className="fixed left-0 top-[env(safe-area-inset-top)] bottom-[env(safe-area-inset-bottom)] z-50 w-[260px] lg:hidden"
-            >
-              <SidebarBody role={role} navTitle={nav.title} className="flex h-full" withClose />
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
-
-      {/* Main column */}
       <div className="flex min-w-0 flex-col">
         <Topbar role={role} />
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main className="flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
           <div className="mx-auto max-w-7xl">
-            <Outlet />
+            <ErrorBoundary>
+              <Suspense fallback={<RouteFallback />}>
+                <Outlet />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
       </div>
 
-      {/* Floating assistant — customer portal only, available on every page */}
-      {role === "customer" && <FloatingAssistant />}
+      {/* Mobile-only chrome. The sidebar above is the lg+ equivalent. */}
+      <div className="lg:hidden">
+        <TabBar items={tabs} />
+
+        <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} title="More">
+          <div className="space-y-1 pb-2">
+            {overflow.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={() => setMoreOpen(false)}
+                className="flex items-center gap-3 rounded-md px-3 py-3 text-body font-medium text-fg transition-colors duration-fast ease-standard active:bg-surface-2"
+              >
+                <Icon name={item.icon} className="size-[18px] text-muted-fg" />
+                {item.label}
+              </Link>
+            ))}
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-body font-semibold text-error transition-colors duration-fast ease-standard active:bg-error/10"
+            >
+              <LogOut className="size-[18px]" />
+              Sign out
+            </button>
+          </div>
+        </BottomSheet>
+      </div>
     </div>
   );
 }
@@ -73,39 +130,30 @@ function SidebarBody({
   role,
   navTitle,
   className,
-  withClose,
 }: {
-  role: Exclude<Role, "guest">;
+  role: PortalNavRole;
   navTitle: string;
   className?: string;
-  withClose?: boolean;
 }) {
-  const { setSidebar } = useUiStore();
   const { user, signOut } = useAuthStore();
   const navigate = useNavigate();
   const nav = PORTAL_NAV[role];
 
   function handleSignOut() {
     signOut();
-    setSidebar(false);
     navigate("/");
   }
 
   return (
     <aside className={cn("flex-col border-r border-border bg-surface", className)}>
-      <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-5">
+      <div className="flex h-16 shrink-0 items-center border-b border-border px-5">
         <Link to={ROLE_HOME[role]} aria-label="Zamzam home">
           <Logo />
         </Link>
-        {withClose && (
-          <Button variant="ghost" size="icon" onClick={() => setSidebar(false)} aria-label="Close menu">
-            <X className="size-5" />
-          </Button>
-        )}
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-fg">
+        <p className="px-3 pb-2 text-caption font-semibold uppercase tracking-wider text-muted-fg">
           {navTitle}
         </p>
         <ul className="space-y-0.5">
@@ -116,38 +164,32 @@ function SidebarBody({
                 end={item.to.split("/").length <= 2}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                    "flex items-center gap-3 rounded-md px-3 py-2.5 text-body font-medium transition-colors duration-fast ease-standard",
                     isActive
-                      ? "bg-gradient-to-r from-brand-900 to-brand-800 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_4px_14px_-6px_rgba(2,6,23,0.5)] ring-1 ring-white/10 dark:from-white dark:to-brand-50 dark:text-brand-900 dark:shadow-[0_4px_14px_-6px_rgba(0,0,0,0.5)] dark:ring-black/5"
-                      : "text-muted-fg hover:translate-x-0.5 hover:bg-surface-2 hover:text-fg",
+                      ? "bg-teal-700 text-white dark:bg-white dark:text-teal-900"
+                      : "text-muted-fg hover:bg-surface-2 hover:text-fg",
                   )
                 }
               >
                 <Icon name={item.icon} className="size-[18px]" />
                 <span className="flex-1">{item.label}</span>
-                {item.badge && (
-                  <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-bold text-white">
-                    {item.badge}
-                  </span>
-                )}
               </NavLink>
             </li>
           ))}
         </ul>
       </nav>
 
-      {/* Footer — user info + sign out, present on every portal */}
       <div className="shrink-0 space-y-1 border-t border-border p-3">
         <div className="flex items-center gap-2.5 px-3 py-2">
           <Avatar name={user?.name ?? "Guest"} className="size-7" />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold">{user?.name ?? "Guest user"}</p>
-            <p className="truncate text-[10px] text-muted-fg">{user?.email ?? user?.mobile ?? ""}</p>
+            <p className="truncate text-body-sm font-semibold">{user?.name ?? "Guest user"}</p>
+            <p className="truncate text-caption text-muted-fg">{user?.email ?? user?.mobile ?? ""}</p>
           </div>
         </div>
         <button
           onClick={handleSignOut}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-fg transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+          className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-body font-medium text-muted-fg transition-colors duration-fast ease-standard hover:bg-error/10 hover:text-error"
         >
           <LogOut className="size-[18px]" />
           Sign out
@@ -157,14 +199,11 @@ function SidebarBody({
   );
 }
 
-function Topbar({ role }: { role: Exclude<Role, "guest"> }) {
-  const { setSidebar } = useUiStore();
+function Topbar({ role }: { role: PortalNavRole }) {
   const { user, previewRole, signOut } = useAuthStore();
   const navigate = useNavigate();
   const name = user?.name ?? "Guest user";
 
-  // Only shown when this portal actually has a settings page (customer,
-  // admin). Roles without one just don't get the menu item.
   const settingsItem = PORTAL_NAV[role].items.find((item) => item.icon === "Settings");
 
   const [profileOpen, setProfileOpen] = useState(false);
@@ -177,8 +216,15 @@ function Topbar({ role }: { role: Exclude<Role, "guest"> }) {
         setProfileOpen(false);
       }
     }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setProfileOpen(false);
+    }
     document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [profileOpen]);
 
   function handleSignOut() {
@@ -188,21 +234,13 @@ function Topbar({ role }: { role: Exclude<Role, "guest"> }) {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-[calc(4rem+env(safe-area-inset-top))] items-center gap-3 border-b border-border bg-bg/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl sm:px-6 lg:px-8">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="lg:hidden"
-        onClick={() => setSidebar(true)}
-        aria-label="Open menu"
-      >
-        <Menu />
-      </Button>
-
-      <div className="relative hidden max-w-md flex-1 sm:block">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-fg" />
-        <Input placeholder="Search Zamzam…" className="pl-9" />
-      </div>
+    <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] items-center gap-3 border-b border-border bg-bg/95 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl sm:px-6 lg:h-[calc(4rem+env(safe-area-inset-top))] lg:px-8">
+      {/* Logo shows on mobile only — on lg the sidebar already carries it.
+          There's no hamburger any more: the bottom tab bar replaced the
+          slide-out drawer below lg. */}
+      <Link to={ROLE_HOME[role]} className="lg:hidden" aria-label="Zamzam home">
+        <Logo />
+      </Link>
 
       <div className="ml-auto flex items-center gap-1.5">
         <NotificationBell />
@@ -212,15 +250,18 @@ function Topbar({ role }: { role: Exclude<Role, "guest"> }) {
           <button
             type="button"
             onClick={() => setProfileOpen((v) => !v)}
-            className="ml-1 flex items-center gap-2.5 rounded-full border border-border py-1 pl-1 pr-3 transition-colors hover:bg-surface-2"
+            aria-haspopup="true"
+            aria-expanded={profileOpen}
+            aria-label="Account menu"
+            className="ml-1 flex items-center gap-2.5 rounded-full border border-border py-1 pl-1 pr-1 transition-colors duration-fast ease-standard hover:bg-surface-2 sm:pr-3"
           >
             <Avatar name={name} className="size-7" />
-            <span className="hidden text-sm font-medium sm:block">
+            <span className="hidden text-body font-medium sm:block">
               {previewRole === "guest" ? "Guest" : name}
             </span>
             <ChevronDown
               className={cn(
-                "hidden size-3.5 text-muted-fg transition-transform sm:block",
+                "hidden size-3.5 text-muted-fg transition-transform duration-fast ease-standard sm:block",
                 profileOpen && "rotate-180",
               )}
             />
@@ -232,14 +273,16 @@ function Topbar({ role }: { role: Exclude<Role, "guest"> }) {
                 initial={{ opacity: 0, y: -8, scale: 0.97 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -8, scale: 0.97 }}
-                transition={{ type: "spring", damping: 26, stiffness: 320 }}
-                className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 overflow-hidden rounded-2xl border border-border bg-card shadow-lift"
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 overflow-hidden rounded-xl bg-card shadow-e2"
               >
                 <div className="flex items-center gap-3 border-b border-border px-4 py-3">
                   <Avatar name={name} className="size-9" />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold">{name}</p>
-                    <p className="truncate text-xs text-muted-fg">{user?.email ?? user?.mobile ?? ""}</p>
+                    <p className="truncate text-body font-semibold">{name}</p>
+                    <p className="truncate text-body-sm text-muted-fg">
+                      {user?.email ?? user?.mobile ?? ""}
+                    </p>
                   </div>
                 </div>
                 <div className="p-1.5">
@@ -247,7 +290,7 @@ function Topbar({ role }: { role: Exclude<Role, "guest"> }) {
                     <Link
                       to={settingsItem.to}
                       onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-fg transition-colors hover:bg-surface-2"
+                      className="flex items-center gap-3 rounded-md px-3 py-2.5 text-body font-medium text-fg transition-colors duration-fast ease-standard hover:bg-surface-2"
                     >
                       <Settings className="size-[18px]" />
                       Account settings
@@ -256,7 +299,7 @@ function Topbar({ role }: { role: Exclude<Role, "guest"> }) {
                   <button
                     type="button"
                     onClick={handleSignOut}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-fg transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                    className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-body font-medium text-muted-fg transition-colors duration-fast ease-standard hover:bg-error/10 hover:text-error"
                   >
                     <LogOut className="size-[18px]" />
                     Sign out

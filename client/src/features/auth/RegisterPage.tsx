@@ -97,7 +97,7 @@ export function RegisterPage() {
                   {ALL_ROLES.map((r) => (
                     <button key={r.role} onClick={() => setRole(r.role)}
                       className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-[11px] font-medium transition-colors ${
-                        role === r.role ? "border-accent bg-accent/10 text-accent-600 dark:text-accent"
+                        role === r.role ? "border-teal-700 bg-teal-100 text-teal-700 dark:border-accent dark:bg-white/10 dark:text-accent"
                         : "border-border text-muted-fg hover:bg-surface-2"}`}>
                       <Icon name={r.icon} className="size-5" />
                       {ROLE_LABEL[r.role].split(" ")[0]}
@@ -129,7 +129,7 @@ export function RegisterPage() {
 
           {step === "done" && (
             <div className="flex flex-col items-center gap-3 py-4 text-center">
-              <div className="flex size-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/30">
+              <div className="flex size-12 items-center justify-center rounded-full bg-warning/10 text-warning">
                 <Clock className="size-6" />
               </div>
               <h3 className="font-semibold">Registration submitted</h3>
@@ -140,7 +140,7 @@ export function RegisterPage() {
             </div>
           )}
 
-          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600 dark:bg-red-900/20 dark:text-red-400">{error}</p>}
+          {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-xs font-medium text-danger">{error}</p>}
         </div>
       </div>
       

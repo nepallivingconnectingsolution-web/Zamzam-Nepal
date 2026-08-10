@@ -157,7 +157,7 @@ export function SuperAdminPartnerDetail() {
                 <>
   {/* Desktop / tablet: full table */}
   <div className="hidden overflow-x-auto px-5 pb-5 md:block">
-    <table className="w-full min-w-[720px] text-sm">
+    <table className="w-full min-w-[720px] text-sm font-tabular">
       <thead>
         <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-fg">
           <th className="py-2 pr-3 font-medium">Booking</th>
@@ -193,7 +193,7 @@ export function SuperAdminPartnerDetail() {
   </div>
 
   {/* Mobile: one card per booking instead of a cramped, horizontally-scrolling table */}
-  <div className="space-y-3 px-5 pb-5 md:hidden">
+  <div className="space-y-3 px-5 pb-5 font-tabular md:hidden">
     {detail.data?.bookings.map((b) => (
       <div key={b.id} className="rounded-xl border border-border/60 bg-surface-2/40 p-3">
         <div className="flex items-start justify-between gap-3">

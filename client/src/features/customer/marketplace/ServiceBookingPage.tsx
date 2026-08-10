@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   CheckCircle2,
+  ChevronDown,
   Circle,
   Gauge,
   LoaderCircle,
@@ -24,6 +25,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar } from "@/components/ui/avatar";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { PageHeader } from "@/components/shared/page-header";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { LiveMap, type LiveMapMarker } from "@/components/shared/live-map";
@@ -156,6 +158,72 @@ interface CancelledTrip {
 
 type PickupChoice = { kind: "spot"; index: number } | { kind: "gps"; lat: number; lng: number };
 
+/**
+ * Bottom-sheet place picker — replaces the raw `<select>` used for
+ * pickup/drop-off. `leadingAction` renders an extra row above the list
+ * (pickup's "Use my current location"); drop-off has none.
+ */
+function PlaceField({
+  label,
+  value,
+  onPick,
+  leadingAction,
+}: {
+  label: string;
+  value: string;
+  onPick: (index: number) => void;
+  /** Extra row above the spot list (pickup's "Use my current location"). Its own onClick closes the sheet after running. */
+  leadingAction?: { label: ReactNode; icon: typeof LocateFixed; disabled?: boolean; onClick: () => void };
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium text-muted-fg">{label}</label>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex h-11 w-full items-center justify-between rounded-xl border border-input bg-surface px-3.5 text-left text-sm text-fg transition-colors active:bg-surface-2"
+      >
+        <span className="flex min-w-0 items-center gap-2 truncate">
+          <MapPin className="size-4 shrink-0 text-muted-fg" /> {value}
+        </span>
+        <ChevronDown className="size-4 shrink-0 text-muted-fg" />
+      </button>
+      <BottomSheet open={open} onClose={() => setOpen(false)} title={label}>
+        <div className="space-y-1 pb-2">
+          {leadingAction && (
+            <button
+              type="button"
+              disabled={leadingAction.disabled}
+              onClick={() => {
+                leadingAction.onClick();
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-accent-600 transition-colors active:bg-accent/10 disabled:opacity-60 dark:text-accent"
+            >
+              <leadingAction.icon className="size-4 shrink-0" />
+              {leadingAction.label}
+            </button>
+          )}
+          {SPOTS.map((s, i) => (
+            <button
+              key={s.label}
+              type="button"
+              onClick={() => {
+                onPick(i);
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-fg transition-colors active:bg-surface-2"
+            >
+              <MapPin className="size-4 shrink-0 text-muted-fg" /> {s.label}
+            </button>
+          ))}
+        </div>
+      </BottomSheet>
+    </div>
+  );
+}
+
 export function ServiceBookingPage() {
  const { service } = useParams<{ service: string }>();
 const navigate = useNavigate();
@@ -270,14 +338,26 @@ const svc = SERVICES.find((s) => s.id === service);
           subtitle={svc.tagline}
           actions={<Badge variant="outline">Coming soon</Badge>}
         />
-        <EmptyState
-          title={`${svc.name} booking is coming soon`}
-          description={
-            service === "bus"
-              ? "Intercity bus seats are booked from the Buses page in the sidebar."
-              : "This service's booking flow is being built — check back shortly."
-          }
-        />
+        {/* Bus isn't "coming soon" — it's fully built, just on a different
+            route. Anyone landing here from an old link/bookmark gets sent to
+            it rather than told to look in a sidebar that customers no longer
+            have. */}
+        {service === "bus" ? (
+          <EmptyState
+            title="Bus tickets have moved"
+            description="Search schedules, pick your seats and pay — all on the Buses page."
+            action={
+              <Button variant="accent" onClick={() => navigate("/app/buses")}>
+                Search buses
+              </Button>
+            }
+          />
+        ) : (
+          <EmptyState
+            title={`${svc.name} booking is coming soon`}
+            description="This service's booking flow is being built — check back shortly."
+          />
+        )}
       </div>
     );
   }
@@ -375,9 +455,6 @@ const svc = SERVICES.find((s) => s.id === service);
       setCancelBusy(false);
     }
   }
-
- const selectClass =
-    "h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:ring-2 focus:ring-accent/40";
 
   // Same condition the panel below switches on — kept in one place so the
   // map and the panel never disagree about which state they're showing.
@@ -593,7 +670,7 @@ const svc = SERVICES.find((s) => s.id === service);
 
               <div className="flex items-center justify-between border-t border-border pt-3 text-sm">
                 <span className="text-muted-fg">Fare</span>
-                <span className="font-display font-semibold">{npr(ride.fare)}</span>
+                <span className="font-display font-semibold font-tabular">{npr(ride.fare)}</span>
               </div>
 
               {(ride.status === "REQUESTED" || ride.status === "ACCEPTED") &&
@@ -655,7 +732,7 @@ const svc = SERVICES.find((s) => s.id === service);
                           : "No driver had been assigned yet."}
                       </p>
                     </div>
-                    <p className="font-display text-lg font-bold text-muted-fg line-through">{npr(cancelledTrip.fare)}</p>
+                    <p className="font-display text-lg font-bold font-tabular text-muted-fg line-through">{npr(cancelledTrip.fare)}</p>
                   </div>
                   <div className="flex gap-2">
                     <Button variant="accent" className="flex-1" onClick={() => setCancelledTrip(null)}>
@@ -685,7 +762,7 @@ const svc = SERVICES.find((s) => s.id === service);
                         <p className="text-xs text-muted-fg">Driver · {finishedTrip.driverName}</p>
                       )}
                     </div>
-                    <p className="font-display text-lg font-bold">{npr(finishedTrip.fare)}</p>
+                    <p className="font-display text-lg font-bold font-tabular">{npr(finishedTrip.fare)}</p>
                   </div>
                   <RateTripPrompt
                     rideId={finishedTrip.id}
@@ -701,35 +778,23 @@ const svc = SERVICES.find((s) => s.id === service);
               )}
               <Card className="p-5">
                 <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-fg">Pickup</label>
-                    <div className="flex gap-2">
-                      <select
-                        className={selectClass}
-                        value={pickup.kind === "gps" ? "gps" : String(pickup.index)}
-                        onChange={(e) => {
-                          if (e.target.value !== "gps") setPickup({ kind: "spot", index: Number(e.target.value) });
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <PlaceField
+                        label="Pickup"
+                        value={pickupLabel}
+                        onPick={(i) => setPickup({ kind: "spot", index: i })}
+                        leadingAction={{
+                          label: locating ? "Locating…" : "Use my current location",
+                          icon: LocateFixed,
+                          disabled: locating,
+                          onClick: useMyLocation,
                         }}
-                      >
-                        {pickup.kind === "gps" && <option value="gps">My current location</option>}
-                        {SPOTS.map((s, i) => (
-                          <option key={s.label} value={i}>{s.label}</option>
-                        ))}
-                      </select>
-                      <Button variant="outline" size="sm" className="shrink-0" onClick={useMyLocation} disabled={locating} title="Use my current location">
-                        <LocateFixed className="size-4" />
-                      </Button>
+                      />
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-fg">Drop-off</label>
-                    <select className={selectClass} value={dropIndex} onChange={(e) => setDropIndex(Number(e.target.value))}>
-                      {SPOTS.map((s, i) => (
-                        <option key={s.label} value={i}>{s.label}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <PlaceField label="Drop-off" value={drop.label} onPick={setDropIndex} />
 
                   {service === "parcel" && (
                     <div className="space-y-1.5">
@@ -748,7 +813,7 @@ const svc = SERVICES.find((s) => s.id === service);
                 <div className="mt-5 border-t border-border pt-4">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-fg">Estimated fare · {distanceKm.toFixed(1)} km · ~{etaMinutes(distanceKm)} min</span>
-                    <span className="font-display font-semibold">{npr(fareEstimate)}</span>
+                    <span className="font-display font-semibold font-tabular">{npr(fareEstimate)}</span>
                   </div>
                   <p className="mt-1 text-xs text-muted-fg">
                     Straight-line estimate — the final fare and time are fixed when you book.

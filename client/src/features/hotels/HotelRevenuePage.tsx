@@ -72,7 +72,7 @@ export function HotelRevenuePage() {
         >
           {/* Desktop / tablet: full table, scrolls horizontally only if the viewport is still tight */}
           <div className="hidden overflow-x-auto px-5 pb-5 md:block">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[640px] text-sm font-tabular">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-fg">
                   <th className="py-2 pr-3 font-medium">Date</th>
@@ -89,7 +89,7 @@ export function HotelRevenuePage() {
                   <tr key={d.date} className="border-b border-border/60 last:border-0">
                     <td className="py-2 pr-3">{d.date}</td>
                     <td className="py-2 pr-3">{d.bookings}</td>
-                    <td className="py-2 pr-3">रू {d.grossRevenue.toLocaleString()}</td>
+                    <td className="py-2 pr-3 font-tabular">रू {d.grossRevenue.toLocaleString()}</td>
                     <td className="py-2 pr-3 text-muted-fg">रू {d.platformFee.toLocaleString()}</td>
                     <td className="py-2 pr-3 font-medium">रू {d.netProfit.toLocaleString()}</td>
                     <td className="py-2 pr-3">{d.cancelled}</td>
@@ -101,7 +101,7 @@ export function HotelRevenuePage() {
           </div>
 
           {/* Mobile: one card per day instead of a cramped, horizontally-scrolling table */}
-          <div className="space-y-3 px-5 pb-5 md:hidden">
+          <div className="space-y-3 px-5 pb-5 font-tabular md:hidden">
             {dailyRows.map((d) => (
               <div key={d.date} className="rounded-xl border border-border/60 bg-surface-2/40 p-3">
                 <div className="flex items-center justify-between">
@@ -119,7 +119,7 @@ export function HotelRevenuePage() {
                   </div>
                   <div className="flex items-center justify-between">
                     <dt className="text-muted-fg">Gross revenue</dt>
-                    <dd className="font-medium text-fg">रू {d.grossRevenue.toLocaleString()}</dd>
+                    <dd className="font-medium text-fg font-tabular">रू {d.grossRevenue.toLocaleString()}</dd>
                   </div>
                   <div className="flex items-center justify-between">
                     <dt className="text-muted-fg">Platform fee</dt>

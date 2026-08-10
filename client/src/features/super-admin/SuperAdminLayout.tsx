@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -18,7 +18,6 @@ ChevronDown,
   LayoutTemplate,
   LogOut,
   Map,
-  Menu,
   ScrollText,
   Settings,
   ShieldAlert,
@@ -26,16 +25,17 @@ ChevronDown,
   UserCheck,
   Users,
   Wallet,
-  X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useUiStore } from "@/stores/ui.store";
 import { useSuperAdminStore } from "@/stores/super-admin.store";
 import { Avatar } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { TabBar, type TabBarItem } from "@/components/ui/tab-bar";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { NotificationBell } from "@/features/super-admin/NotificationBell";
+import { RouteFallback } from "@/components/shared/route-fallback";
+import { ErrorBoundary } from "@/components/shared/error-boundary";
 
 
 interface NavItem {
@@ -68,59 +68,132 @@ const SA_NAV: NavItem[] = [
   { label: "Settings",       to: "/x-admin/settings",       icon: Settings },
 ];
 
-export function SuperAdminLayout() {
-  const { sidebarOpen, setSidebar } = useUiStore();
-  const location = useLocation();
+/**
+ * The four surfaces a super admin actually opens daily — the dashboard, the
+ * queue of things waiting on a decision, the partner roster, and the money
+ * ledger. Everything else is periodic and lives behind "More".
+ */
+const SA_TABS: TabBarItem[] = [
+  { label: "Overview", to: "/x-admin", icon: "Gauge", end: true },
+  { label: "Approvals", to: "/x-admin/approvals", icon: "ShieldCheck" },
+  { label: "Partners", to: "/x-admin/partners", icon: "Building2" },
+  { label: "Ledger", to: "/x-admin/transactions", icon: "ArrowLeftRight" },
+];
 
-  useEffect(() => setSidebar(false), [location.pathname, setSidebar]);
+/**
+ * The remaining 16 destinations, grouped by what they're FOR. A flat list of
+ * sixteen links in a sheet is just the old drawer with a different animation;
+ * grouping is what makes this actually easier to navigate than what it
+ * replaced. Kept in sync with SA_NAV above by path.
+ */
+const MORE_GROUPS: { title: string; paths: string[] }[] = [
+  { title: "People", paths: ["/x-admin/users", "/x-admin/drivers", "/x-admin/partner-documents"] },
+  { title: "Money", paths: ["/x-admin/wallet", "/x-admin/revenue", "/x-admin/reports"] },
+  {
+    title: "Operations",
+    paths: ["/x-admin/rides", "/x-admin/services", "/x-admin/disputes", "/x-admin/heatmap"],
+  },
+  {
+    title: "Platform",
+    paths: [
+      "/x-admin/notifications",
+      "/x-admin/ai",
+      "/x-admin/cms",
+      "/x-admin/roles",
+      "/x-admin/audit",
+      "/x-admin/settings",
+    ],
+  },
+];
+
+export function SuperAdminLayout() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { clearSession } = useSuperAdminStore();
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  useEffect(() => setMoreOpen(false), [location.pathname]);
+
+  // Deliberately a find() rather than a `new Map(...)`: this module imports
+  // lucide's `Map` icon, which shadows the global Map constructor.
+  const byPath = (path: string) => SA_NAV.find((item) => item.to === path);
+
+  const tabs: TabBarItem[] = [
+    ...SA_TABS,
+    { label: "More", icon: "MoreHorizontal", action: { onClick: () => setMoreOpen(true), active: moreOpen } },
+  ];
+
+  function handleSignOut() {
+    clearSession();
+    setMoreOpen(false);
+    navigate("/");
+  }
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-bg lg:grid lg:grid-cols-[260px_1fr]">
       <SidebarBody className="hidden lg:flex" />
 
-      <AnimatePresence>
-        {sidebarOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSidebar(false)}
-              className="fixed inset-0 z-40 bg-brand-950/50 backdrop-blur-sm lg:hidden"
-            />
-            <motion.aside
-              initial={{ x: "-100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 280 }}
-              className="fixed left-0 top-[env(safe-area-inset-top)] bottom-[env(safe-area-inset-bottom)] z-50 w-[260px] lg:hidden"
-            >
-              <SidebarBody className="flex h-full" withClose />
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
-
       <div className="flex min-w-0 flex-col">
         <SuperTopbar />
-       <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">
+        <main className="min-w-0 flex-1 overflow-x-hidden px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
           <div className="mx-auto max-w-7xl">
-            <Outlet />
+            <ErrorBoundary>
+              <Suspense fallback={<RouteFallback />}>
+                <Outlet />
+              </Suspense>
+            </ErrorBoundary>
           </div>
         </main>
+      </div>
+
+      {/* Mobile chrome — replaces the hamburger + slide-out drawer, which was
+          the last website-pattern navigation left in the app. */}
+      <div className="lg:hidden">
+        <TabBar items={tabs} />
+
+        <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} title="More">
+          <div className="space-y-5 pb-2">
+            {MORE_GROUPS.map((group) => (
+              <div key={group.title}>
+                <p className="px-3 pb-1.5 text-caption font-semibold uppercase tracking-wider text-muted-fg">
+                  {group.title}
+                </p>
+                <div className="space-y-0.5">
+                  {group.paths.map((path) => {
+                    const item = byPath(path);
+                    if (!item) return null;
+                    return (
+                      <Link
+                        key={path}
+                        to={path}
+                        onClick={() => setMoreOpen(false)}
+                        className="flex items-center gap-3 rounded-md px-3 py-2.5 text-body font-medium text-fg transition-colors duration-fast ease-standard active:bg-surface-2"
+                      >
+                        <item.icon className="size-[18px] text-muted-fg" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-body font-semibold text-error transition-colors duration-fast ease-standard active:bg-error/10"
+            >
+              <LogOut className="size-[18px]" />
+              Sign out
+            </button>
+          </div>
+        </BottomSheet>
       </div>
     </div>
   );
 }
 
-function SidebarBody({
-  className,
-  withClose,
-}: {
-  className?: string;
-  withClose?: boolean;
-}) {
-  const { setSidebar } = useUiStore();
+function SidebarBody({ className }: { className?: string }) {
   const { admin, clearSession } = useSuperAdminStore();
   const navigate = useNavigate();
 
@@ -132,25 +205,15 @@ function SidebarBody({
   return (
     <aside className={cn("flex-col border-r border-border bg-surface", className)}>
       {/* Header */}
-      <div className="flex h-16 items-center justify-between border-b border-border px-5">
+      {/* No close button: this sidebar is lg-and-up only now, so it's never
+          presented as a dismissible overlay. */}
+      <div className="flex h-16 items-center border-b border-border px-5">
         <div className="flex items-center gap-2.5">
-          <div className="flex size-7 items-center justify-center rounded-lg bg-brand-900">
+          <div className="flex size-7 items-center justify-center rounded-md bg-teal-700">
             <ShieldAlert className="size-4 text-white" />
           </div>
-          <span className="font-display text-sm font-bold tracking-tight">
-            Super Admin
-          </span>
+          <span className="font-display text-h2 font-bold">Super Admin</span>
         </div>
-        {withClose && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSidebar(false)}
-            aria-label="Close menu"
-          >
-            <X className="size-5" />
-          </Button>
-        )}
       </div>
 
       {/* Nav */}
@@ -196,7 +259,7 @@ function SidebarBody({
         </div>
         <button
           onClick={handleSignOut}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-fg transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-fg transition-colors hover:bg-danger/10 hover:text-danger"
         >
           <LogOut className="size-[18px]" />
           Sign out
@@ -207,7 +270,6 @@ function SidebarBody({
 }
 
 function SuperTopbar() {
-  const { setSidebar } = useUiStore();
   const { admin, clearSession } = useSuperAdminStore();
   const navigate = useNavigate();
   const name = admin?.name ?? "Super Admin";
@@ -222,8 +284,15 @@ function SuperTopbar() {
         setProfileOpen(false);
       }
     }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setProfileOpen(false);
+    }
     document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [profileOpen]);
 
   function handleSignOut() {
@@ -234,17 +303,8 @@ function SuperTopbar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-[calc(4rem+env(safe-area-inset-top))] items-center gap-3 border-b border-border bg-bg/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl sm:px-6 lg:px-8">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="lg:hidden"
-        onClick={() => setSidebar(true)}
-        aria-label="Open menu"
-      >
-        <Menu />
-      </Button>
-
-      <span className="rounded-md bg-brand-900/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-widest text-brand-900 dark:bg-white/10 dark:text-white">
+      {/* No hamburger: the bottom tab bar replaced the slide-out drawer. */}
+      <span className="rounded-sm bg-teal-100 px-2 py-1 text-caption font-bold uppercase tracking-widest text-teal-700 dark:bg-white/10 dark:text-white">
         Super Admin
       </span>
 
@@ -256,6 +316,9 @@ function SuperTopbar() {
           <button
             type="button"
             onClick={() => setProfileOpen((v) => !v)}
+            aria-haspopup="true"
+            aria-expanded={profileOpen}
+            aria-label="Account menu"
             className="ml-1 flex items-center gap-2.5 rounded-full border border-border py-1 pl-1 pr-3 transition-colors hover:bg-surface-2"
           >
             <Avatar name={name} className="size-7" />
@@ -296,7 +359,7 @@ function SuperTopbar() {
                   <button
                     type="button"
                     onClick={handleSignOut}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-fg transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-fg transition-colors hover:bg-danger/10 hover:text-danger"
                   >
                     <LogOut className="size-[18px]" />
                     Sign out

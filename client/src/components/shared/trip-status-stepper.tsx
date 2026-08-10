@@ -31,7 +31,7 @@ export function TripStatusStepper({ status }: { status: string }) {
                 className={cn(
                   "grid size-6 shrink-0 place-items-center rounded-full border text-[10px] font-semibold transition-colors",
                   done
-                    ? "border-accent bg-accent text-white"
+                    ? "border-accent bg-accent text-accent-fg"
                     : active
                       ? "border-accent text-accent"
                       : "border-border text-muted-fg",

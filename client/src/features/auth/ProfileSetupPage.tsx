@@ -74,7 +74,7 @@ export function ProfileSetupPage() {
               <Field label="Email (optional)"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></Field>
             </>
           )}
-          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600 dark:bg-red-900/20 dark:text-red-400">{error}</p>}
+          {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-xs font-medium text-danger">{error}</p>}
           <Button variant="accent" size="lg" className="w-full" onClick={save} disabled={loading}>
             {loading ? "Saving…" : "Save & continue"}
           </Button>

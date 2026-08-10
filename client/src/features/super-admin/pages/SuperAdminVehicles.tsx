@@ -127,7 +127,7 @@ function VehiclesTab() {
             className={cn(
               "rounded-full border px-3.5 py-1.5 text-sm",
               filter === f.value
-                ? "border-accent bg-accent/10 font-medium text-accent-600 dark:text-accent"
+                ? "border-teal-700 bg-teal-100 dark:border-accent dark:bg-white/10 font-medium text-accent-600 dark:text-accent"
                 : "border-border text-muted-fg hover:bg-surface-2",
             )}
           >
@@ -136,7 +136,7 @@ function VehiclesTab() {
         ))}
       </div>
 
-      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">{error}</p>}
+      {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
 
       <div className="rounded-2xl border border-border bg-surface">
         {loading ? (
@@ -234,7 +234,7 @@ function DocumentsTab() {
             className={cn(
               "rounded-full border px-3.5 py-1.5 text-sm",
               filter === f.value
-                ? "border-accent bg-accent/10 font-medium text-accent-600 dark:text-accent"
+                ? "border-teal-700 bg-teal-100 dark:border-accent dark:bg-white/10 font-medium text-accent-600 dark:text-accent"
                 : "border-border text-muted-fg hover:bg-surface-2",
             )}
           >
@@ -243,7 +243,7 @@ function DocumentsTab() {
         ))}
       </div>
 
-      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">{error}</p>}
+      {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
 
       <div className="rounded-2xl border border-border bg-surface">
         {loading ? (

@@ -173,7 +173,7 @@ export function SuperAdminCms() {
               )}
               {banners.map((b) => (
                 <div key={b.id} className="flex flex-wrap items-start gap-x-3 gap-y-2 rounded-xl border border-border p-4">
-                  <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent">
+                  <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-teal-100 text-teal-700 dark:bg-white/10 dark:text-accent">
                     <Megaphone className="size-4" />
                   </span>
                   <div className="min-w-0 flex-1 basis-40">

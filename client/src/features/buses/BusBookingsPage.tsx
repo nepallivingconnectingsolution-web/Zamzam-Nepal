@@ -34,7 +34,11 @@ const statusVariant: Record<BusTicket["status"], "success" | "warning" | "danger
 export function BusBookingsPage() {
   const tickets = useResource<BusTicket[]>(() => api.get(endpoints.buses.myBookings), []);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // `openTicket` is never cleared on close (only reassigned on the next
+  // "View ticket" click) so the sheet keeps its content through the close
+  // animation instead of the body going blank a beat before it slides away.
   const [openTicket, setOpenTicket] = useState<BusTicket | null>(null);
+  const [ticketSheetOpen, setTicketSheetOpen] = useState(false);
 
   async function cancel(id: string) {
     setBusyId(id);
@@ -83,7 +87,7 @@ export function BusBookingsPage() {
             <Card key={t.id} className="p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-4">
-                  <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
+                  <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-teal-100 text-teal-700 dark:bg-white/10 dark:text-accent">
                     <Bus className="size-6" />
                   </div>
                   <div>
@@ -106,9 +110,16 @@ export function BusBookingsPage() {
                 </div>
 
                 <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
-                  <p className="font-display text-lg font-bold">रू {t.grandTotal.toLocaleString()}</p>
+                  <p className="font-display text-lg font-bold font-tabular">रू {t.grandTotal.toLocaleString()}</p>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setOpenTicket(t)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setOpenTicket(t);
+                        setTicketSheetOpen(true);
+                      }}
+                    >
                       <Printer className="size-4" /> E-ticket
                     </Button>
                     {t.status === "CONFIRMED" && (
@@ -135,7 +146,7 @@ export function BusBookingsPage() {
         </div>
       </AsyncBoundary>
 
-      {openTicket && <BusTicketModal ticket={openTicket} onClose={() => setOpenTicket(null)} />}
+      <BusTicketModal ticket={openTicket} open={ticketSheetOpen} onClose={() => setTicketSheetOpen(false)} />
     </div>
   );
 }
@@ -180,7 +191,7 @@ function TicketReviewPanel({ ticketId }: { ticketId: string }) {
       <div className="flex items-center gap-1">
         {[1, 2, 3, 4, 5].map((s) => (
           <button key={s} type="button" onClick={() => setRating(s)}>
-            <Star className={cn("size-5", s <= rating ? "fill-amber-400 text-amber-400" : "text-muted-fg")} />
+            <Star className={cn("size-5", s <= rating ? "fill-warning text-warning" : "text-muted-fg")} />
           </button>
         ))}
       </div>

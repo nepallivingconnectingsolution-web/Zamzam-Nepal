@@ -2,9 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Safe-area padding for notches/status bars/gesture bars on native mobile builds */
-
-
+/* Safe-area padding for notches/status bars/gesture bars on native builds */
 #root {
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -13,50 +11,54 @@
 }
 
 /* ----------------------------------------------------------------------------
-   Zamzam surface tokens. Brand (slate/emerald) stays constant; these drive the
-   neutral surfaces so the whole app re-themes from one place.
+   Surface tokens. The six brand colors live in tailwind.config.ts as literal
+   hexes (they're the identity and don't re-theme); these drive the neutral
+   surfaces so light/dark resolve from exactly one place.
+
+   Light ground is `paper` (#FBFAF7) — a warm off-white. Deliberately NOT a
+   cream/beige (#F4F1EA and neighbours read as a templated default) and NOT
+   stark white (reads unfinished). Dark ground is a deep teal-biased ink, so
+   the brand teal still feels native against it rather than pasted on.
 ---------------------------------------------------------------------------- */
 @layer base {
   :root {
-    --bg: 210 40% 98%;          /* #F8FAFC */
+    --bg: 45 33% 98%; /* paper #FBFAF7 */
     --surface: 0 0% 100%;
-    --surface-2: 210 40% 96%;
-    --card: 0 0% 100%;          /* #FFFFFF */
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 160 84% 39%;        /* emerald */
-    --fg: 222 47% 11%;          /* slate-900 */
-    --muted: 210 40% 96%;
-    --muted-fg: 215 16% 47%;
+    --surface-2: 45 28% 96%;
+    --card: 0 0% 100%;
+    --border: 160 12% 88%;
+    --input: 160 12% 86%;
+    --ring: 168 82% 17%; /* teal-700 — focus is brand, not a glow */
+    --fg: 153 13% 14%; /* ink #1E2723 */
+    --muted: 45 22% 94%;
+    --muted-fg: 155 8% 42%;
   }
 
   .dark {
-    --bg: 222 47% 7%;
-    --surface: 222 44% 11%;     /* #1E293B-ish */
-    --surface-2: 222 40% 14%;
-    --card: 222 44% 11%;
-    --border: 217 33% 20%;
-    --input: 217 33% 20%;
-    --ring: 160 84% 39%;
-    --fg: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-fg: 215 20% 65%;
+    --bg: 165 25% 7%;
+    --surface: 168 28% 10%;
+    --surface-2: 168 24% 13%;
+    --card: 168 28% 11%;
+    --border: 168 16% 22%;
+    --input: 168 16% 24%;
+    --ring: 36 86% 55%; /* amber — the only legible focus ring on dark teal */
+    --fg: 45 25% 96%;
+    --muted: 168 20% 16%;
+    --muted-fg: 158 9% 66%;
   }
 
-  /* ----------------------------------------------------------------------------
-   Native date / time controls follow the app theme. Without color-scheme the
-   browser draws the calendar-picker icon dark-on-dark (invisible) in dark mode.
----------------------------------------------------------------------------- */
-input[type="date"],
-input[type="time"],
-input[type="datetime-local"] {
-  color-scheme: light;
-}
-.dark input[type="date"],
-.dark input[type="time"],
-.dark input[type="datetime-local"] {
-  color-scheme: dark;
-}
+  /* Native date/time controls follow the app theme — without color-scheme
+     the browser draws the picker icon dark-on-dark in dark mode. */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"] {
+    color-scheme: light;
+  }
+  .dark input[type="date"],
+  .dark input[type="time"],
+  .dark input[type="datetime-local"] {
+    color-scheme: dark;
+  }
 
   * {
     border-color: hsl(var(--border));
@@ -69,16 +71,15 @@ input[type="datetime-local"] {
 
   body {
     @apply bg-bg text-fg font-sans antialiased;
-    font-feature-settings: "cv11", "ss01";
     text-rendering: optimizeLegibility;
     /* No overflow-x/max-width here: setting overflow on <body> turns it into
        its own scroll/clipping box instead of the real viewport, which breaks
-       position: sticky for every header nested inside it (mobile browsers
-       especially). Horizontal-scroll clipping is handled by <html> above. */
+       position: sticky for every header nested inside it. Horizontal-scroll
+       clipping is handled by <html> above. */
   }
 
- ::selection {
-    background: rgba(16, 185, 129, 0.22);
+  ::selection {
+    background: rgba(239, 159, 39, 0.24); /* amber-500 */
   }
 
   /* Slim pill scrollbars — default browser chrome is the fastest way for a
@@ -91,22 +92,23 @@ input[type="datetime-local"] {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: hsl(var(--muted-fg) / 0.28);
+    background: hsl(var(--muted-fg) / 0.26);
     border-radius: 999px;
     border: 3px solid transparent;
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-fg) / 0.45);
+    background: hsl(var(--muted-fg) / 0.42);
     background-clip: padding-box;
   }
 
-  /* Visible keyboard focus everywhere */
+  /* Visible keyboard focus everywhere — a ring, never a soft glow. */
   :focus-visible {
     @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-bg;
   }
 
-  /* Honor reduced motion */
+  /* Honor reduced motion. Every animation in the system has an instant
+     fallback here rather than a slowed-down one. */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -123,46 +125,56 @@ input[type="datetime-local"] {
   .text-balance {
     text-wrap: balance;
   }
-  .grain {
-    background-image: radial-gradient(
-      hsl(var(--border)) 0.5px,
-      transparent 0.5px
-    );
-    background-size: 16px 16px;
+
+  /* Tabular figures for money/time. Fares, ETAs, seat counts, wallet
+     balances — anywhere digits stack in a column and must align. This one
+     detail is most of what separates an engineered-looking travel table
+     from a typed one. */
+  .font-tabular {
+    font-variant-numeric: tabular-nums lining-nums;
   }
-  /* Map-grid motif — nods to Kathmandu Valley spatial matching */
-  .valley-grid {
-    background-image: linear-gradient(hsl(var(--border) / 0.5) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--border) / 0.5) 1px, transparent 1px);
-    background-size: 44px 44px;
-    -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 0%, #000 30%, transparent 75%);
-    mask-image: radial-gradient(ellipse 70% 70% at 50% 0%, #000 30%, transparent 75%);
-  }
+
   .skeleton {
     @apply relative overflow-hidden bg-muted;
   }
   .skeleton::after {
     content: "";
     @apply absolute inset-0;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      hsl(var(--surface) / 0.6),
-      transparent
-    );
+    background: linear-gradient(90deg, transparent, hsl(var(--surface) / 0.6), transparent);
     transform: translateX(-100%);
     animation: shimmer 1.6s infinite;
+  }
+
+  /* ----------------------------------------------------------------------
+     THE TERRAIN LINE — the app's one ownable visual idea.
+
+     A route rendered as a rising/falling ridge rather than a straight
+     dashed transit line. It recurs on exactly the surfaces that carry route
+     context (home hero, result cards, live-tracking header, ticket
+     perforation) and nowhere else — repetition across those four is what
+     makes it a signature; using it on Profile or Settings would make it
+     wallpaper. See components/ui/terrain-line.tsx.
+  ---------------------------------------------------------------------- */
+  .terrain-stroke {
+    stroke-dasharray: 1000;
+  }
+
+  /* Ticket perforation, cut as a terrain ridge instead of a plain dashed
+     rule — the signature doing structural work rather than decoration. */
+  .ticket-divider {
+    height: 12px;
+    background-repeat: repeat-x;
+    background-size: 48px 12px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='12' viewBox='0 0 48 12'%3E%3Cpath d='M0 8 L8 3 L16 9 L24 2 L32 7 L40 4 L48 8' fill='none' stroke='%23085041' stroke-opacity='0.28' stroke-width='1.5' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E");
   }
 }
 
 /* ----------------------------------------------------------------------------
-   Print support for printable documents (e.g. the bus e-ticket modal, see
-   features/buses/BusTicketDocument.tsx). Any element tagged with
-   id="...-print-area" becomes the only thing visible when the browser's
-   print dialog opens — which is also how "Download" works here: every
-   desktop and mobile browser lets you pick "Save as PDF" as the print
-   destination, so this one mechanism covers print AND download without an
-   extra PDF-generation dependency.
+   Print support for the e-ticket. Any element tagged id="...-print-area"
+   becomes the only thing visible when the print dialog opens — which is also
+   how "Download" works, since every desktop and mobile browser offers
+   "Save as PDF" as a print destination. One mechanism covers both without a
+   PDF-generation dependency.
 ---------------------------------------------------------------------------- */
 @media print {
   #root { display: none !important; }

@@ -1,29 +1,116 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Bus, Clock, MapPin, Search, Ticket, Wind, Wifi, Zap } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowLeftRight, ArrowRight, Bus, ChevronDown, ImageOff, Search, Ticket } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { Card } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { DateField } from "@/components/ui/date-field";
+import { Chip } from "@/components/ui/chip";
+import { SelectField } from "@/components/ui/select-field";
+import { Icon } from "@/components/ui/icon";
+import { TerrainLine } from "@/components/ui/terrain-line";
 import { cn } from "@/lib/utils";
 import { useResource } from "@/hooks/useResource";
 import { api, endpoints } from "@/api/client";
 import type { BusSearchResult } from "./types";
-import { NEPAL_CITIES } from "./types";
+import { AMENITIES, NEPAL_CITIES } from "./types";
 
-const amenityIcon: Record<string, React.ReactNode> = {
-  wifi: <Wifi className="size-3.5" />,
-  ac: <Wind className="size-3.5" />,
-  charging: <Zap className="size-3.5" />,
-};
+const LOW_SEATS_THRESHOLD = 5;
+
+/**
+ * Only categories that honestly fall out of the real BUS_TYPES taxonomy
+ * (see types.ts) — "AC Deluxe"/"AC Tourist" start with "AC ", "Non-AC …"
+ * types start with "Non-AC ", sleeper types contain "Sleeper". No invented
+ * category (e.g. a "Luxury" bucket) gets a chip since nothing in the data
+ * actually distinguishes that.
+ */
+type TypeFilter = "all" | "ac" | "non-ac" | "sleeper";
+const TYPE_FILTERS: { id: TypeFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "ac", label: "AC" },
+  { id: "non-ac", label: "Non-AC" },
+  { id: "sleeper", label: "Sleeper" },
+];
+
+function matchesTypeFilter(type: string, filter: TypeFilter): boolean {
+  if (filter === "all") return true;
+  const t = type.toLowerCase();
+  if (filter === "ac") return t.startsWith("ac ");
+  if (filter === "non-ac") return t.startsWith("non-ac");
+  return t.includes("sleeper");
+}
+
+type SortOption = "recommended" | "price" | "departure" | "duration";
+const SORT_OPTIONS: { value: SortOption; label: string }[] = [
+  { value: "recommended", label: "Recommended" },
+  { value: "price", label: "Price: low to high" },
+  { value: "departure", label: "Earliest departure" },
+  { value: "duration", label: "Shortest duration" },
+];
+
+/** "7h 30m" / "45m" / "2h" -> minutes. Unparseable input sorts last, not crashes. */
+function durationMinutes(duration: string): number {
+  const h = /(\d+)\s*h/.exec(duration);
+  const m = /(\d+)\s*m/.exec(duration);
+  const total = (h ? Number(h[1]) * 60 : 0) + (m ? Number(m[1]) : 0);
+  return total || Number.POSITIVE_INFINITY;
+}
+
+/** "18:30" -> 1110 (minutes since midnight), for chronological sort. */
+function timeMinutes(time: string): number {
+  const match = /^(\d{1,2}):(\d{2})/.exec(time);
+  if (!match) return Number.POSITIVE_INFINITY;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+/* --------------------------- Recent searches ------------------------------- */
+// Plain localStorage, not a store — this is page-local, best-effort UX sugar,
+// not app state anything else needs to read.
+interface RecentRoute {
+  from: string;
+  to: string;
+}
+const RECENT_KEY = "zz_recent_bus_searches";
+const MAX_RECENT = 5;
+
+function loadRecentSearches(): RecentRoute[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((r): r is RecentRoute => typeof r?.from === "string" && typeof r?.to === "string")
+      .slice(0, MAX_RECENT);
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentSearches(list: RecentRoute[]) {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, MAX_RECENT)));
+  } catch {
+    // Private-mode / quota-full localStorage — recent searches just won't
+    // persist this session, nothing else depends on it.
+  }
+}
 
 export function BusListPage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [date, setDate] = useState("");
   const [applied, setApplied] = useState({ from: "", to: "", date: "" });
+  // Keeps spinning the same direction on repeated taps instead of snapping
+  // back to 0deg each time — a running angle, not a boolean toggle.
+  const [swapRotation, setSwapRotation] = useState(0);
+
+  function handleSwap() {
+    setFrom(to);
+    setTo(from);
+    setSwapRotation((r) => r + 180);
+  }
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
@@ -35,6 +122,50 @@ export function BusListPage() {
   }, [applied]);
 
   const buses = useResource<BusSearchResult[]>(() => api.get(query), [query]);
+
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [sort, setSort] = useState<SortOption>("recommended");
+  const [recent, setRecent] = useState<RecentRoute[]>(() => loadRecentSearches());
+
+  function runSearch(f: string, t: string, d: string) {
+    setFrom(f);
+    setTo(t);
+    setApplied({ from: f, to: t, date: d });
+    if (f.trim() && t.trim()) {
+      setRecent((prev) => {
+        const next = [{ from: f, to: t }, ...prev.filter((r) => !(r.from === f && r.to === t))].slice(
+          0,
+          MAX_RECENT,
+        );
+        saveRecentSearches(next);
+        return next;
+      });
+    }
+  }
+
+  // Only surfaced on the unfiltered "browse everything" view — once a route
+  // is actually searched, popular-elsewhere routes aren't relevant anymore.
+  const popularRoutes = useMemo(() => {
+    if (applied.from || applied.to) return [];
+    const counts = new Map<string, { from: string; to: string; count: number }>();
+    for (const b of buses.data ?? []) {
+      const key = `${b.from}→${b.to}`;
+      const existing = counts.get(key);
+      if (existing) existing.count += 1;
+      else counts.set(key, { from: b.from, to: b.to, count: 1 });
+    }
+    return [...counts.values()]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [buses.data, applied.from, applied.to]);
+
+  const visibleBuses = useMemo(() => {
+    const rows = (buses.data ?? []).filter((b) => matchesTypeFilter(b.type, typeFilter));
+    if (sort === "price") return [...rows].sort((a, b) => a.price - b.price);
+    if (sort === "departure") return [...rows].sort((a, b) => timeMinutes(a.departure) - timeMinutes(b.departure));
+    if (sort === "duration") return [...rows].sort((a, b) => durationMinutes(a.duration) - durationMinutes(b.duration));
+    return rows; // "recommended" — server's own order
+  }, [buses.data, typeFilter, sort]);
 
   return (
     <div className="space-y-6">
@@ -50,24 +181,80 @@ export function BusListPage() {
 
       {/* Search bar */}
       <Card className="p-5">
-        <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
-          <Field label="From">
-            <CityInput value={from} onChange={setFrom} placeholder="Departure city" />
-          </Field>
-          <Field label="To">
-            <CityInput value={to} onChange={setTo} placeholder="Destination city" />
-          </Field>
-          <Field label="Date">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </Field>
-          <Button variant="accent" onClick={() => setApplied({ from, to, date })}>
+        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+          <div className="relative grid gap-3 md:grid-cols-2">
+            <Field label="From">
+              <CityInput value={from} onChange={setFrom} placeholder="Departure city" />
+            </Field>
+            <Field label="To">
+              <CityInput value={to} onChange={setTo} placeholder="Destination city" />
+            </Field>
+            <motion.button
+              type="button"
+              onClick={handleSwap}
+              aria-label="Swap departure and destination"
+              animate={{ rotate: swapRotation }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="absolute left-1/2 top-1/2 z-10 grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-border bg-card text-accent shadow-card transition-colors hover:border-accent active:scale-90"
+            >
+              <ArrowLeftRight className="size-4" />
+            </motion.button>
+          </div>
+          <DateField label="Date" value={date} onChange={setDate} />
+          <Button variant="accent" onClick={() => runSearch(from, to, date)}>
             <Search className="size-4" /> Search
           </Button>
         </div>
         <p className="mt-3 text-xs text-muted-fg">
           Leave fields empty to browse every active bus added by operators.
         </p>
+
+        {recent.length > 0 && (
+          <div className="mt-4 border-t border-border pt-4">
+            <p className="mb-2 text-xs font-medium text-muted-fg">Recent searches</p>
+            <div className="flex flex-wrap gap-2">
+              {recent.map((r) => (
+                <Chip key={`${r.from}-${r.to}`} onClick={() => runSearch(r.from, r.to, date)}>
+                  {r.from} <ArrowRight className="size-3" /> {r.to}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {popularRoutes.length > 0 && (
+          <div className="mt-4 border-t border-border pt-4">
+            <p className="mb-2 text-xs font-medium text-muted-fg">Popular routes right now</p>
+            <div className="flex flex-wrap gap-2">
+              {popularRoutes.map((r) => (
+                <Chip key={`${r.from}-${r.to}`} onClick={() => runSearch(r.from, r.to, date)}>
+                  {r.from} <ArrowRight className="size-3" /> {r.to}
+                </Chip>
+              ))}
+            </div>
+          </div>
+        )}
       </Card>
+
+      {/* Filters + sort — only worth showing once there's something to filter */}
+      {(buses.data?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-1 gap-2 overflow-x-auto pb-1">
+            {TYPE_FILTERS.map((f) => (
+              <Chip key={f.id} selected={typeFilter === f.id} onClick={() => setTypeFilter(f.id)}>
+                {f.label}
+              </Chip>
+            ))}
+          </div>
+          <SelectField
+            value={sort}
+            onChange={(v) => setSort(v as SortOption)}
+            options={SORT_OPTIONS}
+            placeholder="Sort"
+            className="w-44 shrink-0"
+          />
+        </div>
+      )}
 
       {/* Results */}
       <AsyncBoundary
@@ -82,72 +269,169 @@ export function BusListPage() {
           />
         }
       >
-        <div className="space-y-3">
-          {buses.data?.map((b) => (
-            <BusResultCard key={b.id} bus={b} />
-          ))}
-        </div>
+        {visibleBuses.length === 0 ? (
+          <EmptyState
+            icon={<Bus className="size-6" />}
+            title="No buses match this filter"
+            description="Try a different bus type, or switch back to All."
+            action={
+              typeFilter !== "all" ? (
+                <Button variant="accent" onClick={() => setTypeFilter("all")}>
+                  Clear filter
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          <div className="space-y-3">
+            {visibleBuses.map((b) => (
+              <BusResultCard key={b.id} bus={b} />
+            ))}
+          </div>
+        )}
       </AsyncBoundary>
     </div>
   );
 }
 
+function AmenityChip({ id }: { id: string }) {
+  const meta = AMENITIES.find((a) => a.id === id);
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-2 py-0.5 text-xs text-muted-fg">
+      {meta ? <Icon name={meta.icon} className="size-3.5" /> : null}
+      {meta?.label ?? id}
+    </span>
+  );
+}
+
 function BusResultCard({ bus }: { bus: BusSearchResult }) {
+  const [expanded, setExpanded] = useState(false);
+  const soldOut = bus.seatsLeft <= 0;
+  const lowSeats = !soldOut && bus.seatsLeft <= LOW_SEATS_THRESHOLD;
+  const hiddenAmenities = bus.amenities.slice(5);
+  const canExpand = hiddenAmenities.length > 0 || !!bus.busPhoto;
+
   return (
     <Card className="overflow-hidden">
-      <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-4">
-          <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
-            <Bus className="size-6" />
+      {/* Hierarchy is fixed by the system: times and price are Display-weight
+          and the largest things here. Operator, type, rating and seat count
+          are all Body-small or Caption — they're what you check AFTER the
+          card has already earned a look. */}
+      <button
+        type="button"
+        onClick={() => canExpand && setExpanded((v) => !v)}
+        className={cn("w-full p-5 text-left", canExpand && "cursor-pointer")}
+        aria-expanded={canExpand ? expanded : undefined}
+      >
+        {/* Journey: departure — terrain — arrival */}
+        <div className="flex items-center gap-3">
+          <div className="shrink-0">
+            <p className="font-display text-h1 font-extrabold font-tabular leading-none">{bus.departure}</p>
+            <p className="mt-1 text-caption text-muted-fg">{bus.from}</p>
           </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-display text-base font-semibold">{bus.operator}</h3>
-              <Badge variant="accent">{bus.type}</Badge>
-            </div>
-            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-fg">
-              <MapPin className="size-3.5" /> {bus.from} <ArrowRight className="size-3.5" /> {bus.to}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-              <span className="flex items-center gap-1.5 font-medium">
-                <Clock className="size-3.5 text-accent" /> {bus.departure} – {bus.arrival}
-              </span>
-              <span className="text-muted-fg">({bus.duration})</span>
-              <span className="text-muted-fg">{bus.date}</span>
-            </div>
-            {bus.amenities.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {bus.amenities.slice(0, 5).map((a) => (
-                  <span
-                    key={a}
-                    className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-2 py-0.5 text-xs text-muted-fg"
-                  >
-                    {amenityIcon[a]} {a}
-                  </span>
-                ))}
-              </div>
-            )}
+
+          <div className="min-w-0 flex-1 px-1 text-center text-teal-700 dark:text-accent">
+            <TerrainLine variant="mini" />
+            <p className="mt-1 text-caption text-muted-fg">{bus.duration}</p>
+          </div>
+
+          <div className="shrink-0 text-right">
+            <p className="font-display text-h1 font-extrabold font-tabular leading-none">{bus.arrival}</p>
+            <p className="mt-1 text-caption text-muted-fg">{bus.to}</p>
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
-          <div className="text-right">
-            <p className="font-display text-xl font-bold">रू {bus.price.toLocaleString()}</p>
-            <p className="text-xs text-muted-fg">
-              {bus.seatsLeft > 0 ? `${bus.seatsLeft} seats left` : "Sold out"}
-            </p>
-          </div>
-          {bus.seatsLeft > 0 ? (
-            <Link to={`/app/buses/${bus.id}`} className={cn(buttonVariants({ variant: "accent" }))}>
-              Select seats <ArrowRight className="size-4" />
-            </Link>
-          ) : (
-            <Button variant="outline" disabled>
-              Full
-            </Button>
+        {/* Operator line — deliberately quiet */}
+        <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-body-sm text-muted-fg">
+          <Bus className="size-3.5 shrink-0" />
+          <span className="font-medium text-fg">{bus.operator}</span>
+          <span aria-hidden>·</span>
+          <span>{bus.type}</span>
+          {bus.amenities.length > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <span>{bus.amenities.length} amenities</span>
+            </>
           )}
         </div>
-      </div>
+
+        {/* Price + action */}
+        <div className="mt-4 flex items-end justify-between gap-4 border-t border-border pt-4">
+          <div>
+            <p className="font-display text-h1 font-extrabold font-tabular leading-none">
+              रू {bus.price.toLocaleString()}
+            </p>
+            {soldOut ? (
+              <p className="mt-1 text-caption text-muted-fg">Sold out</p>
+            ) : lowSeats ? (
+              <p className="mt-1 text-caption font-semibold text-warning">Only {bus.seatsLeft} seats left</p>
+            ) : (
+              <p className="mt-1 text-caption text-muted-fg">{bus.seatsLeft} seats left</p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {canExpand && (
+              <ChevronDown
+                className={cn(
+                  "size-4 shrink-0 text-muted-fg transition-transform duration-base ease-standard",
+                  expanded && "rotate-180",
+                )}
+                aria-hidden
+              />
+            )}
+            {soldOut ? (
+              <Button variant="secondary" disabled onClick={(e) => e.stopPropagation()}>
+                Full
+              </Button>
+            ) : (
+              <Link
+                to={`/app/buses/${bus.id}`}
+                onClick={(e) => e.stopPropagation()}
+                className={cn(buttonVariants({ variant: "accent" }))}
+              >
+                Select seats
+              </Link>
+            )}
+          </div>
+        </div>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {expanded && canExpand && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+            className="overflow-hidden border-t border-border"
+          >
+            <div className="space-y-3 p-5">
+              {hiddenAmenities.length > 0 && (
+                <div>
+                  <p className="mb-1.5 text-xs font-medium text-muted-fg">All amenities</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {bus.amenities.map((a) => (
+                      <AmenityChip key={a} id={a} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {bus.busPhoto ? (
+                <img
+                  src={bus.busPhoto}
+                  alt={`${bus.operator} bus`}
+                  className="h-40 w-full rounded-xl border border-border object-cover"
+                />
+              ) : (
+                <div className="flex h-24 items-center justify-center gap-2 rounded-xl border border-dashed border-border text-xs text-muted-fg">
+                  <ImageOff className="size-4" /> No bus photo yet
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Card>
   );
 }

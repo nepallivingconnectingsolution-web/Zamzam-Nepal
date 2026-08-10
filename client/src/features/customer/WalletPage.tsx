@@ -1,16 +1,19 @@
 import { useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, Plus, Receipt, Wallet, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Receipt, Wallet } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { Chip } from "@/components/ui/chip";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { useResource } from "@/hooks/useResource";
 import { api, ApiError, endpoints } from "@/api/client";
 import { npr } from "@/lib/utils";
 import { toast } from "@/stores/toast.store";
+import { haptics } from "@/lib/native/haptics";
 
 interface Balance {
   available: number;
@@ -42,22 +45,21 @@ export function WalletPage() {
 
   return (
     <div className="space-y-6">
+      {/* No header action: it opened the same top-up sheet as the button on
+          the balance card directly below it. One action, offered twice, in
+          the screen's two loudest slots — the card's is better placed
+          (it's attached to the number it changes), so this one goes. */}
       <PageHeader
         title="Wallet"
         subtitle="Your Zamzam Pay balance, escrow holds and history."
-        actions={
-          <Button variant="accent" onClick={() => setTopUpOpen(true)}>
-            <Plus className="size-4" /> Add money
-          </Button>
-        }
       />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4">
         <Card className="bg-brand-900 p-6 text-white dark:bg-surface sm:col-span-2">
           <div className="flex items-center gap-2 text-sm text-white/60">
             <Wallet className="size-4" /> Available balance
           </div>
-          <p className="mt-3 font-display text-4xl font-bold">
+          <p className="mt-3 font-display text-4xl font-bold font-tabular">
             {balance.state === "success" && balance.data ? npr(balance.data.available) : "रू —"}
           </p>
           <div className="mt-6 flex gap-3">
@@ -68,7 +70,7 @@ export function WalletPage() {
         </Card>
         <Card className="p-6">
           <p className="text-sm text-muted-fg">In escrow</p>
-          <p className="mt-3 font-display text-2xl font-bold">
+          <p className="mt-3 font-display text-2xl font-bold font-tabular">
             {balance.state === "success" && balance.data ? npr(balance.data.escrow) : "रू —"}
           </p>
           <p className="mt-2 text-xs text-muted-fg">
@@ -116,27 +118,26 @@ export function WalletPage() {
         </Card>
       </div>
 
-      {topUpOpen && (
-        <TopUpDialog
-          onClose={() => setTopUpOpen(false)}
-          onSuccess={() => {
-            setTopUpOpen(false);
-            balance.refetch();
-            txns.refetch();
-          }}
-        />
-      )}
+      <TopUpSheet
+        open={topUpOpen}
+        onClose={() => setTopUpOpen(false)}
+        onSuccess={() => {
+          setTopUpOpen(false);
+          balance.refetch();
+          txns.refetch();
+        }}
+      />
     </div>
   );
 }
 
 /**
- * Top-up modal — posts to /wallet/topup, which records a PENDING TOPUP
+ * Top-up sheet — posts to /wallet/topup, which records a PENDING TOPUP
  * ledger entry. Until live eSewa/Khalti gateway keys are wired in, there's
  * no way to verify payment automatically, so the balance is only credited
  * once a super-admin confirms the transaction — it does not land instantly.
  */
-function TopUpDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+function TopUpSheet({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
   const [amount, setAmount] = useState<string>("1000");
   const [method, setMethod] = useState<Method>("esewa");
   const [submitting, setSubmitting] = useState(false);
@@ -156,41 +157,24 @@ function TopUpDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
         method,
       });
       toast.success(res?.message ?? `${npr(parsed)} top-up requested — pending confirmation.`);
+      void haptics.success();
       onSuccess();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Top-up failed. Please try again.");
+      void haptics.error();
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Add money to wallet"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !submitting) onClose();
-      }}
+    <BottomSheet
+      open={open}
+      onClose={() => !submitting && onClose()}
+      title="Add money"
+      description="Top up your Zamzam Pay balance."
     >
-      <Card className="w-full max-w-sm space-y-5 p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="font-display text-lg font-semibold">Add money</h2>
-            <p className="text-xs text-muted-fg">Top up your Zamzam Pay balance.</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={submitting}
-            className="rounded-lg p-1 text-muted-fg transition-colors hover:bg-surface-2 hover:text-fg"
-            aria-label="Close"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-
+      <div className="space-y-5 pb-2">
         <div className="space-y-2">
           <label htmlFor="topup-amount" className="text-sm font-medium">
             Amount (NPR)
@@ -205,21 +189,13 @@ function TopUpDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="e.g. 1000"
+            className="font-tabular"
           />
           <div className="flex flex-wrap gap-2">
             {QUICK_AMOUNTS.map((a) => (
-              <button
-                key={a}
-                type="button"
-                onClick={() => setAmount(String(a))}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  amount === String(a)
-                    ? "border-accent bg-accent/10 text-accent"
-                    : "border-border text-muted-fg hover:border-accent/50"
-                }`}
-              >
+              <Chip key={a} selected={amount === String(a)} onClick={() => setAmount(String(a))} className="font-tabular">
                 {npr(a, { compact: true })}
-              </button>
+              </Chip>
             ))}
           </div>
         </div>
@@ -228,18 +204,9 @@ function TopUpDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           <p className="text-sm font-medium">Pay with</p>
           <div className="grid grid-cols-3 gap-2">
             {METHODS.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setMethod(m.id)}
-                className={`rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
-                  method === m.id
-                    ? "border-accent bg-accent/10 text-accent"
-                    : "border-border text-muted-fg hover:border-accent/50"
-                }`}
-              >
+              <Chip key={m.id} selected={method === m.id} onClick={() => setMethod(m.id)} className="justify-center">
                 {m.label}
-              </button>
+              </Chip>
             ))}
           </div>
           <p className="text-[11px] text-muted-fg">
@@ -247,16 +214,11 @@ function TopUpDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
           </p>
         </div>
 
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={onClose} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button variant="accent" className="flex-1" onClick={submit} disabled={submitting || !valid}>
-            {submitting ? "Adding…" : `Add ${valid ? npr(parsed, { compact: true }) : "money"}`}
-          </Button>
-        </div>
-      </Card>
-    </div>
+        <Button variant="accent" size="lg" className="w-full font-tabular" onClick={submit} disabled={submitting || !valid}>
+          {submitting ? "Adding…" : `Add ${valid ? npr(parsed, { compact: true }) : "money"}`}
+        </Button>
+      </div>
+    </BottomSheet>
   );
 }
 

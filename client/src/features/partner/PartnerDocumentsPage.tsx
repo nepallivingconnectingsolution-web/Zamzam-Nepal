@@ -30,6 +30,8 @@ interface PartnerDocument {
   type: string;
   label: string;
   hint: string;
+  /** Required documents gate publishing — the server rejects writes without them. */
+  required: boolean;
   fileUrl: string | null;
   fileName: string | null;
   status: DocumentStatus;
@@ -93,6 +95,15 @@ export function PartnerDocumentsPage({ partnerType }: { partnerType: PartnerType
     return () => window.clearInterval(interval);
   }, []);
 
+  /**
+   * Required documents not yet uploaded. A rejected (SUSPENDED) document
+   * counts as outstanding — the server treats it the same way, so the banner
+   * has to agree with what publishing will actually allow.
+   */
+  const outstanding = (documents.data ?? []).filter(
+    (d) => d.required && (d.status === "NOT_UPLOADED" || d.status === "SUSPENDED"),
+  );
+
   const wasFullyVerifiedRef = useRef<boolean | null>(null);
   useEffect(() => {
     if (!documents.data) return;
@@ -139,6 +150,23 @@ export function PartnerDocumentsPage({ partnerType }: { partnerType: PartnerType
     <div className="space-y-6">
       <PageHeader title="Documents" subtitle={PAGE_SUBTITLE[partnerType]} />
 
+      {/* Publishing is blocked server-side until every required document is
+          uploaded, so say so here rather than letting the partner discover it
+          as a 403 after filling in a whole schedule form. */}
+      {outstanding.length > 0 && (
+        <Card className="flex items-start gap-3 border-l-4 border-l-warning p-4">
+          <ShieldAlert className="mt-0.5 size-5 shrink-0 text-warning" />
+          <div className="min-w-0">
+            <p className="text-body font-semibold">
+              {outstanding.length} required document{outstanding.length === 1 ? "" : "s"} still needed
+            </p>
+            <p className="mt-0.5 text-body-sm text-muted-fg">
+              You can't publish listings until you upload {outstanding.map((d) => d.label).join(", ")}.
+            </p>
+          </div>
+        </Card>
+      )}
+
       {justVerified && (
         <Card className="flex flex-col items-center gap-3 border-success/30 bg-success/10 p-8 text-center">
           <div className="flex size-14 items-center justify-center rounded-full bg-success/20">
@@ -171,18 +199,28 @@ export function PartnerDocumentsPage({ partnerType }: { partnerType: PartnerType
                       <Icon className="size-5 text-muted-fg" />
                     </div>
                     <div>
-                      <p className="font-medium">{doc.label}</p>
+                      <p className="font-medium">
+                        {doc.label}
+                        {/* Asterisk carries the same meaning it does on any
+                            form: this one is mandatory. */}
+                        {doc.required && <span className="ml-0.5 text-error" aria-hidden>*</span>}
+                      </p>
                       <p className="text-xs text-muted-fg">{doc.hint}</p>
                     </div>
                   </div>
                 </div>
 
-                <Badge variant={badge.variant} className="w-fit">
-                  {doc.status === "PENDING" && <Clock className="size-3" />}
-                  {doc.status === "APPROVED" && <CheckCircle2 className="size-3" />}
-                  {doc.status === "SUSPENDED" && <ShieldAlert className="size-3" />}
-                  {badge.label}
-                </Badge>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={badge.variant} className="w-fit">
+                    {doc.status === "PENDING" && <Clock className="size-3" />}
+                    {doc.status === "APPROVED" && <CheckCircle2 className="size-3" />}
+                    {doc.status === "SUSPENDED" && <ShieldAlert className="size-3" />}
+                    {badge.label}
+                  </Badge>
+                  <span className="text-caption text-muted-fg">
+                    {doc.required ? "Required to publish" : "Optional"}
+                  </span>
+                </div>
 
                 {doc.status === "SUSPENDED" && doc.reviewNote && (
                   <p className="rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger">{doc.reviewNote}</p>
