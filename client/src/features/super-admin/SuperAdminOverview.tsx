@@ -128,14 +128,14 @@ export function SuperAdminOverview() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         <StatCard label="GMV (today)"      icon="Wallet"    state={metrics.state} value={fmt(metrics.data?.gmv)}           caption="gross volume" />
         <StatCard label="Active trips"     icon="Navigation" state={metrics.state} value={metrics.data?.activeTrips ?? 0}  caption="in progress" />
         <StatCard label="Online drivers"   icon="Car"       state={metrics.state} value={metrics.data?.onlineDrivers ?? 0} caption="valley-wide" />
         <StatCard label="New users (24h)"  icon="UserPlus"  state={metrics.state} value={metrics.data?.newUsers24h ?? 0}   caption="signups" />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         <StatCard label="Total users"    icon="Users"         state={metrics.state} value={metrics.data?.totalUsers ?? 0}    caption="all time" />
         <StatCard label="Open disputes"  icon="AlertTriangle" state={metrics.state} value={metrics.data?.openDisputes ?? 0}  caption="need attention" />
         <StatCard label="Revenue (30d)"  icon="TrendingUp"    state={metrics.state} value={fmt(metrics.data?.revenue30d)}    caption="commission earned" />

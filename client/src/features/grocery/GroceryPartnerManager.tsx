@@ -357,12 +357,12 @@ function AddProductForm({
 
   return (
     <Card className="bg-surface-2/60 p-4">
-      <div className="grid gap-2.5 sm:grid-cols-4">
+      <div className="grid gap-2.5 sm:grid-cols-2">
         <Input placeholder="Product name (e.g. Fresh Milk)" value={name} onChange={(e) => setName(e.target.value)} className="sm:col-span-2" />
         <Input placeholder="Unit (e.g. 1 L, 500 g)" value={unit} onChange={(e) => setUnit(e.target.value)} />
         <Input placeholder="Stock (units)" type="number" value={stock} onChange={(e) => setStock(e.target.value)} />
       </div>
-      <div className="mt-2.5 grid gap-2.5 sm:grid-cols-4">
+      <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
         <Input placeholder="Price (रू)" type="number" value={price} onChange={(e) => setPrice(e.target.value)} />
         <Input placeholder="MRP (रू, optional)" type="number" value={mrp} onChange={(e) => setMrp(e.target.value)} />
         <SelectField

@@ -324,12 +324,12 @@ function AddMenuItemForm({
 
   return (
     <Card className="bg-surface-2/60 p-4">
-      <div className="grid gap-2.5 sm:grid-cols-4">
+      <div className="grid gap-2.5 sm:grid-cols-2">
         <Input placeholder="Dish name (e.g. Chicken Momo)" value={name} onChange={(e) => setName(e.target.value)} className="sm:col-span-2" />
         <Input placeholder="Price (रू)" type="number" value={price} onChange={(e) => setPrice(e.target.value)} />
         <Input placeholder="Prep min" type="number" value={prepTimeMin} onChange={(e) => setPrepTimeMin(e.target.value)} />
       </div>
-      <div className="mt-2.5 grid gap-2.5 sm:grid-cols-4">
+      <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
         <SelectField
           value={categoryId}
           onChange={setCategoryId}

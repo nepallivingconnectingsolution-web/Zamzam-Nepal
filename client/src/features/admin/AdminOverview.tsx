@@ -61,7 +61,7 @@ export function AdminOverview() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         <StatCard label="GMV (today)" icon="Wallet" state={metrics.state} value={npr(metrics.data?.gmv ?? 0, { compact: true })} caption="gross volume" />
         <StatCard label="Active trips" icon="Navigation" state={metrics.state} value={metrics.data?.activeTrips ?? 0} caption="in progress" />
         <StatCard label="Online drivers" icon="Car" state={metrics.state} value={metrics.data?.onlineDrivers ?? 0} caption="valley-wide" />

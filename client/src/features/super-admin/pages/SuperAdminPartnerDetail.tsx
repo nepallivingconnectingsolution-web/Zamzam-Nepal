@@ -134,7 +134,7 @@ export function SuperAdminPartnerDetail() {
               </div>
             </Card>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               <StatCard label="Confirmed bookings" icon="Ticket" state={detail.state} value={s?.totalBookings ?? 0} caption="lifetime" />
               <StatCard label="Unique customers" icon="Users" state={detail.state} value={s?.totalCustomers ?? 0} caption="served" />
               <StatCard label="Total earnings" icon="TrendingUp" state={detail.state} value={s ? npr(s.totalRevenue, { compact: true }) : undefined} caption="confirmed revenue" />

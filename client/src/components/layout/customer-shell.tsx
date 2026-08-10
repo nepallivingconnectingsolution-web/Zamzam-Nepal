@@ -16,11 +16,11 @@ import { Avatar } from "@/components/ui/avatar";
 import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Logo } from "./logo";
+import { AppFrame } from "./app-frame";
 import { useAuthStore } from "@/stores/auth.store";
 import { FloatingAssistant } from "@/features/customer/assistant/FloatingAssistant";
 import { RouteFallback } from "@/components/shared/route-fallback";
 import { ErrorBoundary } from "@/components/shared/error-boundary";
-import { cn } from "@/lib/utils";
 
 const TABS: TabBarItem[] = [
   { label: "Home", to: "/app", icon: "LayoutGrid", end: true },
@@ -56,32 +56,10 @@ export function CustomerShell() {
   }
 
   return (
-    // Desktop backdrop. On a phone this is invisible (the frame fills the
-    // screen); on a wide screen it's the surface the app sits on.
-    <div className="min-h-screen bg-bg lg:bg-teal-900/[0.06] lg:py-6 dark:lg:bg-black/40">
-      {/*
-        THE APP FRAME.
-
-        Previously the shell let its chrome run full-bleed while the content
-        stayed in a 512px column, so at 1440px you got a narrow strip of app
-        stranded in empty space with a full-width header and tab bar — the
-        exact shape of a blog, which is why it read as a website however
-        mobile the components themselves were.
-
-        `translateZ(0)` at lg is load-bearing, not a perf hack: a transformed
-        ancestor becomes the containing block for `position: fixed`
-        descendants. That re-anchors the bottom tab bar and every sticky
-        checkout bar to this frame instead of the viewport, so the whole app
-        is framed without touching a single one of those components.
-      */}
-      <div
-        className={cn(
-          "mx-auto flex w-full max-w-[440px] flex-col bg-bg",
-          "min-h-screen",
-          "lg:h-[calc(100vh-3rem)] lg:min-h-0 lg:overflow-hidden lg:rounded-[2rem] lg:shadow-e2",
-          "lg:[transform:translateZ(0)]",
-        )}
-      >
+    // The frame itself lives in AppFrame — this shell used to carry its own
+    // copy of those classes, which then had to be kept in step by hand with
+    // the driver, partner and admin shells.
+    <AppFrame fill>
       <header className="sticky top-0 z-30 flex h-[calc(3.25rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-border bg-bg/85 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
         <Link to="/app" aria-label="Zamzam home">
           <Logo />
@@ -159,8 +137,7 @@ export function CustomerShell() {
           </button>
         </div>
       </BottomSheet>
-      </div>
-    </div>
+    </AppFrame>
   );
 }
 

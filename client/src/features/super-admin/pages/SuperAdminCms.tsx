@@ -130,7 +130,7 @@ export function SuperAdminCms() {
                 outage. New bookings for a disabled service stop; existing bookings are unaffected.
               </CardDescription>
             </CardHeader>
-            <div className="grid gap-3 p-5 pt-0 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 p-5 pt-0 sm:grid-cols-2">
               {services.map((key) => {
                 const on = flags[key] ?? true;
                 return (

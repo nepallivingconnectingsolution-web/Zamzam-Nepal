@@ -37,7 +37,7 @@ export function SuperAdminHeatmap() {
     <div className="space-y-6">
       <PageHeader title="Demand Heatmap" subtitle="Where and when rides are requested - last 7 days." />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Card className="p-5">
           <div className="flex items-center gap-2 text-sm text-muted-fg">
             <Route className="size-4" /> Rides (7 days)
@@ -89,7 +89,7 @@ export function SuperAdminHeatmap() {
         </div>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4">
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Hottest pickup zones</CardTitle>

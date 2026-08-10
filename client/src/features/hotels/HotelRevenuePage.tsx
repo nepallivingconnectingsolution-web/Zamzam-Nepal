@@ -23,7 +23,7 @@ export function HotelRevenuePage() {
     <div className="space-y-6">
       <PageHeader title="Revenue" subtitle="Daily earnings, platform fees, and refunds across your properties." />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <StatCard label="Revenue (today)" icon="Banknote" state={revenue.state} value={s ? npr(s.todayRevenue, { compact: true }) : undefined} caption="Net profit from today's bookings" />
         <StatCard label="Revenue (this month)" icon="TrendingUp" state={revenue.state} value={s ? npr(s.monthRevenue, { compact: true }) : undefined} caption="Net profit so far this month" />
         <StatCard label="Total revenue" icon="Wallet" state={revenue.state} value={s ? npr(s.totalRevenue, { compact: true }) : undefined} caption="All-time, confirmed bookings" />

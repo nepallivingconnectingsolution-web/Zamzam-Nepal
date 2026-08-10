@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useRef, useState } from "react";
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
@@ -20,7 +20,6 @@ ChevronDown,
   Map,
   ScrollText,
   Settings,
-  ShieldAlert,
   TrendingUp,
   UserCheck,
   Users,
@@ -33,6 +32,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { TabBar, type TabBarItem } from "@/components/ui/tab-bar";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { AppFrame } from "@/components/layout/app-frame";
 import { NotificationBell } from "@/features/super-admin/NotificationBell";
 import { RouteFallback } from "@/components/shared/route-fallback";
 import { ErrorBoundary } from "@/components/shared/error-boundary";
@@ -130,25 +130,21 @@ export function SuperAdminLayout() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-bg lg:grid lg:grid-cols-[260px_1fr]">
-      <SidebarBody className="hidden lg:flex" />
+    // One layout at every width, like the customer app and the partner
+    // portals. The 260px sidebar this replaces made the console a different
+    // product on a laptop than on a phone; the tab bar below was already
+    // carrying the whole navigation under lg.
+    <AppFrame fill>
+      <SuperTopbar />
+      <main className="min-w-0 flex-1 overflow-x-hidden px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 lg:overflow-y-auto">
+        <ErrorBoundary>
+          <Suspense fallback={<RouteFallback />}>
+            <Outlet />
+          </Suspense>
+        </ErrorBoundary>
+      </main>
 
-      <div className="flex min-w-0 flex-col">
-        <SuperTopbar />
-        <main className="min-w-0 flex-1 overflow-x-hidden px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
-          <div className="mx-auto max-w-7xl">
-            <ErrorBoundary>
-              <Suspense fallback={<RouteFallback />}>
-                <Outlet />
-              </Suspense>
-            </ErrorBoundary>
-          </div>
-        </main>
-      </div>
-
-      {/* Mobile chrome — replaces the hamburger + slide-out drawer, which was
-          the last website-pattern navigation left in the app. */}
-      <div className="lg:hidden">
+      <div>
         <TabBar items={tabs} />
 
         <BottomSheet open={moreOpen} onClose={() => setMoreOpen(false)} title="More">
@@ -189,83 +185,7 @@ export function SuperAdminLayout() {
           </div>
         </BottomSheet>
       </div>
-    </div>
-  );
-}
-
-function SidebarBody({ className }: { className?: string }) {
-  const { admin, clearSession } = useSuperAdminStore();
-  const navigate = useNavigate();
-
-  function handleSignOut() {
-    clearSession();
-    navigate("/");
-  }
-
-  return (
-    <aside className={cn("flex-col border-r border-border bg-surface", className)}>
-      {/* Header */}
-      {/* No close button: this sidebar is lg-and-up only now, so it's never
-          presented as a dismissible overlay. */}
-      <div className="flex h-16 items-center border-b border-border px-5">
-        <div className="flex items-center gap-2.5">
-          <div className="flex size-7 items-center justify-center rounded-md bg-teal-700">
-            <ShieldAlert className="size-4 text-white" />
-          </div>
-          <span className="font-display text-h2 font-bold">Super Admin</span>
-        </div>
-      </div>
-
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-fg">
-          Platform Control
-        </p>
-        <ul className="space-y-0.5">
-          {SA_NAV.map((item) => (
-            <li key={item.to}>
-              <NavLink
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-brand-900 text-white dark:bg-white dark:text-brand-900"
-                      : "text-muted-fg hover:bg-surface-2 hover:text-fg",
-                  )
-                }
-              >
-                <item.icon className="size-[18px] shrink-0" />
-                <span className="flex-1">{item.label}</span>
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </nav>
-
-      {/* Footer */}
-      <div className="border-t border-border p-3 space-y-1">
-        <div className="flex items-center gap-2.5 px-3 py-2">
-          <Avatar name={admin?.name ?? "SA"} className="size-7" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold">
-              {admin?.name ?? "Super Admin"}
-            </p>
-            <p className="truncate text-[10px] text-muted-fg">
-              {admin?.email ?? ""}
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={handleSignOut}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-fg transition-colors hover:bg-danger/10 hover:text-danger"
-        >
-          <LogOut className="size-[18px]" />
-          Sign out
-        </button>
-      </div>
-    </aside>
+    </AppFrame>
   );
 }
 
@@ -302,7 +222,7 @@ function SuperTopbar() {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-[calc(4rem+env(safe-area-inset-top))] items-center gap-3 border-b border-border bg-bg/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-30 flex h-[calc(3.25rem+env(safe-area-inset-top))] shrink-0 items-center gap-3 border-b border-border bg-bg/85 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
       {/* No hamburger: the bottom tab bar replaced the slide-out drawer. */}
       <span className="rounded-sm bg-teal-100 px-2 py-1 text-caption font-bold uppercase tracking-widest text-teal-700 dark:bg-white/10 dark:text-white">
         Super Admin
@@ -319,16 +239,12 @@ function SuperTopbar() {
             aria-haspopup="true"
             aria-expanded={profileOpen}
             aria-label="Account menu"
-            className="ml-1 flex items-center gap-2.5 rounded-full border border-border py-1 pl-1 pr-3 transition-colors hover:bg-surface-2"
+            // Avatar only — same reason as PortalLayout's: `sm:` fires on the
+            // desktop viewport, not on this 440px frame, so the name claimed
+            // space the frame doesn't have. It's in the menu this opens.
+            className="ml-1 flex items-center rounded-full border border-border p-1 transition-colors hover:bg-surface-2"
           >
             <Avatar name={name} className="size-7" />
-            <span className="hidden text-sm font-medium sm:block">{name}</span>
-            <ChevronDown
-              className={cn(
-                "hidden size-3.5 text-muted-fg transition-transform sm:block",
-                profileOpen && "rotate-180",
-              )}
-            />
           </button>
 
           <AnimatePresence>

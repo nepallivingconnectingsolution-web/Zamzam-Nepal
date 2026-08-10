@@ -46,7 +46,7 @@ export function FreightRevenuePage() {
     <div className="space-y-6">
       <PageHeader title="Revenue" subtitle="Earnings from delivered shipments across your accepted bids." />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <StatCard label="Revenue (today)" icon="Banknote" state={revenue.state} value={s ? npr(s.todayRevenue, { compact: true }) : undefined} caption="From today's deliveries" />
         <StatCard label="Revenue (this month)" icon="TrendingUp" state={revenue.state} value={s ? npr(s.monthRevenue, { compact: true }) : undefined} caption="So far this month" />
         <StatCard label="Total revenue" icon="Wallet" state={revenue.state} value={s ? npr(s.totalRevenue, { compact: true }) : undefined} caption="All-time, delivered shipments" />

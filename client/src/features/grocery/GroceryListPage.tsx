@@ -62,7 +62,7 @@ export function GroceryListPage() {
           />
         }
       >
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           {stores.data?.map((s) => <StoreCard key={s.id} store={s} />)}
         </div>
       </AsyncBoundary>

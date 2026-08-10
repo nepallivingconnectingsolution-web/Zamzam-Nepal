@@ -321,7 +321,7 @@ export function MarketplaceHome() {
         {/* By category */}
         <section>
           <h2 className="mb-4 font-display text-lg font-semibold tracking-tight">Browse by category</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2">
             {SERVICE_GROUPS.map((g) => {
               const count = SERVICES.filter((s) => s.group === g).length;
               return (

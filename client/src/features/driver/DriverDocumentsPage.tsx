@@ -144,7 +144,7 @@ export function DriverDocumentsPage() {
       )}
 
       <AsyncBoundary state={documents.state} onRetry={documents.refetch} label="Your documents">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           {(documents.data ?? []).map((doc) => {
             const badge = STATUS_BADGE[doc.status];
             const Icon = ICONS[doc.type];

@@ -97,7 +97,7 @@ export function SuperAdminPartners() {
         subtitle="Bus, hotel, restaurant, grocery and driver partners — bookings, customers and earnings across every business."
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-2">
         <StatCard label="Total partners" icon="Building2" state={partners.state} value={summary?.totalPartners ?? 0} caption="all verticals" />
         <StatCard label="Bus operators" icon="Bus" state={partners.state} value={summary?.busOperators ?? 0} caption="approved & pending" />
         <StatCard label="Hotel partners" icon="BedDouble" state={partners.state} value={summary?.hotelPartners ?? 0} caption="approved & pending" />

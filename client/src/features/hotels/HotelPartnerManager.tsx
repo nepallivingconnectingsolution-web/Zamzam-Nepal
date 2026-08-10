@@ -225,12 +225,12 @@ function AddRoomTypeForm({ hotelId, onAdded }: { hotelId: string; onAdded: () =>
 
   return (
     <Card className="bg-surface-2/60 p-4">
-      <div className="grid gap-2.5 sm:grid-cols-4">
+      <div className="grid gap-2.5 sm:grid-cols-2">
         <Input placeholder="Room name (e.g. Deluxe)" value={name} onChange={(e) => setName(e.target.value)} className="sm:col-span-2" />
         <Input placeholder="Price/night" type="number" value={pricePerNight} onChange={(e) => setPricePerNight(e.target.value)} />
         <Input placeholder="Total rooms" type="number" value={totalRooms} onChange={(e) => setTotalRooms(e.target.value)} />
       </div>
-      <div className="mt-2.5 grid gap-2.5 sm:grid-cols-4">
+      <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
         <Input placeholder="Max guests" type="number" value={maxGuests} onChange={(e) => setMaxGuests(e.target.value)} className="w-40" />
         <Input
           placeholder="Room description (optional) — bed type, size, view…"

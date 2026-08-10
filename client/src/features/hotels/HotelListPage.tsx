@@ -72,7 +72,7 @@ export function HotelListPage() {
           />
         }
       >
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           {hotels.data?.map((h) => (
             <HotelCard key={h.id} hotel={h} />
           ))}

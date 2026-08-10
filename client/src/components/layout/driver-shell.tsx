@@ -7,6 +7,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Logo } from "./logo";
+import { AppFrame } from "./app-frame";
 import { useAuthStore } from "@/stores/auth.store";
 import { RouteFallback } from "@/components/shared/route-fallback";
 import { ErrorBoundary } from "@/components/shared/error-boundary";
@@ -41,7 +42,7 @@ export function DriverShell() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-bg">
+    <AppFrame fill>
       <header className="sticky top-0 z-30 flex h-[calc(3.25rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-border bg-bg/85 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
         <Link to="/driver" aria-label="Zamzam driver home">
           <Logo />
@@ -62,14 +63,12 @@ export function DriverShell() {
 
       {/* 6rem — same reasoning as CustomerShell: the tab bar grew when the
           active tab gained a label, and it's translucent. */}
-      <main className="flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4">
-        <div className="mx-auto max-w-lg">
-          <ErrorBoundary>
-            <Suspense fallback={<RouteFallback />}>
-              <Outlet />
-            </Suspense>
-          </ErrorBoundary>
-        </div>
+      <main className="flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 lg:overflow-y-auto">
+        <ErrorBoundary>
+          <Suspense fallback={<RouteFallback />}>
+            <Outlet />
+          </Suspense>
+        </ErrorBoundary>
       </main>
 
       <TabBar items={tabs} />
@@ -90,7 +89,7 @@ export function DriverShell() {
           </button>
         </div>
       </BottomSheet>
-    </div>
+    </AppFrame>
   );
 }
 

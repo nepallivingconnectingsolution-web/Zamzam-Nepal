@@ -26,7 +26,7 @@ export function ServiceGrid({
         // old responsive classes keyed off the VIEWPORT, not the frame, so on
         // a desktop screen it escalated to four columns inside a 440px box
         // and the tiles turned into unreadable slivers. Two columns, always.
-        compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-3",
+        compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-2",
       )}
     >
       {SERVICES.map((s, i) => {

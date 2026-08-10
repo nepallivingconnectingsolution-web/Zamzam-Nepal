@@ -63,7 +63,7 @@ export function SuperAdminRevenue() {
         subtitle={`Gross earnings across every service on the platform — last ${d?.windowDays ?? 30} days.`}
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
           label="Combined revenue"
           icon="Wallet"
@@ -73,7 +73,7 @@ export function SuperAdminRevenue() {
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         {(d?.services ?? []).map((s) => (
           <StatCard
             key={s.key}

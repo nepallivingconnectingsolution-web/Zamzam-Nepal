@@ -110,7 +110,7 @@ export function SuperAdminServices() {
           {grouped.map(([category, services]) => (
             <div key={category} className="space-y-3">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-fg">{category}</h2>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2">
                 {services.map((s) => (
                   <Card key={s.key} className={`p-5 ${s.enabled ? "" : "opacity-70"}`}>
                     <div className="flex items-start justify-between gap-2">

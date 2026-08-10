@@ -22,14 +22,22 @@ export function StatCard({
   caption?: string;
 }) {
   return (
-   <Card className="p-5">
-      <div className="flex items-start justify-between gap-3">
-        <span className="min-w-0 truncate text-sm font-medium text-muted-fg">{label}</span>
+   <Card className="p-4">
+      <div className="flex items-start justify-between gap-2">
+        {/* Wraps to two lines instead of truncating. These tiles sit two to a
+            row inside a 440px frame, which leaves ~110px beside the icon —
+            enough to clip "Revenue (month)" to "Revenue (mont…", and a KPI
+            label that can't be read is worse than a taller card. The reserved
+            two-line height keeps the numbers aligned across a row whether the
+            label wraps or not. */}
+        <span className="line-clamp-2 min-h-[2.25rem] min-w-0 text-body-sm font-medium leading-snug text-muted-fg">
+          {label}
+        </span>
         <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-surface-2 text-muted-fg">
           <Icon name={icon} className="size-[18px]" />
         </span>
       </div>
-      <div className="mt-4 min-w-0">
+      <div className="mt-3 min-w-0">
         {state === "loading" ? (
           <Skeleton className="h-8 w-24" />
         ) : (

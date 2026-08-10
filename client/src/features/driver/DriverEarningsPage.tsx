@@ -17,7 +17,7 @@ export function DriverEarningsPage() {
     <div className="space-y-6">
       <PageHeader title="Earnings" subtitle="Daily settlements and breakdowns, from your completed trips." />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <StatCard label="Today's earnings" icon="Banknote" state={earnings.state} value={npr(earnings.data?.today ?? 0)} caption="today so far" />
         <StatCard label="Last 7 days" icon="TrendingUp" state={earnings.state} value={npr(earnings.data?.week ?? 0)} caption="rolling week" />
         <StatCard label="Trips today" icon="Route" state={earnings.state} value={earnings.data?.tripsToday ?? 0} caption="completed" />
