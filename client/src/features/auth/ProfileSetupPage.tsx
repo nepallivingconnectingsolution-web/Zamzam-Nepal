@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Logo } from "@/components/layout/logo";
+import { AppFrame } from "@/components/layout/app-frame";
 import { useAuthStore } from "@/stores/auth.store";
 import { toast } from "@/stores/toast.store";
 import { ROLE_HOME } from "@/config";
@@ -48,9 +49,13 @@ export function ProfileSetupPage() {
     } finally { setLoading(false); }
   }
 
+  // In the frame like sign-in and sign-up: this is the screen immediately
+  // after creating an account, so a full-width web layout here would be a
+  // visible seam in the middle of the flow.
   return (
-    <div className="min-h-[calc(100vh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] bg-bg flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <AppFrame>
+      <div className="flex flex-1 items-center justify-center p-4">
+        <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3">
           <Logo />
           <h1 className="font-display text-2xl font-bold tracking-tight">
@@ -79,8 +84,9 @@ export function ProfileSetupPage() {
             {loading ? "Saving…" : "Save & continue"}
           </Button>
         </div>
+        </div>
       </div>
-    </div>
+    </AppFrame>
   );
 }
 

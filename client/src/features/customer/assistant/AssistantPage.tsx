@@ -76,7 +76,10 @@ export function AssistantPage() {
     <div className="space-y-6">
       <PageHeader title="AI assistant" subtitle="Ask Zamzam to plan, book or compare." />
 
-      <Card className="flex h-[calc(100vh-240px)] min-h-[420px] flex-col">
+      {/* dvh, not vh: on mobile browsers vh is the tallest viewport and ignores
+          the address bar, so the composer at the bottom of this card sat under
+          the browser chrome until you scrolled. dvh tracks the visible area. */}
+      <Card className="flex h-[calc(100dvh-240px)] min-h-[420px] flex-col">
         {/* ── Conversation ── */}
         <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-5">
           {messages.map((m) =>

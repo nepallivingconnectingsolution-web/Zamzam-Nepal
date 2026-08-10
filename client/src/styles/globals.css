@@ -102,6 +102,18 @@
     background-clip: padding-box;
   }
 
+  /* Swipeable rows (suggestion chips, filter pills) scroll by touch, so the
+     10px bar above is pure loss: it eats a row's height and reads as a
+     desktop artefact inside a phone UI. Hidden, not disabled — the row still
+     scrolls, by drag, wheel or keyboard. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   /* Visible keyboard focus everywhere — a ring, never a soft glow. */
   :focus-visible {
     @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-bg;

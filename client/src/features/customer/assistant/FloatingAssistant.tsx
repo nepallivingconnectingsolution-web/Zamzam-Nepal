@@ -176,8 +176,20 @@ export function FloatingAssistant() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: 16 }}
             transition={{ type: "spring", damping: 26, stiffness: 300 }}
-            style={{ transformOrigin: "bottom right", bottom: "calc(150px + env(safe-area-inset-bottom))" }}
-            className="fixed right-6 z-40 flex h-[min(640px,calc(100vh-160px))] w-[calc(100vw-3rem)] max-w-[380px] flex-col overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-lift ring-1 ring-black/5 dark:ring-white/5"
+            // Sized in %, not vh/vw. This panel is `fixed`, and AppFrame's
+            // translateZ(0) makes the phone frame its containing block on a
+            // desktop screen — so a percentage resolves against the frame,
+            // while vh/vw resolve against the whole browser window. Sizing it
+            // to a 900px window inside an 852px frame is what pushed the
+            // header out through the top edge. On a real phone there is no
+            // transform, the containing block IS the viewport, and % means
+            // the same thing — so one expression is correct in both places.
+            style={{
+              transformOrigin: "bottom right",
+              bottom: "calc(150px + env(safe-area-inset-bottom))",
+              maxHeight: "calc(100% - 166px - env(safe-area-inset-bottom))",
+            }}
+            className="fixed right-6 z-40 flex h-[640px] w-[calc(100%-3rem)] max-w-[380px] flex-col overflow-hidden rounded-[28px] border border-border/60 bg-card shadow-lift ring-1 ring-black/5 dark:ring-white/5"
             role="dialog"
             aria-modal="false"
             aria-label="Zamzam assistant"
@@ -262,7 +274,7 @@ export function FloatingAssistant() {
 
             {/* Suggested follow-ups */}
             {followUps.length > 0 && !thinking && (
-              <div className="flex shrink-0 gap-1.5 overflow-x-auto border-t border-border px-4 py-2.5">
+              <div className="no-scrollbar flex shrink-0 gap-1.5 overflow-x-auto border-t border-border px-4 py-2.5">
                 {followUps.map((q) => (
                   <button
                     key={q}
