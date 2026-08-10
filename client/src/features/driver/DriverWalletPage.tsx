@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { useResource } from "@/hooks/useResource";
 import { api, endpoints } from "@/api/client";
+import { npr } from "@/lib/utils";
 import { TxnRow } from "@/features/customer/WalletPage";
 
 interface Balance {
@@ -50,22 +51,14 @@ export function DriverWalletPage() {
           <div className="flex items-center gap-2 text-sm text-white/60">
             <Wallet className="size-4" /> Available balance
           </div>
-          <p className="mt-3 font-display text-4xl font-bold">
-            {balance.state === "success" && balance.data
-              ? new Intl.NumberFormat("en-NP", { style: "currency", currency: "NPR" }).format(
-                  balance.data.available,
-                )
-              : "रू —"}
+          <p className="mt-3 font-display text-4xl font-bold font-tabular">
+            {balance.state === "success" && balance.data ? npr(balance.data.available) : "रू —"}
           </p>
         </Card>
         <Card className="p-6">
           <p className="text-sm text-muted-fg">In escrow</p>
-          <p className="mt-3 font-display text-2xl font-bold">
-            {balance.state === "success" && balance.data
-              ? new Intl.NumberFormat("en-NP", { style: "currency", currency: "NPR" }).format(
-                  balance.data.escrow,
-                )
-              : "रू —"}
+          <p className="mt-3 font-display text-2xl font-bold font-tabular">
+            {balance.state === "success" && balance.data ? npr(balance.data.escrow) : "रू —"}
           </p>
         </Card>
       </div>

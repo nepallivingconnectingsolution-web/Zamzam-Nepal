@@ -32,9 +32,9 @@ export function BusReviewsPage() {
               return (
                 <div key={d.star} className="flex items-center gap-2 text-sm">
                   <span className="w-3 text-muted-fg">{d.star}</span>
-                  <Star className="size-3.5 fill-amber-400 text-amber-400" />
+                  <Star className="size-3.5 fill-warning text-warning" />
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-amber-400" style={{ width: `${pct}%` }} />
+                    <div className="h-full rounded-full bg-warning" style={{ width: `${pct}%` }} />
                   </div>
                   <span className="w-8 text-right text-xs text-muted-fg">{d.count}</span>
                 </div>

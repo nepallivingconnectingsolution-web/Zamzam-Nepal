@@ -70,7 +70,7 @@ function SummaryCard({ summary, loading }: { summary: GroceryReviewSummary | nul
               <div key={d.star} className="flex items-center gap-3 text-xs">
                 <span className="w-8 text-muted-fg">{d.star} ★</span>
                 <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
-                  <div className="h-full rounded-full bg-amber-400" style={{ width: `${pct}%` }} />
+                  <div className="h-full rounded-full bg-warning" style={{ width: `${pct}%` }} />
                 </div>
                 <span className="w-8 text-right text-muted-fg">{d.count}</span>
               </div>

@@ -11,6 +11,7 @@ import { apiError } from '../../common/exceptions';
 import type { RegisterDto, LoginDto } from './dto/auth.dto';
 import type { Role } from '../../database/schema';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PasswordResetService } from '../../common/password-reset/password-reset.service';
 
 
 /** Deterministic hash for refresh-token storage — see refreshTokens in schema.ts for why not bcrypt. */
@@ -45,6 +46,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly notifications: NotificationsService,
+    private readonly passwordReset: PasswordResetService,
   ) {}
 
   private toPublicUser(u: typeof users.$inferSelect): PublicUser {
@@ -248,5 +250,36 @@ private async issueTokens(userId: string, role: Role) {
     const [user] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
     if (!user) apiError(401, 'Session expired. Please sign in again.');
     return this.toPublicUser(user);
+  }
+
+  /**
+   * Always resolves — never reveals whether `email` belongs to an account.
+   * See PasswordResetService.requestOtp for the actual enumeration guard.
+   */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const [user] = await this.db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+    await this.passwordReset.requestOtp(email, user ? { id: user.id, type: 'user' } : null);
+    return { message: "If an account exists for that email, we've sent a reset code." };
+  }
+
+  async verifyResetOtp(email: string, otp: string): Promise<{ valid: true }> {
+    const valid = await this.passwordReset.verifyOtp(email, otp);
+    if (!valid) apiError(400, 'That code is incorrect or has expired.');
+    return { valid: true };
+  }
+
+  async resetPassword(email: string, otp: string, newPassword: string): Promise<{ message: string }> {
+    const consumed = await this.passwordReset.consumeOtp(email, otp);
+    if (!consumed?.userId) apiError(400, 'That code is incorrect or has expired.');
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, consumed.userId));
+
+    // Invalidate every existing session for this account — the whole point
+    // of a password reset is that anyone who had a live session (e.g. from
+    // a stolen device) no longer does.
+    await this.db.delete(refreshTokens).where(eq(refreshTokens.userId, consumed.userId));
+
+    return { message: 'Your password has been updated.' };
   }
 }

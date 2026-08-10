@@ -131,7 +131,11 @@ async function request<T>(method: Method, path: string, body?: unknown, _retried
     // refreshed token the server still rejects). Nothing left to retry —
     // sign out and send them back to log in instead of leaving the page
     // stuck on a dead-end error that only a manual reload used to clear.
-    signOutAndRedirect();
+    //
+    // The message matters: without it an expired session dumped the user on
+    // the login screen with no explanation, which reads as "the app logged
+    // me out at random" or, mid-form, as "the button is broken".
+    signOutAndRedirect("Your session expired. Please sign in again.");
   }
 
   if (res.status === 403) {
@@ -215,7 +219,21 @@ export const API_ORIGIN = API_BASE_URL;
 
 /** Endpoint registry — single source of truth for the app's routes. */
 export const endpoints = {
-  auth: { register: "/auth/register", login: "/auth/login", me: "/auth/me", refresh: "/auth/refresh" },
+  auth: {
+    register: "/auth/register",
+    login: "/auth/login",
+    me: "/auth/me",
+    refresh: "/auth/refresh",
+    forgotPassword: "/auth/forgot-password",
+    verifyResetOtp: "/auth/verify-reset-otp",
+    resetPassword: "/auth/reset-password",
+  },
+  superAdminAuth: {
+    login: "/super-admin/auth/login",
+    forgotPassword: "/super-admin/auth/forgot-password",
+    verifyResetOtp: "/super-admin/auth/verify-reset-otp",
+    resetPassword: "/super-admin/auth/reset-password",
+  },
   profile: { customer: "/profile/customer", business: "/profile/business", me: "/profile/me", password: "/profile/password" },
   wallet: { balance: "/wallet/balance", transactions: "/wallet/transactions", topup: "/wallet/topup" },
   rides: {
@@ -238,6 +256,10 @@ export const endpoints = {
   },
 bookings: { list: "/bookings" },
   support: { tickets: "/support/tickets" },
+  // Public, unauthenticated read of active promo banners + which services
+  // are switched on — see server's PublicCmsController. Managed from the
+  // super-admin CMS page; this is the customer-facing consumer of it.
+  cms: { public: "/cms" },
   notifications: {
     list: "/notifications",
     unreadCount: "/notifications/unread-count",

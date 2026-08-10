@@ -201,7 +201,7 @@ function PartnerTable({ rows, onView }: { rows: PartnerRow[]; onView: (id: strin
   <>
     {/* Desktop / tablet: full table */}
     <div className="hidden -mx-5 overflow-x-auto pb-5 md:block">
-      <table className="w-full text-sm">
+      <table className="w-full text-sm font-tabular">
         <thead>
           <tr className="border-b border-border bg-surface-2 text-left text-xs font-semibold text-muted-fg">
             <th className="px-5 py-3">Partner</th>
@@ -248,7 +248,7 @@ function PartnerTable({ rows, onView }: { rows: PartnerRow[]; onView: (id: strin
     </div>
 
     {/* Mobile: one card per partner instead of a cramped, horizontally-scrolling table */}
-    <div className="space-y-3 pb-5 md:hidden">
+    <div className="space-y-3 pb-5 font-tabular md:hidden">
       {sorted.map((p) => (
         <div key={p.id} className="rounded-xl border border-border/60 bg-surface-2/40 p-3">
           <div className="flex items-start justify-between gap-3">

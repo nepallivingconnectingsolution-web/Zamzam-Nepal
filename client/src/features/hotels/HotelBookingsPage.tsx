@@ -68,7 +68,7 @@ export function HotelBookingsPage() {
             <Card key={b.id} className="p-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-4">
-                  <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
+                  <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-teal-100 text-teal-700 dark:bg-white/10 dark:text-accent">
                     <BedDouble className="size-6" />
                   </div>
                   <div>
@@ -90,7 +90,7 @@ export function HotelBookingsPage() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
-                  <p className="font-display text-lg font-bold">रू {b.grandTotal.toLocaleString()}</p>
+                  <p className="font-display text-lg font-bold font-tabular">रू {b.grandTotal.toLocaleString()}</p>
                   {b.status === "CONFIRMED" && (
                     <Button variant="outline" size="sm" disabled={busyId === b.id} onClick={() => cancel(b.id)}>
                       {busyId === b.id ? "Cancelling…" : "Cancel"}

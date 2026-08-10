@@ -95,7 +95,7 @@ export function FreightRevenuePage() {
         >
           {/* Desktop / tablet: full table, scrolls horizontally only if the viewport is still tight */}
           <div className="hidden overflow-x-auto px-5 pb-5 md:block">
-            <table className="w-full min-w-[520px] text-sm">
+            <table className="w-full min-w-[520px] text-sm font-tabular">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-fg">
                   <th className="py-2 pr-3 font-medium">Date</th>
@@ -109,7 +109,7 @@ export function FreightRevenuePage() {
                   <tr key={d.date} className="border-b border-border/60 last:border-0">
                     <td className="py-2 pr-3">{d.date}</td>
                     <td className="py-2 pr-3">{d.shipments}</td>
-                    <td className="py-2 pr-3 font-medium">रू {d.grossRevenue.toLocaleString()}</td>
+                    <td className="py-2 pr-3 font-medium font-tabular">रू {d.grossRevenue.toLocaleString()}</td>
                     <td className="py-2 text-muted-fg">{d.cancelled}</td>
                   </tr>
                 ))}
@@ -118,12 +118,12 @@ export function FreightRevenuePage() {
           </div>
 
           {/* Mobile: one card per day instead of a cramped, horizontally-scrolling table */}
-          <div className="space-y-3 px-5 pb-5 md:hidden">
+          <div className="space-y-3 px-5 pb-5 font-tabular md:hidden">
             {dailyRows.map((d) => (
               <div key={d.date} className="rounded-xl border border-border/60 bg-surface-2/40 p-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">{d.date}</span>
-                  <span className="text-sm font-semibold text-fg">रू {d.grossRevenue.toLocaleString()}</span>
+                  <span className="text-sm font-semibold text-fg font-tabular">रू {d.grossRevenue.toLocaleString()}</span>
                 </div>
                 <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
                   <div className="flex items-center justify-between">

@@ -86,7 +86,7 @@ export function SuperAdminTransactions() {
                 onClick={() => setType(t)}
                 className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                   type === t
-                    ? "border-accent bg-accent/10 text-accent"
+                    ? "border-teal-700 bg-teal-100 text-teal-700 dark:border-accent dark:bg-white/10 dark:text-accent"
                     : "border-border text-muted-fg hover:border-accent/50"
                 }`}
               >
@@ -112,7 +112,7 @@ export function SuperAdminTransactions() {
         >
           {/* Desktop / tablet: full table */}
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm font-tabular">
               <thead>
                 <tr className="border-b border-border bg-surface-2 text-left text-xs font-semibold text-muted-fg">
                   <th className="px-5 py-3">User</th>
@@ -177,7 +177,7 @@ export function SuperAdminTransactions() {
           </div>
 
           {/* Mobile: one card per transaction instead of a cramped, horizontally-scrolling table */}
-          <div className="space-y-3 p-4 md:hidden">
+          <div className="space-y-3 p-4 font-tabular md:hidden">
             {(txns.data?.items ?? []).map((t) => (
               <div key={t.id} className="rounded-xl border border-border/60 bg-surface-2/40 p-3">
                 <div className="flex items-start justify-between gap-3">

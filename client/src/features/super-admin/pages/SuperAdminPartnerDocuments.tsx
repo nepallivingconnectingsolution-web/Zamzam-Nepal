@@ -104,7 +104,7 @@ export function SuperAdminPartnerDocuments() {
             className={cn(
               "rounded-full border px-3.5 py-1.5 text-sm",
               typeFilter === f.value
-                ? "border-accent bg-accent/10 font-medium text-accent-600 dark:text-accent"
+                ? "border-teal-700 bg-teal-100 dark:border-accent dark:bg-white/10 font-medium text-accent-600 dark:text-accent"
                 : "border-border text-muted-fg hover:bg-surface-2",
             )}
           >
@@ -122,7 +122,7 @@ export function SuperAdminPartnerDocuments() {
             className={cn(
               "rounded-full border px-3.5 py-1.5 text-sm",
               statusFilter === f.value
-                ? "border-accent bg-accent/10 font-medium text-accent-600 dark:text-accent"
+                ? "border-teal-700 bg-teal-100 dark:border-accent dark:bg-white/10 font-medium text-accent-600 dark:text-accent"
                 : "border-border text-muted-fg hover:bg-surface-2",
             )}
           >
@@ -132,7 +132,7 @@ export function SuperAdminPartnerDocuments() {
       </div>
 
       {error && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+        <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
           {error}
         </p>
       )}

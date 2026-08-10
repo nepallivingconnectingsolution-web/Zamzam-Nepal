@@ -12,6 +12,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { SuperAdminService } from './super-admin.service';
 import { SuperAdminLoginDto, KycDecisionDto, ResolveTransactionDto, UpdateCmsDto, UpdateSettingsDto } from './dto/super-admin.dto';
+import { ForgotPasswordDto, ResetPasswordDto, VerifyResetOtpDto } from '../../common/password-reset/password-reset.dto';
 import { SuperAdminAuthGuard } from './super-admin-auth.guard';
 import { CurrentSuperAdmin } from './current-super-admin.decorator';
 import type { AuthenticatedSuperAdmin } from './super-admin-jwt.strategy';
@@ -28,6 +29,27 @@ export class SuperAdminController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   login(@Body() dto: SuperAdminLoginDto) {
     return this.superAdmin.login(dto);
+  }
+
+  @Post('auth/forgot-password')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.superAdmin.forgotPassword(dto.email);
+  }
+
+  @Post('auth/verify-reset-otp')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  verifyResetOtp(@Body() dto: VerifyResetOtpDto) {
+    return this.superAdmin.verifyResetOtp(dto.email, dto.otp);
+  }
+
+  @Post('auth/reset-password')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.superAdmin.resetPassword(dto.email, dto.otp, dto.newPassword);
   }
 
   @Get('metrics')

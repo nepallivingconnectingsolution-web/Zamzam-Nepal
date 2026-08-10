@@ -71,9 +71,9 @@ function SummaryCard({ summary, loading }: { summary: ReviewSummary | null; load
             return (
               <div key={row.star} className="flex items-center gap-2 text-xs">
                 <span className="w-3 text-muted-fg">{row.star}</span>
-                <Star className="size-3 fill-amber-400 text-amber-400" />
+                <Star className="size-3 fill-warning text-warning" />
                 <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
-                  <div className="h-full rounded-full bg-amber-400" style={{ width: `${pct}%` }} />
+                  <div className="h-full rounded-full bg-warning" style={{ width: `${pct}%` }} />
                 </div>
                 <span className="w-6 text-right text-muted-fg">{row.count}</span>
               </div>

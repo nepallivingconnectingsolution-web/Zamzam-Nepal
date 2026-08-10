@@ -172,7 +172,7 @@ function CollectFare({ job, busy, onCashCollected }: { job: CurrentJob; busy: bo
 
       <div className="text-center">
         <p className="text-sm text-muted-fg">Fare to collect{job.customerName ? ` from ${job.customerName}` : ""}</p>
-        <p className="font-display text-4xl font-bold">{npr(job.fare)}</p>
+        <p className="font-display text-4xl font-bold font-tabular">{npr(job.fare)}</p>
         <p className="mt-1 text-xs text-muted-fg">
           {job.from} → {job.to}
         </p>
@@ -209,7 +209,7 @@ function TripRecap({
           <CheckCircle2 className="size-6 text-success" />
         </span>
         <p className="text-sm text-muted-fg">You earned</p>
-        <p className="font-display text-4xl font-bold">{npr(trip.fare)}</p>
+        <p className="font-display text-4xl font-bold font-tabular">{npr(trip.fare)}</p>
         <Badge variant="outline">{trip.method === "cash" ? "Paid in cash" : "Paid from wallet"}</Badge>
       </div>
 
@@ -220,7 +220,7 @@ function TripRecap({
       {todayTotal != null && (
         <div className="rounded-xl border border-border bg-muted/40 p-3 text-sm">
           <span className="text-muted-fg">Today's earnings</span>{" "}
-          <span className="font-display font-semibold">{npr(todayTotal)}</span>
+          <span className="font-display font-semibold font-tabular">{npr(todayTotal)}</span>
         </div>
       )}
 

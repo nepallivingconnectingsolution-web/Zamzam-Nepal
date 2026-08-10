@@ -90,11 +90,11 @@ export function RideChatPanel({
                 <div
                   className={cn(
                     "max-w-[75%] rounded-2xl px-3 py-2 text-sm",
-                    mine ? "bg-accent text-white" : "bg-surface-2 text-fg",
+                    mine ? "bg-accent text-accent-fg" : "bg-surface-2 text-fg",
                   )}
                 >
                   <p className="whitespace-pre-wrap break-words">{m.body}</p>
-                  <p className={cn("mt-0.5 text-right text-[10px]", mine ? "text-white/70" : "text-muted-fg")}>
+                  <p className={cn("mt-0.5 text-right text-[10px]", mine ? "text-accent-fg/70" : "text-muted-fg")}>
                     {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </div>

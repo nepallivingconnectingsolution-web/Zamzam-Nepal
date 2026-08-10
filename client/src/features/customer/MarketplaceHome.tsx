@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ServiceGrid } from "@/components/shared/service-grid";
+import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,17 @@ import { toast } from "@/stores/toast.store";
 import { npr } from "@/lib/utils";
 import { SERVICE_GROUPS, SERVICES } from "@/config";
 import { Icon } from "@/components/ui/icon";
+import { TerrainLine } from "@/components/ui/terrain-line";
+import { useAuthStore } from "@/stores/auth.store";
+
+/** Local time of day, not UTC — a "good evening" at 8am reads as broken, not charming. */
+function timeOfDayGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 5) return "Good night";
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
 
 interface WalletSummary {
   balance: number;
@@ -50,6 +62,17 @@ interface ActiveRide {
   vehiclePlate: string | null;
 }
 
+interface CmsBanner {
+  id: string;
+  title: string;
+  message: string;
+  active: boolean;
+}
+interface PublicCms {
+  banners: CmsBanner[];
+  serviceFlags: Record<string, boolean>;
+}
+
 const SERVICE_ICON = { taxi: Car, bike: Bike, parcel: Package } as const;
 const STATUS_VARIANT: Record<RideTrip["status"], "success" | "danger" | "outline" | "accent"> = {
   COMPLETED: "success",
@@ -61,6 +84,8 @@ const STATUS_VARIANT: Record<RideTrip["status"], "success" | "danger" | "outline
 
 export function MarketplaceHome() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const firstName = user?.name?.trim().split(" ")[0];
   const wallet = useResource<WalletSummary>(() => api.get(endpoints.wallet.balance));
 
   // Polled so "Recent activity" catches up on its own once a trip finishes,
@@ -76,6 +101,12 @@ export function MarketplaceHome() {
     refreshInterval: 5000,
   });
   const ride = activeRide.data ?? null;
+
+  // Real, admin-managed promo banners — see super-admin's CMS page for where
+  // these come from. Only ever renders banners that exist; no placeholder
+  // "50% off!" filler when the admin hasn't published anything.
+  const cms = useResource<PublicCms>(() => api.get(endpoints.cms.public));
+  const banners = cms.data?.banners ?? [];
 
   // Toast + refresh "Recent activity" the moment the active ride disappears
   // *because it finished* (previous status ONGOING → now null). A ride that
@@ -93,184 +124,226 @@ export function MarketplaceHome() {
   }, [ride, activeRide.state]);
 
   return (
-    <div className="space-y-8">
-      {/* Greeting + quick wallet */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">Good day 👋</h1>
-          <p className="mt-1 text-sm text-muted-fg">Where would you like to go today?</p>
-        </div>
-        <Card className="flex items-center gap-4 px-5 py-3">
-          <div>
-            <p className="text-xs text-muted-fg">Zamzam Pay</p>
-            <p className="font-display text-lg font-bold">
-              {wallet.state === "success" && wallet.data
-                ? new Intl.NumberFormat("en-NP", { style: "currency", currency: "NPR" }).format(
-                    wallet.data.balance,
-                  )
-                : "रू —"}
-            </p>
-          </div>
-          <Button size="sm" variant="accent" onClick={() => navigate("/app/wallet")}>
-            Top up
-          </Button>
-        </Card>
-      </div>
+    <PullToRefresh
+      onRefresh={() => Promise.all([wallet.refetch(), trips.refetch(), activeRide.refetch()])}
+    >
+      <div className="space-y-8">
+        {/* THE hero — one dominant element on the screen, on deep teal with
+            the terrain line drawing in beneath it. Greeting and wallet live
+            inside it rather than competing as separate sections; the old
+            layout had three things fighting above the fold. */}
+        <div className="relative -mx-4 -mt-4 overflow-hidden bg-teal-700 px-4 pb-8 pt-6 text-white">
+          <TerrainLine variant="hero" animate />
+          <div className="relative">
+            <h1 className="font-display text-display font-extrabold text-balance">
+              {timeOfDayGreeting()}{firstName ? `, ${firstName}` : ""}
+            </h1>
+            <p className="mt-1 text-body text-white/70">Where are you travelling today?</p>
 
-      {/* Live active trip — only rendered while one exists, updates on its own */}
-      {ride && (
-        <Card className="space-y-3 border-accent/40 bg-accent/5 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              {ride.status === "REQUESTED" ? (
-                <LoaderCircle className="size-4 animate-spin text-accent" />
-              ) : (
-                <CheckCircle2 className="size-4 text-accent" />
-              )}
-              <h3 className="text-sm font-semibold">
-                {ride.status === "REQUESTED" && "Finding you a driver…"}
-                {ride.status === "ACCEPTED" && "Driver on the way"}
-                {ride.status === "ONGOING" && "Trip in progress"}
-              </h3>
-            </div>
-            <Badge variant={ride.status === "REQUESTED" ? "warning" : "success"} className="capitalize">
-              {ride.status.toLowerCase()}
-            </Badge>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="flex flex-wrap items-center gap-2 text-sm">
-              <Circle className="size-3 fill-accent text-accent" /> {ride.from}
-              <MapPin className="size-4 shrink-0 text-danger" /> {ride.to}
-            </p>
-            <div className="flex items-center gap-3">
-              {ride.driverName && (
-                <span className="text-xs text-muted-fg">
-                  {ride.driverName}
-                  {ride.vehiclePlate ? ` · ${ride.vehiclePlate.toUpperCase()}` : ""}
+            <button
+              type="button"
+              onClick={() => navigate("/app/wallet")}
+              className="mt-5 flex w-full items-center justify-between rounded-xl bg-white/10 px-4 py-3 text-left backdrop-blur-sm transition-transform duration-fast ease-standard active:scale-[0.98]"
+            >
+              <span>
+                <span className="block text-caption uppercase tracking-wider text-white/60">
+                  Zamzam Pay
                 </span>
-              )}
-              <span className="font-display text-sm font-semibold">{npr(ride.fare)}</span>
-              <Button size="sm" variant="outline" onClick={() => navigate(`/app/book/${ride.service}`)}>
-                Track trip
-              </Button>
+                <span className="mt-0.5 block font-display text-h1 font-bold font-tabular">
+                  {wallet.state === "success" && wallet.data ? npr(wallet.data.balance) : "रू —"}
+                </span>
+              </span>
+              <span className="rounded-md bg-amber-500 px-4 py-2 font-display text-body font-semibold text-amber-fg">
+                Top up
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Offers — real, admin-published banners (super-admin CMS), horizontally
+            scrollable so more than one never crowds the screen. Absent entirely
+            when nothing's been published, rather than showing filler.
+
+            Flat teal-900, no gradient: the screen's one amber element is the
+            hero's Top up button, and a gradient-and-glow promo card here
+            would fight it for attention. */}
+        {banners.length > 0 && (
+          <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1">
+            {banners.map((b) => (
+              <div
+                key={b.id}
+                className="relative w-[85%] shrink-0 snap-start overflow-hidden rounded-xl bg-teal-900 p-5 text-white sm:w-72"
+              >
+                <span className="inline-flex items-center gap-1.5 rounded-sm bg-white/10 px-2 py-1 text-caption font-semibold uppercase tracking-wider text-white/80">
+                  Offer
+                </span>
+                <p className="mt-2.5 font-display text-h2 font-bold leading-snug">{b.title}</p>
+                {b.message && <p className="mt-1 text-body text-white/70">{b.message}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Live active trip — only rendered while one exists, updates on its own */}
+        {ride && (
+          <Card className="space-y-3 border-accent/40 bg-accent/5 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {ride.status === "REQUESTED" ? (
+                  <LoaderCircle className="size-4 animate-spin text-accent" />
+                ) : (
+                  <CheckCircle2 className="size-4 text-accent" />
+                )}
+                <h3 className="text-sm font-semibold">
+                  {ride.status === "REQUESTED" && "Finding you a driver…"}
+                  {ride.status === "ACCEPTED" && "Driver on the way"}
+                  {ride.status === "ONGOING" && "Trip in progress"}
+                </h3>
+              </div>
+              <Badge variant={ride.status === "REQUESTED" ? "warning" : "success"} className="capitalize">
+                {ride.status.toLowerCase()}
+              </Badge>
             </div>
+  
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="flex flex-wrap items-center gap-2 text-sm">
+                <Circle className="size-3 fill-accent text-accent" /> {ride.from}
+                <MapPin className="size-4 shrink-0 text-danger" /> {ride.to}
+              </p>
+              <div className="flex items-center gap-3">
+                {ride.driverName && (
+                  <span className="text-xs text-muted-fg">
+                    {ride.driverName}
+                    {ride.vehiclePlate ? ` · ${ride.vehiclePlate.toUpperCase()}` : ""}
+                  </span>
+                )}
+                <span className="font-display text-sm font-semibold font-tabular">{npr(ride.fare)}</span>
+                <Button size="sm" variant="outline" onClick={() => navigate(`/app/book/${ride.service}`)}>
+                  Track trip
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
+  
+        {/* The marketplace */}
+        <section>
+          {/* The screen's one amber element is the hero's Top up. This chip
+              carries the same information in teal so it informs without
+              competing for the eye. */}
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="font-display text-h1 font-bold">Marketplace</h2>
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-sm bg-teal-100 px-2.5 py-1 text-caption font-semibold text-teal-700 dark:bg-white/10 dark:text-white/80">
+              <Sparkles className="size-3" /> AI-ranked
+            </span>
+          </div>
+          <ServiceGrid linked compact />
+        </section>
+  
+        {/* AI cross-sell strip — a real surface, empty until the engine has context */}
+        <Card className="overflow-hidden">
+          <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="grid size-10 place-items-center rounded-xl bg-accent/10 text-accent-600 dark:text-accent">
+                <Sparkles className="size-5" />
+              </span>
+              <div>
+                <h3 className="font-display font-semibold tracking-tight">Suggestions for you</h3>
+                <p className="text-sm text-muted-fg">
+                  Personalised bundles appear here as the assistant learns your trips.
+                </p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => navigate("/app/assistant")}>
+              Open assistant <ArrowRight className="size-4" />
+            </Button>
           </div>
         </Card>
-      )}
-
-      {/* The marketplace */}
-      <section>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-lg font-semibold tracking-tight">Marketplace</h2>
-          <Badge variant="accent">
-            <Sparkles className="size-3" /> AI picks your best route
-          </Badge>
-        </div>
-        <ServiceGrid linked compact />
-      </section>
-
-      {/* AI cross-sell strip — a real surface, empty until the engine has context */}
-      <Card className="overflow-hidden">
-        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <span className="grid size-10 place-items-center rounded-xl bg-accent/10 text-accent-600 dark:text-accent">
-              <Sparkles className="size-5" />
-            </span>
-            <div>
-              <h3 className="font-display font-semibold tracking-tight">Suggestions for you</h3>
-              <p className="text-sm text-muted-fg">
-                Personalised bundles appear here as the assistant learns your trips.
-              </p>
-            </div>
+  
+        {/* Recent trips */}
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-display text-lg font-semibold tracking-tight">Recent activity</h2>
+            {(trips.data?.length ?? 0) > 5 && (
+              <Button variant="ghost" size="sm" onClick={() => navigate("/app/trips")}>
+                View all
+              </Button>
+            )}
           </div>
-          <Button variant="outline" size="sm" onClick={() => navigate("/app/assistant")}>
-            Open assistant <ArrowRight className="size-4" />
-          </Button>
-        </div>
-      </Card>
-
-      {/* Recent trips */}
-      <section>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-display text-lg font-semibold tracking-tight">Recent activity</h2>
-          {(trips.data?.length ?? 0) > 5 && (
-            <Button variant="ghost" size="sm" onClick={() => navigate("/app/trips")}>
-              View all
-            </Button>
-          )}
-        </div>
-        <AsyncBoundary
-          state={trips.state}
-          onRetry={trips.refetch}
-          label="Your trips and bookings"
-          empty={
-            <EmptyState
-              icon={<Route className="size-6 text-muted-fg" />}
-              title="No trips yet"
-              description="Your rides, bookings and deliveries will show up here once you take your first one."
-              action={
-                <Button variant="accent" onClick={() => navigate("/app/book/taxi")}>
-                  Book a ride
-                </Button>
-              }
-            />
-          }
-        >
-          <div className="space-y-2">
-            {(trips.data ?? []).slice(0, 5).map((t) => {
-              const ServiceIcon = SERVICE_ICON[t.service];
-              return (
-                <Card key={t.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-surface-2 text-muted-fg">
-                      <ServiceIcon className="size-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
-                        {t.from} → {t.to}
-                      </p>
-                      <p className="text-xs text-muted-fg">{new Date(t.createdAt).toLocaleString()}</p>
+          <AsyncBoundary
+            state={trips.state}
+            onRetry={trips.refetch}
+            label="Your trips and bookings"
+            empty={
+              <EmptyState
+                icon={<Route className="size-6 text-muted-fg" />}
+                title="No trips yet"
+                description="Your rides, bookings and deliveries will show up here once you take your first one."
+                /* Secondary, not amber: this screen already spent its one
+                   accent on the hero's Top up. */
+                action={
+                  <Button variant="secondary" onClick={() => navigate("/app/book/taxi")}>
+                    Book a ride
+                  </Button>
+                }
+              />
+            }
+          >
+            <div className="space-y-2">
+              {(trips.data ?? []).slice(0, 5).map((t) => {
+                const ServiceIcon = SERVICE_ICON[t.service];
+                return (
+                  <Card key={t.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-surface-2 text-muted-fg">
+                        <ServiceIcon className="size-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {t.from} → {t.to}
+                        </p>
+                        <p className="text-xs text-muted-fg">{new Date(t.createdAt).toLocaleString()}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <Badge variant={STATUS_VARIANT[t.status]} className="capitalize">
-                      {t.status.toLowerCase()}
-                    </Badge>
-                    <span className="text-sm font-semibold">{npr(t.fare)}</span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge variant={STATUS_VARIANT[t.status]} className="capitalize">
+                        {t.status.toLowerCase()}
+                      </Badge>
+                      <span className="text-sm font-semibold font-tabular">{npr(t.fare)}</span>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </AsyncBoundary>
+        </section>
+  
+        {/* By category */}
+        <section>
+          <h2 className="mb-4 font-display text-lg font-semibold tracking-tight">Browse by category</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {SERVICE_GROUPS.map((g) => {
+              const count = SERVICES.filter((s) => s.group === g).length;
+              return (
+                <Card key={g} className="p-5">
+                  <p className="font-display font-semibold">{g}</p>
+                  <p className="mt-1 text-sm text-muted-fg">{count} services</p>
+                  <div className="mt-3 flex -space-x-1.5">
+                    {SERVICES.filter((s) => s.group === g).map((s) => (
+                      <span
+                        key={s.id}
+                        className="grid size-7 place-items-center rounded-lg border border-border bg-surface text-muted-fg"
+                      >
+                        <Icon name={s.icon} className="size-3.5" />
+                      </span>
+                    ))}
                   </div>
                 </Card>
               );
             })}
           </div>
-        </AsyncBoundary>
-      </section>
-
-      {/* By category */}
-      <section>
-        <h2 className="mb-4 font-display text-lg font-semibold tracking-tight">Browse by category</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {SERVICE_GROUPS.map((g) => {
-            const count = SERVICES.filter((s) => s.group === g).length;
-            return (
-              <Card key={g} className="p-5">
-                <p className="font-display font-semibold">{g}</p>
-                <p className="mt-1 text-sm text-muted-fg">{count} services</p>
-                <div className="mt-3 flex -space-x-1.5">
-                  {SERVICES.filter((s) => s.group === g).map((s) => (
-                    <span
-                      key={s.id}
-                      className="grid size-7 place-items-center rounded-lg border border-border bg-surface text-muted-fg"
-                    >
-                      <Icon name={s.icon} className="size-3.5" />
-                    </span>
-                  ))}
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      </section>
-    </div>
+        </section>
+      </div>
+    </PullToRefresh>
   );
 }

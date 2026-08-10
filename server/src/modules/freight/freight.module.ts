@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { Module } from '@nestjs/common';
+import { PartnerDocumentsModule } from '../partner-documents/partner-documents.module';
 import { FreightService } from './freight.service';
 import { CreateLoadDto, CreateLoadReviewDto, PlaceBidDto } from './dto/freight.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -121,6 +122,7 @@ export class LoadsController {
 }
 
 @Module({
+  imports: [PartnerDocumentsModule],
   controllers: [FreightController, LoadsController],
   providers: [FreightService],
 })

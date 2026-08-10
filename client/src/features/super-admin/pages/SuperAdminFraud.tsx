@@ -59,7 +59,7 @@ function SignalSection({
   return (
     <Card>
       <CardHeader className="flex-row items-start gap-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent">
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-teal-100 text-teal-700 dark:bg-white/10 dark:text-accent">
           <Icon className="size-4" />
         </span>
         <div>

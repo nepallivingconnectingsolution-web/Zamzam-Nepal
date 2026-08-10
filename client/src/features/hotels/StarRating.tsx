@@ -34,7 +34,7 @@ export function StarRating({
           <Star
             width={size}
             height={size}
-            className={star <= filled ? "fill-amber-400 text-amber-400" : "text-muted-fg"}
+            className={star <= filled ? "fill-warning text-warning" : "text-muted-fg"}
           />
         </button>
       ))}

@@ -86,7 +86,7 @@ export function SuperAdminWallet() {
           >
             {/* Desktop / tablet: full table */}
 <div className="hidden overflow-x-auto md:block">
-  <table className="w-full text-sm">
+  <table className="w-full text-sm font-tabular">
     <thead>
       <tr className="border-b border-border bg-surface-2 text-left text-xs font-semibold text-muted-fg">
         <th className="px-5 py-3">User</th>
@@ -124,7 +124,7 @@ export function SuperAdminWallet() {
 </div>
 
 {/* Mobile: one card per wallet instead of a cramped, horizontally-scrolling table */}
-<div className="space-y-3 p-4 md:hidden">
+<div className="space-y-3 p-4 font-tabular md:hidden">
   {(d?.topWallets ?? []).map((w) => (
     <div key={w.userId} className="rounded-xl border border-border/60 bg-surface-2/40 p-3">
       <div className="flex items-start justify-between gap-3">

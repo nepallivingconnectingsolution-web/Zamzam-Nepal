@@ -86,8 +86,8 @@ function HotelCard({ hotel }: { hotel: HotelSearchResult }) {
   return (
     <Link to={`/app/hotels/${hotel.id}`}>
       <Card className="h-full overflow-hidden transition-shadow hover:shadow-md">
-        <div className="flex h-36 items-center justify-center bg-gradient-to-br from-violet-500/15 to-violet-500/0">
-          <BedDouble className="size-10 text-violet-500/60" />
+        <div className="flex h-36 items-center justify-center bg-gradient-to-br from-vertical-hotel/15 to-vertical-hotel/0">
+          <BedDouble className="size-10 text-vertical-hotel/70" />
         </div>
         <div className="p-4">
           <h3 className="font-display text-base font-semibold">{hotel.name}</h3>
@@ -111,7 +111,7 @@ function HotelCard({ hotel }: { hotel: HotelSearchResult }) {
               {hotel.fromPrice != null ? (
                 <>
                   <span className="text-xs text-muted-fg">From </span>
-                  <span className="font-display text-lg font-bold">रू {hotel.fromPrice.toLocaleString()}</span>
+                  <span className="font-display text-lg font-bold font-tabular">रू {hotel.fromPrice.toLocaleString()}</span>
                   <span className="text-xs text-muted-fg"> /night</span>
                 </>
               ) : (

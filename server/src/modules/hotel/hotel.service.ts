@@ -15,6 +15,7 @@ import type {
   UpdateRoomTypeDto,
 } from './dto/hotel.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PartnerDocumentsService } from '../partner-documents/partner-documents.service';
 
 
 const SERVICE_FEE_RATE = 0.02;
@@ -23,6 +24,7 @@ const SERVICE_FEE_RATE = 0.02;
 export class HotelService {
   constructor(@Inject(DATABASE_CONNECTION) private readonly db: Database,  
   private readonly notifications: NotificationsService,
+    private readonly partnerDocuments: PartnerDocumentsService,
 
 
 ) {}
@@ -438,6 +440,7 @@ export class HotelService {
   }
 
   async createHotel(partnerId: string, dto: CreateHotelDto) {
+    await this.partnerDocuments.assertRequiredDocsUploaded(partnerId, 'hotel');
     const [hotel] = await this.db
       .insert(hotels)
       .values({
@@ -506,6 +509,7 @@ export class HotelService {
   }
 
   async createRoomType(partnerId: string, hotelId: string, dto: CreateRoomTypeDto) {
+    await this.partnerDocuments.assertRequiredDocsUploaded(partnerId, 'hotel');
     await this.assertOwnedHotel(partnerId, hotelId);
     const [room] = await this.db
       .insert(roomTypes)

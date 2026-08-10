@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Car, CheckCircle2, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { Car, CheckCircle2, ChevronDown, Plus, ShieldAlert, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { useResource } from "@/hooks/useResource";
 import { api, ApiError, endpoints } from "@/api/client";
@@ -46,6 +47,8 @@ export function VehiclePage() {
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const [category, setCategory] = useState<Vehicle["category"]>("car");
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+  const selectedCategory = CATEGORY_OPTIONS.find((c) => c.value === category)!;
   const [makeModel, setMakeModel] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
   const [color, setColor] = useState("");
@@ -106,9 +109,6 @@ export function VehiclePage() {
     }
   }
 
-  const selectClass =
-    "h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm outline-none focus:ring-2 focus:ring-accent/40";
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -127,11 +127,38 @@ export function VehiclePage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-fg">Vehicle type</label>
-                <select className={selectClass} value={category} onChange={(e) => setCategory(e.target.value as Vehicle["category"])}>
-                  {CATEGORY_OPTIONS.map((c) => (
-                    <option key={c.value} value={c.value}>{c.label} — {c.hint}</option>
-                  ))}
-                </select>
+                <button
+                  type="button"
+                  onClick={() => setCategoryPickerOpen(true)}
+                  className="flex h-10 w-full items-center justify-between rounded-xl border border-input bg-surface px-3 text-left text-sm text-fg transition-colors active:bg-surface-2"
+                >
+                  <span>
+                    {selectedCategory.label}{" "}
+                    <span className="text-xs text-muted-fg">— {selectedCategory.hint}</span>
+                  </span>
+                  <ChevronDown className="size-4 shrink-0 text-muted-fg" />
+                </button>
+                <BottomSheet open={categoryPickerOpen} onClose={() => setCategoryPickerOpen(false)} title="Vehicle type">
+                  <div className="space-y-1 pb-2">
+                    {CATEGORY_OPTIONS.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => {
+                          setCategory(c.value);
+                          setCategoryPickerOpen(false);
+                        }}
+                        className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm transition-colors active:bg-surface-2"
+                      >
+                        <span>
+                          <span className="font-medium">{c.label}</span>{" "}
+                          <span className="text-xs text-muted-fg">{c.hint}</span>
+                        </span>
+                        {c.value === category && <CheckCircle2 className="size-4 shrink-0 text-accent" />}
+                      </button>
+                    ))}
+                  </div>
+                </BottomSheet>
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-fg">Make & model</label>

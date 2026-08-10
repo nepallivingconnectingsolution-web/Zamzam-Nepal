@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { ForgotPasswordFlow } from "@/components/auth/ForgotPasswordFlow";
 import { useSuperAdminStore } from "@/stores/super-admin.store";
 import { api } from "@/api/client";
 
@@ -21,6 +22,7 @@ export function SuperAdminLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   async function handleLogin() {
     if (!email || !password) {
@@ -98,7 +100,7 @@ export function SuperAdminLoginPage() {
           </div>
 
           {error && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-600 dark:bg-red-900/20 dark:text-red-400">
+            <p className="rounded-lg bg-danger/10 px-3 py-2 text-xs font-medium text-danger">
               {error}
             </p>
           )}
@@ -112,7 +114,7 @@ export function SuperAdminLoginPage() {
           >
             {loading ? (
               <>
-                <span className="size-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                <span className="size-4 animate-spin rounded-full border-2 border-accent-fg/30 border-t-accent-fg" />
                 Authenticating…
               </>
             ) : (
@@ -121,12 +123,22 @@ export function SuperAdminLoginPage() {
               </>
             )}
           </Button>
+
+          <button
+            type="button"
+            onClick={() => setForgotOpen(true)}
+            className="w-full text-center text-xs font-medium text-muted-fg hover:text-fg"
+          >
+            Forgot password?
+          </button>
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-fg/50">
           Restricted access · All sessions are logged
         </p>
       </div>
+
+      <ForgotPasswordFlow open={forgotOpen} onClose={() => setForgotOpen(false)} mode="super-admin" />
     </div>
   );
 }

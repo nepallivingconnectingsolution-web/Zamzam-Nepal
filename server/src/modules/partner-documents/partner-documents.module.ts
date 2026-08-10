@@ -6,5 +6,8 @@ import { PartnerDocumentsService } from './partner-documents.service';
 @Module({
   controllers: [PartnerDocumentsController, AdminPartnerDocumentsController],
   providers: [PartnerDocumentsService],
+  // Exported so each vertical can call assertRequiredDocsUploaded() before
+  // letting a partner publish anything customers can buy.
+  exports: [PartnerDocumentsService],
 })
 export class PartnerDocumentsModule {}

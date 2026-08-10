@@ -5,6 +5,7 @@ import { bids, loadReviews, loads, users, vehicles } from '../../database/schema
 import { apiError } from '../../common/exceptions';
 import { id } from '../../common/id';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PartnerDocumentsService } from '../partner-documents/partner-documents.service';
 import type { CreateLoadDto, CreateLoadReviewDto, PlaceBidDto } from './dto/freight.dto';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class FreightService {
   constructor(
     @Inject(DATABASE_CONNECTION) private readonly db: Database,
     private readonly notifications: NotificationsService,
+    private readonly partnerDocuments: PartnerDocumentsService,
   ) {}
 
   /* ───────────────────────── Transporter dashboard ───────────────────────── */
@@ -325,6 +327,7 @@ export class FreightService {
 
   /** Place or update this transporter's bid on a load (one bid per load). */
   async placeBid(transporterId: string, loadId: string, dto: PlaceBidDto) {
+    await this.partnerDocuments.assertRequiredDocsUploaded(transporterId, 'freight');
     const [load] = await this.db.select().from(loads).where(eq(loads.id, loadId)).limit(1);
     if (!load) apiError(404, 'Load not found.');
     if (load.status !== 'OPEN') apiError(400, 'This load is no longer accepting bids.', 'LOAD_NOT_OPEN');
