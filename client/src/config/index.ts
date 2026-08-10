@@ -7,51 +7,39 @@ import { icon } from "leaflet";
  * (drivers, listings, prices) comes from the backend at runtime.
  */
 export const SERVICES: ServiceVertical[] = [
-  { id: "taxi", name: "Taxi", tagline: "On-demand cars, valley-wide", group: "Mobility", icon: "Car", to: "/app/book/taxi", accent: "from-emerald-500/15 to-emerald-500/0", live: true },
-  { id: "bike", name: "Bike", tagline: "Beat the traffic", group: "Mobility", icon: "Bike", to: "/app/book/bike", accent: "from-emerald-500/15 to-emerald-500/0", live: true },
-  { id: "bus", name: "Intercity bus", tagline: "Book seats across Nepal", group: "Mobility", icon: "Bus", to: "/app/book/bus", accent: "from-sky-500/15 to-sky-500/0", live: true },
-  { id: "freight", name: "Freight", tagline: "Post loads, get bids", group: "Logistics", icon: "Truck", to: "/app/book/freight", accent: "from-amber-500/15 to-amber-500/0", live: true },
-  { id: "parcel", name: "Parcel", tagline: "Same-day delivery", group: "Logistics", icon: "Package", to: "/app/book/parcel", accent: "from-amber-500/15 to-amber-500/0", live: true },
-  { id: "hotels", name: "Hotels", tagline: "Stays from trek to city", group: "Tourism", icon: "BedDouble", to: "/app/hotels", accent: "from-violet-500/15 to-violet-500/0", live: true },
-  { id: "tours", name: "Tours", tagline: "Guided trips & guides", group: "Tourism", icon: "Mountain", to: "/app/book/tours", accent: "from-violet-500/15 to-violet-500/0", live: true },
-  { id: "food", name: "Food", tagline: "Order from local kitchens", group: "Commerce", icon: "UtensilsCrossed", to: "/app/restaurants", accent: "from-rose-500/15 to-rose-500/0", live: true },
-  { id: "grocery", name: "Grocery", tagline: "Daily essentials", group: "Commerce", icon: "ShoppingBasket", to: "/app/grocery", accent: "from-rose-500/15 to-rose-500/0", live: true },
+  { id: "taxi", name: "Taxi", tagline: "On-demand cars, valley-wide", group: "Mobility", icon: "Car", to: "/app/book/taxi", accent: "from-vertical-taxi/15 to-vertical-taxi/0", live: true },
+  { id: "bike", name: "Bike", tagline: "Beat the traffic", group: "Mobility", icon: "Bike", to: "/app/book/bike", accent: "from-vertical-bike/15 to-vertical-bike/0", live: true },
+  // → /app/buses (the real schedule-search + seat-selection flow), NOT
+  //   /app/book/bus. That route is the generic point-to-point ride form,
+  //   which for "bus" only renders a "coming soon" dead end — so this tile
+  //   used to be the one marketplace tile that led nowhere, and the bus
+  //   booking feature was unreachable by tapping anything in the app.
+  { id: "bus", name: "Intercity bus", tagline: "Book seats across Nepal", group: "Mobility", icon: "Bus", to: "/app/buses", accent: "from-vertical-bus/15 to-vertical-bus/0", live: true },
+  { id: "freight", name: "Freight", tagline: "Post loads, get bids", group: "Logistics", icon: "Truck", to: "/app/book/freight", accent: "from-vertical-freight/15 to-vertical-freight/0", live: true },
+  { id: "parcel", name: "Parcel", tagline: "Same-day delivery", group: "Logistics", icon: "Package", to: "/app/book/parcel", accent: "from-vertical-freight/15 to-vertical-freight/0", live: true },
+  { id: "hotels", name: "Hotels", tagline: "Stays from trek to city", group: "Tourism", icon: "BedDouble", to: "/app/hotels", accent: "from-vertical-hotel/15 to-vertical-hotel/0", live: true },
+  { id: "tours", name: "Tours", tagline: "Guided trips & guides", group: "Tourism", icon: "Mountain", to: "/app/book/tours", accent: "from-vertical-hotel/15 to-vertical-hotel/0", live: true },
+  { id: "food", name: "Food", tagline: "Order from local kitchens", group: "Commerce", icon: "UtensilsCrossed", to: "/app/restaurants", accent: "from-vertical-restaurant/15 to-vertical-restaurant/0", live: true },
+  { id: "grocery", name: "Grocery", tagline: "Daily essentials", group: "Commerce", icon: "ShoppingBasket", to: "/app/grocery", accent: "from-vertical-grocery/15 to-vertical-grocery/0", live: true },
 ];
 
 export const SERVICE_GROUPS = ["Mobility", "Logistics", "Tourism", "Commerce"] as const;
 
+/**
+ * Roles whose navigation lives in this config. Customer and driver are
+ * deliberately absent: they render `CustomerShell` / `DriverShell`, which own
+ * their own tab-bar + "More"-sheet navigation, so a nav list here would be
+ * read by nothing and silently drift out of sync with what ships.
+ *
+ * That drift already happened once — this config listed a "Buses" entry long
+ * after the customer sidebar was replaced, which made the bus flow look
+ * present in config while being unreachable in the running app. The type now
+ * makes re-adding them a compile error rather than a silent trap.
+ */
+export type PortalNavRole = Exclude<Role, "guest" | "customer" | "driver">;
+
 /** Per-portal sidebar navigation, keyed by role. */
-export const PORTAL_NAV: Record<Exclude<Role, "guest">, { title: string; items: NavItem[] }> = {
-  customer: {
-    title: "My Zamzam",
-    items: [
-      { label: "Marketplace", to: "/app", icon: "LayoutGrid" },
-      { label: "Buses", to: "/app/buses", icon: "Bus" },
-      { label: "Hotels", to: "/app/hotels", icon: "BedDouble" },
-      { label: "Food", to: "/app/restaurants", icon: "UtensilsCrossed" },
-      { label: "Grocery", to: "/app/grocery", icon: "ShoppingBasket" },
-      { label: "My trips", to: "/app/trips", icon: "Route" },
-      { label: "Bookings", to: "/app/bookings", icon: "CalendarCheck" },
-      { label: "Wallet", to: "/app/wallet", icon: "Wallet" },
-      { label: "Transactions", to: "/app/transactions", icon: "ArrowLeftRight" },
-      { label: "Support", to: "/app/support", icon: "LifeBuoy" },
-      { label: "Settings", to: "/app/settings", icon: "Settings" },
-    ],
-  },
-  driver: {
-    title: "Driver hub",
-    items: [
-      { label: "Dashboard", to: "/driver", icon: "Gauge" },
-      // { label: "Buses", to: "/driver/buses", icon: "Bus" },
-      { label: "Ride requests", to: "/driver/requests", icon: "BellRing" },
-      { label: "Current trip", to: "/driver/trip", icon: "Navigation" },
-      { label: "Earnings", to: "/driver/earnings", icon: "Banknote" },
-      { label: "Wallet", to: "/driver/wallet", icon: "Wallet" },
-      { label: "Ratings", to: "/driver/ratings", icon: "Star" },
-      { label: "Vehicle", to: "/driver/vehicle", icon: "Car" },
-      { label: "Documents", to: "/driver/documents", icon: "FileCheck" },
-    ],
-  },
+export const PORTAL_NAV: Record<PortalNavRole, { title: string; items: NavItem[] }> = {
   bus_operator: {
     title: "Bus operator",
     items: [

@@ -21,9 +21,12 @@ export function ServiceGrid({
     <div
       className={cn(
         "grid gap-3",
-        compact
-          ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
-          : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-3",
+        // `compact` is the in-app variant and only ever renders inside the
+        // phone frame (see CustomerShell), which is a fixed 440px wide. Its
+        // old responsive classes keyed off the VIEWPORT, not the frame, so on
+        // a desktop screen it escalated to four columns inside a 440px box
+        // and the tiles turned into unreadable slivers. Two columns, always.
+        compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-3",
       )}
     >
       {SERVICES.map((s, i) => {
@@ -32,6 +35,7 @@ export function ServiceGrid({
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
+            whileTap={s.live && linked ? { scale: 0.97 } : undefined}
             transition={{ delay: i * 0.03, duration: 0.4 }}
             className={cn(
               "group relative h-full overflow-hidden rounded-2xl border border-border bg-card p-4 transition-all",
@@ -39,7 +43,12 @@ export function ServiceGrid({
               !s.live && "opacity-70",
             )}
           >
-            <div className={cn("absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity group-hover:opacity-100", s.accent)} />
+            <div
+              className={cn(
+                "absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity group-hover:opacity-100 group-active:opacity-100",
+                s.accent,
+              )}
+            />
             <div className="relative">
               <span className="grid size-11 place-items-center rounded-xl bg-surface-2 text-fg">
                 <Icon name={s.icon} className="size-5" />

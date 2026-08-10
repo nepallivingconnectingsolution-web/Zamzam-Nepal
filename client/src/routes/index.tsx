@@ -1,99 +1,286 @@
+import { lazy } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { PortalLayout } from "@/components/layout/portal-layout";
 import { ScaffoldPage } from "@/components/shared/scaffold-page";
-import { SuperAdminCms } from "@/features/super-admin/pages/SuperAdminCms";
-import { SuperAdminServices } from "@/features/super-admin/pages/SuperAdminServices";
-import { SuperAdminFraud } from "@/features/super-admin/pages/SuperAdminFraud";
-
-import { LandingPage } from "@/features/marketing/LandingPage";
-import { LoginPage } from "@/features/auth/LoginPage";
-import { RegisterPage } from "@/features/auth/RegisterPage";
-import { ProfileSetupPage } from "@/features/auth/ProfileSetupPage";
-import { NotFound } from "@/features/marketing/NotFound";
-
-import { MarketplaceHome } from "@/features/customer/MarketplaceHome";
-import { ServiceBookingPage } from "@/features/customer/marketplace/ServiceBookingPage";
-import { MyTripsPage } from "@/features/customer/marketplace/MyTripsPage";
-import { FreightBookingPage } from "@/features/customer/marketplace/FreightBookingPage";
-import { FreightLoadMarket } from "@/features/freight/FreightLoadMarket";
-import { FreightShipments } from "@/features/freight/FreightShipments";
-import { FreightReviewsPage } from "@/features/freight/FreightReviewsPage";
-import { FreightRevenuePage } from "@/features/freight/FreightRevenuePage";
-import { WalletPage } from "@/features/customer/WalletPage";
-import { TransactionsPage } from "@/features/customer/TransactionsPage";
-import { BookingsPage } from "@/features/customer/BookingsPage";
-import { SettingsPage } from "@/features/customer/SettingsPage";
-import { SupportPage } from "@/features/customer/SupportPage";
-
-import { BusListPage } from "@/features/buses/BusListPage";
-import { BusDetailPage } from "@/features/buses/BusDetailPage";
-import { BusBookingsPage } from "@/features/buses/BusBookingsPage";
-import { OperatorBusManager } from "@/features/buses/OperatorBusManager";
-import { OperatorReviewsPage } from "@/features/buses/OperatorReviewsPage";
-import { OperatorRoutesPage } from "@/features/buses/OperatorRoutesPage";
-import { BusRevenuePage } from "@/features/buses/BusRevenuePage";
 import { RequireRole } from "@/components/auth/RequireRole";
+import { useAuthStore } from "@/stores/auth.store";
+import { ROLE_HOME } from "@/config";
 
-import { HotelListPage } from "@/features/hotels/HotelListPage";
-import { HotelDetailPage } from "@/features/hotels/HotelDetailPage";
-import { HotelBookingsPage } from "@/features/hotels/HotelBookingsPage";
-import { HotelPartnerManager } from "@/features/hotels/HotelPartnerManager";
-import { HotelReviewsPage } from "@/features/hotels/HotelReviewsPage";
-import { HotelRevenuePage } from "@/features/hotels/HotelRevenuePage";
+/* ----------------------------------------------------------------------------
+   Every routed page is lazy-loaded so a first-time visitor only downloads the
+   JS for the portal they actually land on, instead of every role's dashboard
+   plus both chart libraries (recharts + apexcharts) and Leaflet up front (see
+   PHASE1_AUDIT.md #12). Only structural pieces that always render as part of
+   a route's shell — layouts, role guards, the tiny generic ScaffoldPage — stay
+   as eager imports above.
 
-import { RestaurantListPage } from "@/features/restaurants/RestaurantListPage";
-import { RestaurantDetailPage } from "@/features/restaurants/RestaurantDetailPage";
-import { FoodOrdersPage } from "@/features/restaurants/FoodOrdersPage";
-import { RestaurantPartnerManager } from "@/features/restaurants/RestaurantPartnerManager";
-import { RestaurantReviewsPage } from "@/features/restaurants/RestaurantReviewsPage";
-import { RestaurantRevenuePage } from "@/features/restaurants/RestaurantRevenuePage";
+   Each Suspense boundary lives inside the relevant shell (PortalLayout's
+   sidebar/topbar, CustomerShell, DriverShell, SuperAdminLayout — see their
+   `<Outlet />`), so only the content area swaps while a chunk loads; the
+   header/nav never unmounts. App.tsx adds one more top-level boundary for the
+   shell-less routes below (landing, auth, super-admin login).
+---------------------------------------------------------------------------- */
 
+const LandingPage = lazy(() => import("@/features/marketing/LandingPage").then((m) => ({ default: m.LandingPage })));
+const LoginPage = lazy(() => import("@/features/auth/LoginPage").then((m) => ({ default: m.LoginPage })));
+const RegisterPage = lazy(() => import("@/features/auth/RegisterPage").then((m) => ({ default: m.RegisterPage })));
+const ProfileSetupPage = lazy(() =>
+  import("@/features/auth/ProfileSetupPage").then((m) => ({ default: m.ProfileSetupPage })),
+);
+const NotFound = lazy(() => import("@/features/marketing/NotFound").then((m) => ({ default: m.NotFound })));
 
-import { GroceryListPage } from "@/features/grocery/GroceryListPage";
-import { GroceryDetailPage } from "@/features/grocery/GroceryDetailPage";
-import { GroceryOrdersPage } from "@/features/grocery/GroceryOrdersPage";
-import { GroceryPartnerManager } from "@/features/grocery/GroceryPartnerManager";
-import { GroceryReviewsPage } from "@/features/grocery/GroceryReviewsPage";
-import { GroceryRevenuePage } from "@/features/grocery/GroceryRevenuePage";
+const MarketplaceHome = lazy(() =>
+  import("@/features/customer/MarketplaceHome").then((m) => ({ default: m.MarketplaceHome })),
+);
+const ServiceBookingPage = lazy(() =>
+  import("@/features/customer/marketplace/ServiceBookingPage").then((m) => ({ default: m.ServiceBookingPage })),
+);
+const MyTripsPage = lazy(() =>
+  import("@/features/customer/marketplace/MyTripsPage").then((m) => ({ default: m.MyTripsPage })),
+);
+const FreightBookingPage = lazy(() =>
+  import("@/features/customer/marketplace/FreightBookingPage").then((m) => ({ default: m.FreightBookingPage })),
+);
+const FreightLoadMarket = lazy(() =>
+  import("@/features/freight/FreightLoadMarket").then((m) => ({ default: m.FreightLoadMarket })),
+);
+const FreightShipments = lazy(() =>
+  import("@/features/freight/FreightShipments").then((m) => ({ default: m.FreightShipments })),
+);
+const FreightReviewsPage = lazy(() =>
+  import("@/features/freight/FreightReviewsPage").then((m) => ({ default: m.FreightReviewsPage })),
+);
+const FreightRevenuePage = lazy(() =>
+  import("@/features/freight/FreightRevenuePage").then((m) => ({ default: m.FreightRevenuePage })),
+);
+const WalletPage = lazy(() => import("@/features/customer/WalletPage").then((m) => ({ default: m.WalletPage })));
+const TransactionsPage = lazy(() =>
+  import("@/features/customer/TransactionsPage").then((m) => ({ default: m.TransactionsPage })),
+);
+const BookingsPage = lazy(() =>
+  import("@/features/customer/BookingsPage").then((m) => ({ default: m.BookingsPage })),
+);
+const SettingsPage = lazy(() =>
+  import("@/features/customer/SettingsPage").then((m) => ({ default: m.SettingsPage })),
+);
+const SupportPage = lazy(() => import("@/features/customer/SupportPage").then((m) => ({ default: m.SupportPage })));
 
-import { DriverDashboard } from "@/features/driver/DriverDashboard";
-import { VehiclePage } from "@/features/driver/VehiclePage";
-import { DriverDocumentsPage } from "@/features/driver/DriverDocumentsPage";
-import { PartnerDocumentsPage } from "@/features/partner/PartnerDocumentsPage";
-import { DriverPortalProvider } from "@/features/driver/driver-portal.context";
-import { RideRequestsPage } from "@/features/driver/RideRequestsPage";
-import { CurrentTripPage } from "@/features/driver/CurrentTripPage";
-import { DriverEarningsPage } from "@/features/driver/DriverEarningsPage";
-import { DriverRatingsPage } from "@/features/driver/DriverRatingsPage";
-import { DriverWalletPage } from "@/features/driver/DriverWalletPage";
-import { AdminOverview } from "@/features/admin/AdminOverview";
-import { PartnerDashboard } from "@/features/partner/PartnerDashboard";
+const BusListPage = lazy(() => import("@/features/buses/BusListPage").then((m) => ({ default: m.BusListPage })));
+const BusDetailPage = lazy(() => import("@/features/buses/BusDetailPage").then((m) => ({ default: m.BusDetailPage })));
+const BusBookingsPage = lazy(() =>
+  import("@/features/buses/BusBookingsPage").then((m) => ({ default: m.BusBookingsPage })),
+);
+const OperatorBusManager = lazy(() =>
+  import("@/features/buses/OperatorBusManager").then((m) => ({ default: m.OperatorBusManager })),
+);
+const OperatorReviewsPage = lazy(() =>
+  import("@/features/buses/OperatorReviewsPage").then((m) => ({ default: m.OperatorReviewsPage })),
+);
+const OperatorRoutesPage = lazy(() =>
+  import("@/features/buses/OperatorRoutesPage").then((m) => ({ default: m.OperatorRoutesPage })),
+);
+const BusRevenuePage = lazy(() =>
+  import("@/features/buses/BusRevenuePage").then((m) => ({ default: m.BusRevenuePage })),
+);
 
-import { SuperAdminLoginPage } from "@/features/super-admin/SuperAdminLoginPage";
-import { SuperAdminGuard } from "@/features/super-admin/SuperAdminGuard";
-import { SuperAdminLayout } from "@/features/super-admin/SuperAdminLayout";
-import { SuperAdminOverview } from "@/features/super-admin/SuperAdminOverview";
-import { SuperAdminUsers } from "@/features/super-admin/pages/SuperAdminUsers";
-import { SuperAdminApprovals } from "@/features/super-admin/pages/SuperAdminApprovals";
-import { SuperAdminVehicles } from "@/features/super-admin/pages/SuperAdminVehicles";
-import { SuperAdminPartnerDocuments } from "../features/super-admin/pages/SuperAdminPartnerDocuments";
-import { SuperAdminRegistrationReview } from "@/features/super-admin/pages/SuperAdminRegReview";
-import { SuperAdminPartners } from "@/features/super-admin/pages/SuperAdminPartners";
-import { SuperAdminPartnerDetail } from "@/features/super-admin/pages/SuperAdminPartnerDetail";
-import { SuperAdminRevenue } from "@/features/super-admin/pages/SuperAdminRevenue";
-import { SuperAdminSettings } from "@/features/super-admin/pages/SuperAdminSettings";
-import { SuperAdminNotifications } from "@/features/super-admin/pages/SuperAdminNotifications";
-import { SuperAdminDisputes } from "@/features/super-admin/pages/SuperAdminDisputes";
-import { SuperAdminTransactions } from "@/features/super-admin/pages/SuperAdminTransactions";
-import { SuperAdminWallet } from "@/features/super-admin/pages/SuperAdminWallet";
-import { SuperAdminRides } from "@/features/super-admin/pages/SuperAdminRides";
-import { SuperAdminHeatmap } from "@/features/super-admin/pages/SuperAdminHeatmap";
-import { SuperAdminAudit } from "@/features/super-admin/pages/SuperAdminAudit";
-import { SuperAdminRoles } from "@/features/super-admin/pages/SuperAdminRoles";
-import { SuperAdminReports } from "@/features/super-admin/pages/SuperAdminReports";
+const HotelListPage = lazy(() => import("@/features/hotels/HotelListPage").then((m) => ({ default: m.HotelListPage })));
+const HotelDetailPage = lazy(() =>
+  import("@/features/hotels/HotelDetailPage").then((m) => ({ default: m.HotelDetailPage })),
+);
+const HotelBookingsPage = lazy(() =>
+  import("@/features/hotels/HotelBookingsPage").then((m) => ({ default: m.HotelBookingsPage })),
+);
+const HotelPartnerManager = lazy(() =>
+  import("@/features/hotels/HotelPartnerManager").then((m) => ({ default: m.HotelPartnerManager })),
+);
+const HotelReviewsPage = lazy(() =>
+  import("@/features/hotels/HotelReviewsPage").then((m) => ({ default: m.HotelReviewsPage })),
+);
+const HotelRevenuePage = lazy(() =>
+  import("@/features/hotels/HotelRevenuePage").then((m) => ({ default: m.HotelRevenuePage })),
+);
+
+const RestaurantListPage = lazy(() =>
+  import("@/features/restaurants/RestaurantListPage").then((m) => ({ default: m.RestaurantListPage })),
+);
+const RestaurantDetailPage = lazy(() =>
+  import("@/features/restaurants/RestaurantDetailPage").then((m) => ({ default: m.RestaurantDetailPage })),
+);
+const FoodOrdersPage = lazy(() =>
+  import("@/features/restaurants/FoodOrdersPage").then((m) => ({ default: m.FoodOrdersPage })),
+);
+const RestaurantPartnerManager = lazy(() =>
+  import("@/features/restaurants/RestaurantPartnerManager").then((m) => ({ default: m.RestaurantPartnerManager })),
+);
+const RestaurantReviewsPage = lazy(() =>
+  import("@/features/restaurants/RestaurantReviewsPage").then((m) => ({ default: m.RestaurantReviewsPage })),
+);
+const RestaurantRevenuePage = lazy(() =>
+  import("@/features/restaurants/RestaurantRevenuePage").then((m) => ({ default: m.RestaurantRevenuePage })),
+);
+
+const GroceryListPage = lazy(() =>
+  import("@/features/grocery/GroceryListPage").then((m) => ({ default: m.GroceryListPage })),
+);
+const GroceryDetailPage = lazy(() =>
+  import("@/features/grocery/GroceryDetailPage").then((m) => ({ default: m.GroceryDetailPage })),
+);
+const GroceryOrdersPage = lazy(() =>
+  import("@/features/grocery/GroceryOrdersPage").then((m) => ({ default: m.GroceryOrdersPage })),
+);
+const GroceryPartnerManager = lazy(() =>
+  import("@/features/grocery/GroceryPartnerManager").then((m) => ({ default: m.GroceryPartnerManager })),
+);
+const GroceryReviewsPage = lazy(() =>
+  import("@/features/grocery/GroceryReviewsPage").then((m) => ({ default: m.GroceryReviewsPage })),
+);
+const GroceryRevenuePage = lazy(() =>
+  import("@/features/grocery/GroceryRevenuePage").then((m) => ({ default: m.GroceryRevenuePage })),
+);
+
+const DriverDashboard = lazy(() =>
+  import("@/features/driver/DriverDashboard").then((m) => ({ default: m.DriverDashboard })),
+);
+const VehiclePage = lazy(() => import("@/features/driver/VehiclePage").then((m) => ({ default: m.VehiclePage })));
+const DriverDocumentsPage = lazy(() =>
+  import("@/features/driver/DriverDocumentsPage").then((m) => ({ default: m.DriverDocumentsPage })),
+);
+const DriverPortalProvider = lazy(() =>
+  import("@/features/driver/driver-portal.context").then((m) => ({ default: m.DriverPortalProvider })),
+);
+const RideRequestsPage = lazy(() =>
+  import("@/features/driver/RideRequestsPage").then((m) => ({ default: m.RideRequestsPage })),
+);
+const CurrentTripPage = lazy(() =>
+  import("@/features/driver/CurrentTripPage").then((m) => ({ default: m.CurrentTripPage })),
+);
+const DriverEarningsPage = lazy(() =>
+  import("@/features/driver/DriverEarningsPage").then((m) => ({ default: m.DriverEarningsPage })),
+);
+const DriverRatingsPage = lazy(() =>
+  import("@/features/driver/DriverRatingsPage").then((m) => ({ default: m.DriverRatingsPage })),
+);
+const DriverWalletPage = lazy(() =>
+  import("@/features/driver/DriverWalletPage").then((m) => ({ default: m.DriverWalletPage })),
+);
+const AdminOverview = lazy(() => import("@/features/admin/AdminOverview").then((m) => ({ default: m.AdminOverview })));
+const PartnerDashboard = lazy(() =>
+  import("@/features/partner/PartnerDashboard").then((m) => ({ default: m.PartnerDashboard })),
+);
+const PartnerDocumentsPage = lazy(() =>
+  import("@/features/partner/PartnerDocumentsPage").then((m) => ({ default: m.PartnerDocumentsPage })),
+);
+
+const SuperAdminLoginPage = lazy(() =>
+  import("@/features/super-admin/SuperAdminLoginPage").then((m) => ({ default: m.SuperAdminLoginPage })),
+);
+const SuperAdminGuard = lazy(() =>
+  import("@/features/super-admin/SuperAdminGuard").then((m) => ({ default: m.SuperAdminGuard })),
+);
+const SuperAdminLayout = lazy(() =>
+  import("@/features/super-admin/SuperAdminLayout").then((m) => ({ default: m.SuperAdminLayout })),
+);
+const SuperAdminOverview = lazy(() =>
+  import("@/features/super-admin/SuperAdminOverview").then((m) => ({ default: m.SuperAdminOverview })),
+);
+const SuperAdminUsers = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminUsers").then((m) => ({ default: m.SuperAdminUsers })),
+);
+const SuperAdminApprovals = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminApprovals").then((m) => ({ default: m.SuperAdminApprovals })),
+);
+const SuperAdminVehicles = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminVehicles").then((m) => ({ default: m.SuperAdminVehicles })),
+);
+const SuperAdminPartnerDocuments = lazy(() =>
+  import("../features/super-admin/pages/SuperAdminPartnerDocuments").then((m) => ({
+    default: m.SuperAdminPartnerDocuments,
+  })),
+);
+const SuperAdminRegistrationReview = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminRegReview").then((m) => ({
+    default: m.SuperAdminRegistrationReview,
+  })),
+);
+const SuperAdminPartners = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminPartners").then((m) => ({ default: m.SuperAdminPartners })),
+);
+const SuperAdminPartnerDetail = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminPartnerDetail").then((m) => ({
+    default: m.SuperAdminPartnerDetail,
+  })),
+);
+const SuperAdminRevenue = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminRevenue").then((m) => ({ default: m.SuperAdminRevenue })),
+);
+const SuperAdminSettings = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminSettings").then((m) => ({ default: m.SuperAdminSettings })),
+);
+const SuperAdminNotifications = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminNotifications").then((m) => ({
+    default: m.SuperAdminNotifications,
+  })),
+);
+const SuperAdminDisputes = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminDisputes").then((m) => ({ default: m.SuperAdminDisputes })),
+);
+const SuperAdminTransactions = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminTransactions").then((m) => ({
+    default: m.SuperAdminTransactions,
+  })),
+);
+const SuperAdminWallet = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminWallet").then((m) => ({ default: m.SuperAdminWallet })),
+);
+const SuperAdminRides = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminRides").then((m) => ({ default: m.SuperAdminRides })),
+);
+const SuperAdminHeatmap = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminHeatmap").then((m) => ({ default: m.SuperAdminHeatmap })),
+);
+const SuperAdminAudit = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminAudit").then((m) => ({ default: m.SuperAdminAudit })),
+);
+const SuperAdminRoles = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminRoles").then((m) => ({ default: m.SuperAdminRoles })),
+);
+const SuperAdminReports = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminReports").then((m) => ({ default: m.SuperAdminReports })),
+);
+const SuperAdminCms = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminCms").then((m) => ({ default: m.SuperAdminCms })),
+);
+const SuperAdminServices = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminServices").then((m) => ({ default: m.SuperAdminServices })),
+);
+const SuperAdminFraud = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminFraud").then((m) => ({ default: m.SuperAdminFraud })),
+);
+
+/**
+ * Entry point. Sends an already-signed-in person straight to their own home
+ * (customer app, driver hub, operator console…) and everyone else to sign-in.
+ * Reads the persisted auth store directly rather than a hook, because this
+ * renders before any provider tree of its own.
+ */
+function RootEntry() {
+  const { isAuthenticated, user } = useAuthStore.getState();
+  const to = isAuthenticated && user ? (ROLE_HOME[user.role] ?? "/app") : "/login";
+  return <Navigate to={to} replace />;
+}
 
 export const router = createBrowserRouter([
-  { path: "/", element: <LandingPage /> },
+  // "/" opens the APP, not the marketing site.
+  //
+  // This ships as a native Capacitor build, so the router's entry point is
+  // what an installed Android/iOS user sees the instant they tap the icon —
+  // and that was the marketing landing page, complete with an "Open the app"
+  // button inside the app they had already opened.
+  //
+  // The landing page is moved, not deleted: it's still served at /about, and
+  // every nav/footer link that pointed at "/" still resolves.
+  { path: "/", element: <RootEntry /> },
+  { path: "/about", element: <LandingPage /> },
   { path: "/login", element: <LoginPage /> },
   { path: "/register", element: <RegisterPage /> },
   { path: "/profile/setup", element: <ProfileSetupPage /> },
@@ -226,9 +413,15 @@ export const router = createBrowserRouter([
             ),
           },
           { path: "routes", element: <OperatorRoutesPage /> },
-          { path: "schedules", element: <OperatorBusManager title="Schedules" subtitle="Publish and manage your bus routes." /> },
-          { path: "fleet", element: <OperatorBusManager title="Fleet" subtitle="Your registered buses and their schedules." /> },
-          { path: "bookings", element: <OperatorBusManager title="Bookings" subtitle="Tickets sold across your routes." /> },
+          // initialTab must be passed on each route: OperatorBusManager
+          // defaults to "fleet", so without it all three nav destinations
+          // opened on the Fleet tab and only the page title changed — tapping
+          // "Schedules" or "Bookings" appeared to do nothing. The hotel/
+          // restaurant/grocery managers already did this correctly; the
+          // operator routes were the ones missing it.
+          { path: "schedules", element: <OperatorBusManager title="Schedules" subtitle="Publish and manage your bus routes." initialTab="schedules" /> },
+          { path: "fleet", element: <OperatorBusManager title="Fleet" subtitle="Your registered buses and their schedules." initialTab="fleet" /> },
+          { path: "bookings", element: <OperatorBusManager title="Bookings" subtitle="Tickets sold across your routes." initialTab="bookings" /> },
           { path: "reviews", element: <OperatorReviewsPage /> },
           { path: "revenue", element: <BusRevenuePage /> },
           { path: "documents", element: <PartnerDocumentsPage partnerType="bus_operator" /> },
