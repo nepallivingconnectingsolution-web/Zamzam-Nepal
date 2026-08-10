@@ -77,7 +77,10 @@ export function Hero() {
             <Button size="lg" variant="accent" onClick={() => navigate("/app")}>
               Explore the marketplace <ArrowRight className="size-4" />
             </Button>
-            <Button size="lg" variant="outline" onClick={() => navigate("/login")}>
+            {/* Sign-UP, not sign-in: someone answering this has no account
+                yet, and picking hotel / restaurant / bus operator / freight
+                only happens on the register screen. */}
+            <Button size="lg" variant="outline" onClick={() => navigate("/register")}>
               Partner with Zamzam
             </Button>
           </motion.div>

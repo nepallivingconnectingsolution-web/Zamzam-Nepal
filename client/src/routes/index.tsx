@@ -1,5 +1,6 @@
 import { lazy } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
 import { PortalLayout } from "@/components/layout/portal-layout";
 import { ScaffoldPage } from "@/components/shared/scaffold-page";
 import { RequireRole } from "@/components/auth/RequireRole";
@@ -258,27 +259,35 @@ const SuperAdminFraud = lazy(() =>
 );
 
 /**
- * Entry point. Sends an already-signed-in person straight to their own home
- * (customer app, driver hub, operator console…) and everyone else to sign-in.
+ * Entry point, which resolves differently for three kinds of arrival.
+ *
+ * 1. Already signed in → straight to their own home (customer app, driver hub,
+ *    operator console…). Nobody who has an account should be shown a page
+ *    trying to sell them the product, on any platform.
+ * 2. Signed out in a browser → the marketing landing page. This is the
+ *    shopfront: someone who followed a link has no idea what Zamzam is, and a
+ *    login form answers none of that. Its service tiles route into /login
+ *    carrying where they meant to go, so choosing a service is what prompts
+ *    the account, and sign-up is where customer vs partner is chosen.
+ * 3. Signed out in the installed Android/iOS build → sign-in. Someone who
+ *    downloaded and tapped the icon has already been sold; showing them a
+ *    page whose main button reads "Open the app" *inside* the app is the bug
+ *    this branch exists to prevent.
+ *
  * Reads the persisted auth store directly rather than a hook, because this
  * renders before any provider tree of its own.
  */
 function RootEntry() {
   const { isAuthenticated, user } = useAuthStore.getState();
-  const to = isAuthenticated && user ? (ROLE_HOME[user.role] ?? "/app") : "/login";
-  return <Navigate to={to} replace />;
+  if (isAuthenticated && user) return <Navigate to={ROLE_HOME[user.role] ?? "/app"} replace />;
+  if (Capacitor.isNativePlatform()) return <Navigate to="/login" replace />;
+  return <LandingPage />;
 }
 
 export const router = createBrowserRouter([
-  // "/" opens the APP, not the marketing site.
-  //
-  // This ships as a native Capacitor build, so the router's entry point is
-  // what an installed Android/iOS user sees the instant they tap the icon —
-  // and that was the marketing landing page, complete with an "Open the app"
-  // button inside the app they had already opened.
-  //
-  // The landing page is moved, not deleted: it's still served at /about, and
-  // every nav/footer link that pointed at "/" still resolves.
+  // "/" is the shopfront on the web and the app on a phone — see RootEntry.
+  // /about stays as a permanent alias so nav and footer links that point at
+  // the landing page keep resolving for a signed-in user too.
   { path: "/", element: <RootEntry /> },
   { path: "/about", element: <LandingPage /> },
   { path: "/login", element: <LoginPage /> },
