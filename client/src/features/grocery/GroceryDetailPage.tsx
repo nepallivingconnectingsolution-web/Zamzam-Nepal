@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { PhoneField, NameInput, isValidPhone } from "@/components/ui/phone-field";
 import { cn } from "@/lib/utils";
 import { useResource } from "@/hooks/useResource";
 import { api, ApiError, endpoints } from "@/api/client";
@@ -81,7 +82,10 @@ function OrderFlow({ store, onDone }: { store: StoreDetail; onDone: () => void }
 
   const cartCount = useMemo(() => [...cart.values()].reduce((s, q) => s + q, 0), [cart]);
   const freeDelivery = store.freeDeliveryAbove != null && itemsTotal >= store.freeDeliveryAbove;
-  const deliveryFee = fulfillment === "delivery" && !freeDelivery ? store.deliveryFee : 0;
+  // Same guard as the restaurant flow: an empty cart costs nothing to
+  // deliver, so the sticky bar shouldn't show a fee before anything's added.
+  const deliveryFee =
+    fulfillment === "delivery" && !freeDelivery && itemsTotal > 0 ? store.deliveryFee : 0;
   const serviceFee = Math.round(itemsTotal * SERVICE_FEE_RATE);
   const grandTotal = itemsTotal + deliveryFee + serviceFee;
   const belowMinOrder = itemsTotal > 0 && itemsTotal < store.minOrder;
@@ -98,8 +102,13 @@ function OrderFlow({ store, onDone }: { store: StoreDetail; onDone: () => void }
   }
 
   async function submit() {
-    if (!customerName.trim() || !customerPhone.trim()) {
-      setError("Your name and phone number are required."); return;
+    if (!customerName.trim()) {
+      setError("Your name is required."); return;
+    }
+    // trim() alone accepted a 2-character "phone"; require a complete
+    // number for the selected country code.
+    if (!isValidPhone(customerPhone)) {
+      setError("Enter a complete phone number."); return;
     }
     if (fulfillment === "delivery" && !deliveryAddress.trim()) {
       setError("A delivery address is required for delivery orders."); return;
@@ -157,9 +166,14 @@ function OrderFlow({ store, onDone }: { store: StoreDetail; onDone: () => void }
     );
   }
 
+  const primaryAction =
+    step === "shop"
+      ? { label: "Checkout", disabled: cartCount === 0 || belowMinOrder, onClick: () => setStep("checkout") }
+      : { label: submitting ? "Placing…" : "Place order", disabled: submitting, onClick: submit };
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-      <div className="space-y-6">
+    <div className="space-y-6">
+      <div className="min-w-0 space-y-6 pb-24">
         {step === "shop" &&
           store.categories.map((cat) => (
             <section key={cat.id}>
@@ -180,7 +194,7 @@ function OrderFlow({ store, onDone }: { store: StoreDetail; onDone: () => void }
               {(["delivery", "pickup"] as const).map((f) => (
                 <button key={f} type="button" onClick={() => setFulfillment(f)}
                   className={cn("flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors",
-                    fulfillment === f ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-fg hover:bg-surface-2")}
+                    fulfillment === f ? "border-teal-700 bg-teal-100 text-teal-700 dark:border-accent dark:bg-white/10 dark:text-accent" : "border-border text-muted-fg hover:bg-surface-2")}
                 >
                   {f === "delivery" ? <Truck className="size-4" /> : <Store className="size-4" />}
                   {f === "delivery" ? "Delivery" : "Pickup"}
@@ -188,8 +202,8 @@ function OrderFlow({ store, onDone }: { store: StoreDetail; onDone: () => void }
               ))}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Input placeholder="Your name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-              <Input placeholder="Phone number" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+              <NameInput placeholder="Your name" value={customerName} onChange={setCustomerName} />
+              <PhoneField value={customerPhone} onChange={setCustomerPhone} showError />
               {fulfillment === "delivery" && (
                 <Input className="sm:col-span-2" placeholder="Delivery address" value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} />
               )}
@@ -200,7 +214,7 @@ function OrderFlow({ store, onDone }: { store: StoreDetail; onDone: () => void }
               {PAYMENT_METHODS.map((m) => (
                 <button key={m.id} type="button" onClick={() => setMethod(m.id)}
                   className={cn("rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                    method === m.id ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-fg hover:bg-surface-2")}
+                    method === m.id ? "border-teal-700 bg-teal-100 text-teal-700 dark:border-accent dark:bg-white/10 dark:text-accent" : "border-border text-muted-fg hover:bg-surface-2")}
                 >{m.label}</button>
               ))}
             </div>
@@ -209,7 +223,7 @@ function OrderFlow({ store, onDone }: { store: StoreDetail; onDone: () => void }
         )}
       </div>
 
-      <div className="lg:sticky lg:top-6 lg:self-start">
+      <div className="hidden">
         <Card className="p-5">
           <h3 className="flex items-center gap-2 font-display text-base font-semibold">
             <ShoppingBag className="size-4" /> Your cart
@@ -262,6 +276,30 @@ function OrderFlow({ store, onDone }: { store: StoreDetail; onDone: () => void }
           </p>
         </Card>
       </div>
+
+      {/* Sticky mobile order bar — mirrors the bus/hotel/restaurant flows so
+          checkout stays reachable without scrolling past the catalog. */}
+      {/* bottom-[4.75rem] — the customer shell's own bottom tab bar (see
+          CustomerShell) is a separate fixed element pinned to bottom-0; this
+          sits directly above it instead of underneath/behind it. */}
+      <div className="fixed inset-x-0 bottom-[4.75rem] z-50 border-t border-border bg-card/95 px-4 py-3 shadow-lift backdrop-blur-xl ">
+        <div className="mx-auto flex max-w-lg items-center gap-3">
+          {step === "checkout" && (
+            <Button variant="outline" size="icon" aria-label="Back to store" onClick={() => setStep("shop")}>
+              <ArrowLeft className="size-4" />
+            </Button>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs text-muted-fg">
+              {cartCount > 0 ? `${cartCount} item${cartCount > 1 ? "s" : ""}` : "Your cart is empty"}
+            </p>
+            <p className="font-display text-base font-bold font-tabular leading-tight">रू {grandTotal.toLocaleString()}</p>
+          </div>
+          <Button variant="accent" className="shrink-0" disabled={primaryAction.disabled} onClick={primaryAction.onClick}>
+            {primaryAction.label}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -273,9 +311,9 @@ function ProductRow({ product, qty, setQty }: { product: ProductSummary; qty: nu
         <p className="text-sm font-medium">{product.name}</p>
         <p className="mt-0.5 text-xs text-muted-fg">{product.unit}</p>
         <p className="mt-1 flex items-center gap-1.5 text-xs">
-          <span className="font-medium">रू {product.price.toLocaleString()}</span>
+          <span className="font-medium font-tabular">रू {product.price.toLocaleString()}</span>
           {product.mrp != null && product.mrp > product.price && (
-            <span className="text-muted-fg line-through">रू {product.mrp.toLocaleString()}</span>
+            <span className="text-muted-fg line-through font-tabular">रू {product.mrp.toLocaleString()}</span>
           )}
         </p>
         {!product.inStock && <Badge variant="outline" className="mt-1 text-[10px]">Out of stock</Badge>}
@@ -303,7 +341,7 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
   return (
     <div className="flex items-center justify-between gap-3">
       <span className="text-muted-fg">{label}</span>
-      <span className={cn("text-right", bold && "font-display font-bold")}>{value}</span>
+      <span className={cn("text-right font-tabular", bold && "font-display font-bold")}>{value}</span>
     </div>
   );
 }

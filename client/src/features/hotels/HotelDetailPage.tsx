@@ -9,6 +9,8 @@ import { AsyncBoundary } from "@/components/shared/async-states";
 import { Card } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/date-field";
+import { PhoneField, NameInput, isValidPhone } from "@/components/ui/phone-field";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useResource } from "@/hooks/useResource";
@@ -161,16 +163,29 @@ function BookingFlow({ hotel, onDone }: { hotel: HotelDetail; onDone: () => void
   const grandTotal = totalPrice + serviceFee;
   const canContinue = !!roomType && (availability.data?.available ?? 0) > 0 && roomCount <= (availability.data?.available ?? 0);
 
+  const primaryAction =
+    step === "room"
+      ? { label: "Continue", disabled: !canContinue, onClick: () => setStep("guest") }
+      : step === "guest"
+        ? {
+            label: "Continue",
+            // A non-empty check let a 2-character "phone" through. The number
+            // has to actually be complete for its country code.
+            disabled: !guestName.trim() || !isValidPhone(guestPhone),
+            onClick: () => setStep("payment"),
+          }
+        : { label: submitting ? "Booking…" : `Pay रू ${grandTotal.toLocaleString()}`, disabled: submitting, onClick: submit };
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-      <div className="space-y-6">
+    <div className="space-y-6">
+      <div className="min-w-0 space-y-6 pb-24">
         {/* Stepper */}
         <div className="flex items-center gap-2">
           {(["room", "guest", "payment"] as Step[]).map((s, i, arr) => (
             <div key={s} className="flex flex-1 items-center gap-2">
               <div className={cn(
                 "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium",
-                ["room","guest","payment"].indexOf(step) >= i ? "bg-accent/10 text-accent" : "bg-surface-2 text-muted-fg",
+                ["room","guest","payment"].indexOf(step) >= i ? "bg-teal-100 text-teal-700 dark:bg-white/10 dark:text-accent" : "bg-surface-2 text-muted-fg",
               )}>
                 {s === "room" && <BedDouble className="size-4" />}
                 {s === "guest" && <Users className="size-4" />}
@@ -190,30 +205,28 @@ function BookingFlow({ hotel, onDone }: { hotel: HotelDetail; onDone: () => void
                 <button key={r.id} type="button" onClick={() => setRoomType(r)}
                   className={cn(
                     "flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors",
-                    roomType?.id === r.id ? "border-accent bg-accent/10" : "border-border hover:bg-surface-2",
+                    roomType?.id === r.id ? "border-teal-700 bg-teal-100 dark:border-accent dark:bg-white/10" : "border-border hover:bg-surface-2",
                   )}
                 >
-                  <div>
-                    <p className="text-sm font-medium">{r.name}</p>
-                    <p className="text-xs text-muted-fg">Sleeps up to {r.maxGuests} guests</p>
-                    {r.description && <p className="mt-0.5 text-xs text-muted-fg">{r.description}</p>}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{r.name}</p>
+                    <p className="truncate text-xs text-muted-fg">Sleeps up to {r.maxGuests} guests</p>
+                    {r.description && <p className="mt-0.5 truncate text-xs text-muted-fg">{r.description}</p>}
                   </div>
-                  <p className="font-display text-sm font-bold">रू {r.pricePerNight.toLocaleString()}/night</p>
+                  <p className="shrink-0 whitespace-nowrap font-display text-sm font-bold font-tabular">रू {r.pricePerNight.toLocaleString()}/night</p>
                 </button>
               ))}
             </div>
             <h3 className="mb-3 mt-6 flex items-center gap-1.5 font-display text-sm font-semibold">
               <CalendarRange className="size-4" /> Dates & guests
             </h3>
-            <div className="grid gap-3 sm:grid-cols-4">
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-medium text-muted-fg">Check-in</span>
-                <Input type="date" min={new Date().toISOString().slice(0,10)} value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
-              </label>
-              <label className="block">
-                <span className="mb-1.5 block text-xs font-medium text-muted-fg">Check-out</span>
-                <Input type="date" min={checkIn} value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
-              </label>
+            {/* 2-up, not 4: this renders inside the fixed 440px phone frame, where
+                 four columns truncated the date fields to "Tu…" / "W…".
+                 Tailwind breakpoints key off the viewport, so sm: was firing
+                 on a desktop screen despite the frame being phone-width. */}
+            <div className="grid grid-cols-2 gap-3">
+              <DateField label="Check-in" value={checkIn} onChange={setCheckIn} />
+              <DateField label="Check-out" value={checkOut} onChange={setCheckOut} minDate={checkIn} />
               <label className="block">
                 <span className="mb-1.5 block text-xs font-medium text-muted-fg">Rooms</span>
                 <Input type="number" min={1} max={Math.max(availability.data?.available ?? 1, 1)} value={roomCount}
@@ -240,8 +253,8 @@ function BookingFlow({ hotel, onDone }: { hotel: HotelDetail; onDone: () => void
           <Card className="p-5">
             <h3 className="mb-3 font-display text-sm font-semibold">Guest details</h3>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Input placeholder="Full name" value={guestName} onChange={(e) => setGuestName(e.target.value)} />
-              <Input placeholder="Phone number" value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} />
+              <NameInput placeholder="Full name" value={guestName} onChange={setGuestName} />
+              <PhoneField value={guestPhone} onChange={setGuestPhone} showError />
             </div>
           </Card>
         )}
@@ -254,7 +267,7 @@ function BookingFlow({ hotel, onDone }: { hotel: HotelDetail; onDone: () => void
                 <button key={m.id} type="button" onClick={() => setMethod(m.id)}
                   className={cn(
                     "flex items-center justify-between rounded-xl border px-4 py-3 text-sm font-medium transition-colors",
-                    method === m.id ? "border-accent bg-accent/10 text-accent" : "border-border hover:bg-surface-2",
+                    method === m.id ? "border-teal-700 bg-teal-100 text-teal-700 dark:border-accent dark:bg-white/10 dark:text-accent" : "border-border hover:bg-surface-2",
                   )}
                 >
                   {m.label}
@@ -269,10 +282,11 @@ function BookingFlow({ hotel, onDone }: { hotel: HotelDetail; onDone: () => void
         {error && <p className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{error}</p>}
       </div>
 
-      <div className="space-y-4">
+      {/* Summary rail — desktop only; mobile gets the fixed bottom bar instead */}
+      <div className="hidden">
         <Card className="p-5">
           <div className="flex items-center gap-2">
-            <div className="grid size-10 place-items-center rounded-xl bg-accent/10 text-accent">
+            <div className="grid size-10 place-items-center rounded-xl bg-teal-100 text-teal-700 dark:bg-white/10 dark:text-accent">
               <BedDouble className="size-5" />
             </div>
             <div>
@@ -307,11 +321,34 @@ function BookingFlow({ hotel, onDone }: { hotel: HotelDetail; onDone: () => void
                 <ArrowLeft className="size-4" /> Back
               </Button>
             )}
-            {step === "room" && <Button variant="accent" className="flex-1" disabled={!canContinue} onClick={() => setStep("guest")}>Continue <ArrowRight className="size-4" /></Button>}
-            {step === "guest" && <Button variant="accent" className="flex-1" disabled={!guestName.trim() || !guestPhone.trim()} onClick={() => setStep("payment")}>Continue <ArrowRight className="size-4" /></Button>}
-            {step === "payment" && <Button variant="accent" className="flex-1" disabled={submitting} onClick={submit}>{submitting ? "Booking…" : `Pay रू ${grandTotal.toLocaleString()}`}</Button>}
+            <Button variant="accent" className="flex-1" disabled={primaryAction.disabled} onClick={primaryAction.onClick}>
+              {primaryAction.label} {step !== "payment" && <ArrowRight className="size-4" />}
+            </Button>
           </div>
         </Card>
+      </div>
+
+      {/* Sticky mobile booking bar — mirrors BusDetailPage's pattern so the
+          primary CTA stays reachable without scrolling past the room picker
+          / forms on a phone. */}
+      {/* bottom-[4.75rem] — the customer shell's own bottom tab bar (see
+          CustomerShell) is a separate fixed element pinned to bottom-0; this
+          sits directly above it instead of underneath/behind it. */}
+      <div className="fixed inset-x-0 bottom-[4.75rem] z-50 border-t border-border bg-card/95 px-4 py-3 shadow-lift backdrop-blur-xl ">
+        <div className="mx-auto flex max-w-lg items-center gap-3">
+          {step !== "room" && (
+            <Button variant="outline" size="icon" aria-label="Back" onClick={() => setStep(step === "payment" ? "guest" : "room")}>
+              <ArrowLeft className="size-4" />
+            </Button>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs text-muted-fg">{roomCount} room{roomCount > 1 ? "s" : ""}</p>
+            <p className="font-display text-base font-bold font-tabular leading-tight">रू {grandTotal.toLocaleString()}</p>
+          </div>
+          <Button variant="accent" className="shrink-0" disabled={primaryAction.disabled} onClick={primaryAction.onClick}>
+            {primaryAction.label}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -321,7 +358,7 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
   return (
     <div className="flex items-center justify-between">
       <dt className="text-muted-fg">{label}</dt>
-      <dd className={cn(bold ? "font-display font-semibold" : "font-medium")}>{value}</dd>
+      <dd className={cn("font-tabular", bold ? "font-display font-semibold" : "font-medium")}>{value}</dd>
     </div>
   );
 }

@@ -103,8 +103,8 @@ export class BookRoomDto {
   @MinLength(1)
   guestName!: string;
 
-  @IsString()
-  @MinLength(1)
+  // Was @IsString() @MinLength(1) — a single character passed validation.
+  @Matches(/^\+?[0-9]{7,15}$/, { message: 'Enter a valid phone number.' })
   guestPhone!: string;
 
   @IsIn(['wallet', 'esewa', 'khalti', 'connectips', 'imepay', 'card', 'cash'])
