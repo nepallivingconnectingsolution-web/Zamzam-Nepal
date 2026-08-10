@@ -77,10 +77,10 @@ export function Hero() {
             <Button size="lg" variant="accent" onClick={() => navigate("/app")}>
               Explore the marketplace <ArrowRight className="size-4" />
             </Button>
-            {/* Sign-UP, not sign-in: someone answering this has no account
-                yet, and picking hotel / restaurant / bus operator / freight
-                only happens on the register screen. */}
-            <Button size="lg" variant="outline" onClick={() => navigate("/register")}>
+            {/* Sign-UP, not sign-in: whoever clicks this has no account yet.
+                `intent` opens the partner door straight away, so they get the
+                business-type picker rather than the customer form. */}
+            <Button size="lg" variant="outline" onClick={() => navigate("/register", { state: { intent: "partner" } })}>
               Partner with Zamzam
             </Button>
           </motion.div>
