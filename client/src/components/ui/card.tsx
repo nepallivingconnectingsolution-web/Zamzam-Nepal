@@ -1,13 +1,32 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
+export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  /** Level 2 — floating/sticky surfaces only (booking bar, FAB, sheet). */
+  elevated?: boolean;
+  /** Adds 0.98 press feedback. Set on every tappable card, no exceptions. */
+  interactive?: boolean;
+}
+
+/**
+ * Card.
+ *
+ * Level 1 is a hairline border and NO shadow. That's the default state for
+ * every card in the app. Level 2 (border + one soft shadow) is reserved for
+ * things that genuinely float above the page — the sticky booking bar, the
+ * FAB, an open sheet. There is no level 3; the previous gradient-fill +
+ * inner-highlight + hover-lift treatment has been removed, because stacked
+ * decoration is what made cards read as "component library" rather than
+ * "product".
+ */
+export const Card = React.forwardRef<HTMLDivElement, CardProps>(
+  ({ className, elevated, interactive, ...props }, ref) => (
     <div
       ref={ref}
-    className={cn(
-        "relative rounded-2xl border border-border bg-gradient-to-b from-card to-surface-2/30 shadow-card transition-shadow duration-300 hover:shadow-lift",
-        "before:pointer-events-none before:absolute before:inset-x-4 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-white/80 before:to-transparent dark:before:via-white/10",
+      className={cn(
+        "relative rounded-xl bg-card",
+        elevated ? "shadow-e2" : "shadow-e1",
+        interactive && "transition-transform duration-fast ease-standard active:scale-[0.98]",
         className,
       )}
       {...props}
@@ -21,11 +40,11 @@ export const CardHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDiv
 );
 
 export const CardTitle = ({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
-  <h3 className={cn("font-display text-base font-semibold tracking-tight", className)} {...props} />
+  <h3 className={cn("font-display text-h2 font-bold", className)} {...props} />
 );
 
 export const CardDescription = ({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => (
-  <p className={cn("text-sm text-muted-fg", className)} {...props} />
+  <p className={cn("text-body text-muted-fg", className)} {...props} />
 );
 
 export const CardContent = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
