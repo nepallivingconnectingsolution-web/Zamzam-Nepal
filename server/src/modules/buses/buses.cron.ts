@@ -29,35 +29,51 @@ export class BusesCronService {
 
   @Cron(CronExpression.EVERY_DAY_AT_1AM)
   async regenerateAllTrips(): Promise<void> {
-    const today = todayIso();
-    const activeSchedules = await this.db
-      .select()
-      .from(schedules)
-      .where(and(eq(schedules.status, 'active'), sql`${schedules.frequency} != 'once'`));
+    // This runs on a timer, completely outside any HTTP request — there is
+    // no controller, no AllExceptionsFilter, no caller waiting to .catch()
+    // it. A rejection here (e.g. Neon's serverless compute cold-starting
+    // after auto-suspend, or any other transient DB blip) had nowhere to go
+    // but an unhandled rejection, which used to take the entire process down
+    // with it — every connected client sees that as the backend going dark
+    // mid-session. The try/catch is what keeps one bad night's cron run from
+    // becoming an outage; main.ts's process-level handler is the last-resort
+    // backstop for everything else.
+    try {
+      const today = todayIso();
+      const activeSchedules = await this.db
+        .select()
+        .from(schedules)
+        .where(and(eq(schedules.status, 'active'), sql`${schedules.frequency} != 'once'`));
 
-    let inserted = 0;
-    for (const schedule of activeSchedules) {
-      const [bus] = await this.db.select().from(buses).where(eq(buses.id, schedule.busId)).limit(1);
-      if (!bus) continue;
+      let inserted = 0;
+      for (const schedule of activeSchedules) {
+        const [bus] = await this.db.select().from(buses).where(eq(buses.id, schedule.busId)).limit(1);
+        if (!bus) continue;
 
-      const candidates = generateTripsForSchedule(schedule, bus.amenities);
-      if (candidates.length === 0) continue;
+        const candidates = generateTripsForSchedule(schedule, bus.amenities);
+        if (candidates.length === 0) continue;
 
-      const existing = await this.db
-        .select({ date: trips.date })
-        .from(trips)
-        .where(and(eq(trips.scheduleId, schedule.id), gte(trips.date, today)));
-      const existingDates = new Set(existing.map((r) => r.date));
+        const existing = await this.db
+          .select({ date: trips.date })
+          .from(trips)
+          .where(and(eq(trips.scheduleId, schedule.id), gte(trips.date, today)));
+        const existingDates = new Set(existing.map((r) => r.date));
 
-      const toInsert = candidates.filter((c) => !existingDates.has(c.date));
-      if (toInsert.length > 0) {
-        await this.db.insert(trips).values(toInsert);
-        inserted += toInsert.length;
+        const toInsert = candidates.filter((c) => !existingDates.has(c.date));
+        if (toInsert.length > 0) {
+          await this.db.insert(trips).values(toInsert);
+          inserted += toInsert.length;
+        }
       }
-    }
 
-    this.logger.log(
-      `regenerateAllTrips: scanned ${activeSchedules.length} schedules, inserted ${inserted} new trip(s).`,
-    );
+      this.logger.log(
+        `regenerateAllTrips: scanned ${activeSchedules.length} schedules, inserted ${inserted} new trip(s).`,
+      );
+    } catch (err) {
+      // Logged, not rethrown: tomorrow's 1am run tries again on its own.
+      // A missed night of trip generation is recoverable; a crashed server
+      // is not.
+      this.logger.error('regenerateAllTrips failed — will retry on the next scheduled run.', err as Error);
+    }
   }
 }

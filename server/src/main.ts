@@ -12,6 +12,37 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ensureDriverDocumentsDir } from './modules/driver-documents/storage';
 
+/**
+ * Without these, an unhandled promise rejection ANYWHERE in the app — a
+ * missing `await`, a `.catch()` that wasn't attached, a callback that threw
+ * — kills the entire Node process silently. Node's default behavior since
+ * v15 is to exit on an unhandled rejection, and `nest start --watch` only
+ * restarts on a file save, not on a crash, so the server then stays dead
+ * until someone notices and manually restarts it. Every connected client
+ * sees this as the backend suddenly refusing every request; from the
+ * browser, indistinguishable from "the whole app froze."
+ *
+ * `unhandledRejection` is logged and swallowed — the vast majority of these
+ * are recoverable (a single failed background task, not a corrupted
+ * process), and staying up to serve every other request is better than
+ * taking the whole server down for one bad promise.
+ *
+ * `uncaughtException` is logged and then exits deliberately: Node's own
+ * guidance is that the process is in an unknown state after a truly
+ * uncaught synchronous throw and should not keep handling new requests. The
+ * point here isn't to keep running through that — it's to make the crash
+ * loud and attributable in the log instead of a silent, unexplained death.
+ */
+process.on('unhandledRejection', (reason) => {
+  // eslint-disable-next-line no-console
+  console.error('[unhandledRejection] server stayed up, but this needs fixing:', reason);
+});
+process.on('uncaughtException', (err) => {
+  // eslint-disable-next-line no-console
+  console.error('[uncaughtException] fatal, exiting:', err);
+  process.exit(1);
+});
+
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
   const config = app.get(ConfigService);
