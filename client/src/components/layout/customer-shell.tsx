@@ -78,11 +78,14 @@ export function CustomerShell() {
         </div>
       </header>
 
-      {/* 6rem clears the tab bar, which is taller than it looks: the active
-          tab's label sits below the icon.
+      {/* 10rem clears the tab bar (6rem — taller than it looks, since the
+          active tab's label sits below the icon) PLUS FloatingAssistant's
+          launcher, which floats right above the tab bar. At 6rem alone, a
+          card's bottom edge (e.g. a bus result's price + "Select seats" row)
+          could scroll up underneath the launcher and end up hidden behind it.
           At lg the frame has a fixed height, so this is the scroll container
           rather than the page body. */}
-      <main className="flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 lg:overflow-y-auto">
+      <main className="flex-1 px-4 pb-[calc(10rem+env(safe-area-inset-bottom))] pt-4 lg:overflow-y-auto">
         <ErrorBoundary>
           <Suspense fallback={<RouteFallback />}>
             <Outlet />
