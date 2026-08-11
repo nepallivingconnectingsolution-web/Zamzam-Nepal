@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS "partner_documents" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "ride_messages" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-DROP TABLE "ride_messages" CASCADE;--> statement-breakpoint
+ALTER TABLE IF EXISTS "ride_messages" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
+DROP TABLE IF EXISTS "ride_messages" CASCADE;--> statement-breakpoint
 DROP INDEX IF EXISTS "ride_reviews_ride_reviewer_unique_idx";--> statement-breakpoint
 DROP INDEX IF EXISTS "ride_reviews_customer_idx";--> statement-breakpoint
 DO $$ BEGIN
@@ -31,5 +31,5 @@ CREATE UNIQUE INDEX IF NOT EXISTS "ride_reviews_ride_unique_idx" ON "ride_review
 ALTER TABLE "ride_reviews" DROP COLUMN IF EXISTS "reviewer_role";--> statement-breakpoint
 ALTER TABLE "rides" DROP COLUMN IF EXISTS "cancelled_by";--> statement-breakpoint
 ALTER TABLE "rides" DROP COLUMN IF EXISTS "cancellation_reason";--> statement-breakpoint
-DROP TYPE "public"."ride_message_sender";--> statement-breakpoint
-DROP TYPE "public"."ride_reviewer_role";
+DROP TYPE IF EXISTS "public"."ride_message_sender";--> statement-breakpoint
+DROP TYPE IF EXISTS "public"."ride_reviewer_role";
