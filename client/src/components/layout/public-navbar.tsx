@@ -7,11 +7,15 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Logo } from "./logo";
 
+// Anchored to /about, not "/". This navbar renders only inside LandingPage,
+// which moved to /about when "/" became the app home — a bare "/#services"
+// now lands on AppHome, where no such section exists, and silently does
+// nothing.
 const LINKS = [
-  { label: "Services", href: "/#services" },
-  { label: "AI", href: "/#ai" },
-  { label: "Partners", href: "/#partners" },
-  { label: "Investors", href: "/#investors" },
+  { label: "Services", href: "/about#services" },
+  { label: "AI", href: "/about#ai" },
+  { label: "Partners", href: "/about#partners" },
+  { label: "Investors", href: "/about#investors" },
 ];
 
 export function PublicNavbar() {
@@ -36,6 +40,8 @@ export function PublicNavbar() {
       )}
     >
       <nav className="container flex h-16 items-center justify-between gap-4">
+        {/* Back to the app, not back to the top of this page — the logo is the
+            way out of the marketing site. */}
         <Link to="/" className="flex items-center gap-2" aria-label="Zamzam home">
           <Logo />
         </Link>

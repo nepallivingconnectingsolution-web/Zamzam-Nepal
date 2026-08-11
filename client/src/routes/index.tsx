@@ -1,6 +1,5 @@
 import { lazy } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
-import { Capacitor } from "@capacitor/core";
 import { PortalLayout } from "@/components/layout/portal-layout";
 import { ScaffoldPage } from "@/components/shared/scaffold-page";
 import { RequireRole } from "@/components/auth/RequireRole";
@@ -22,6 +21,7 @@ import { ROLE_HOME } from "@/config";
    shell-less routes below (landing, auth, super-admin login).
 ---------------------------------------------------------------------------- */
 
+const AppHome = lazy(() => import("@/features/home/AppHome").then((m) => ({ default: m.AppHome })));
 const LandingPage = lazy(() => import("@/features/marketing/LandingPage").then((m) => ({ default: m.LandingPage })));
 const LoginPage = lazy(() => import("@/features/auth/LoginPage").then((m) => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import("@/features/auth/RegisterPage").then((m) => ({ default: m.RegisterPage })));
@@ -259,20 +259,20 @@ const SuperAdminFraud = lazy(() =>
 );
 
 /**
- * Entry point, which resolves differently for three kinds of arrival.
+ * Entry point, which resolves differently for two kinds of arrival.
  *
  * 1. Already signed in → straight to their own home (customer app, driver hub,
  *    operator console…). Nobody who has an account should be shown a page
  *    trying to sell them the product, on any platform.
- * 2. Signed out in a browser → the marketing landing page. This is the
- *    shopfront: someone who followed a link has no idea what Zamzam is, and a
- *    login form answers none of that. Its service tiles route into /login
- *    carrying where they meant to go, so choosing a service is what prompts
- *    the account, and sign-up is where customer vs partner is chosen.
- * 3. Signed out in the installed Android/iOS build → sign-in. Someone who
- *    downloaded and tapped the icon has already been sold; showing them a
- *    page whose main button reads "Open the app" *inside* the app is the bug
- *    this branch exists to prevent.
+ * 2. Signed out → AppHome, the app's front door, on web AND native alike.
+ *
+ * That used to be a three-way branch: browsers got the marketing landing page
+ * and the installed build got /login, because a shopfront selling "Open the
+ * app" *inside* the app is absurd. AppHome removes the fork. It leads with the
+ * service picker, and its tiles route through /login carrying where you meant
+ * to go — so it works as a first impression on the web and as a launcher on a
+ * phone, without either audience being shown the wrong thing. The marketing
+ * page it replaced is still whole at /about.
  *
  * Reads the persisted auth store directly rather than a hook, because this
  * renders before any provider tree of its own.
@@ -280,14 +280,14 @@ const SuperAdminFraud = lazy(() =>
 function RootEntry() {
   const { isAuthenticated, user } = useAuthStore.getState();
   if (isAuthenticated && user) return <Navigate to={ROLE_HOME[user.role] ?? "/app"} replace />;
-  if (Capacitor.isNativePlatform()) return <Navigate to="/login" replace />;
-  return <LandingPage />;
+  return <AppHome />;
 }
 
 export const router = createBrowserRouter([
-  // "/" is the shopfront on the web and the app on a phone — see RootEntry.
-  // /about stays as a permanent alias so nav and footer links that point at
-  // the landing page keep resolving for a signed-in user too.
+  // "/" is the app's front door on every platform — see RootEntry.
+  // /about is where the marketing site lives now, and stays a permanent route
+  // so nav and footer links pointing at it keep resolving for a signed-in
+  // user too.
   { path: "/", element: <RootEntry /> },
   { path: "/about", element: <LandingPage /> },
   { path: "/login", element: <LoginPage /> },
