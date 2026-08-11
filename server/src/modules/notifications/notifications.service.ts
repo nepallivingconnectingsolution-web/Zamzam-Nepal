@@ -57,18 +57,23 @@ export class NotificationsService {
   }
 
   async list(limit = 20, offset = 0) {
-    const [rows, [{ total }], [{ unread }]] = await Promise.all([
-      this.db
-        .select()
-        .from(superAdminNotifications)
-        .orderBy(desc(superAdminNotifications.createdAt))
-        .limit(limit)
-        .offset(offset),
-      this.db.select({ total: sql<number>`count(*)::int` }).from(superAdminNotifications),
-      this.db
-        .select({ unread: sql<number>`count(*) filter (where ${superAdminNotifications.isRead} = false)::int` })
-        .from(superAdminNotifications),
-    ]);
+    // Sequential, not Promise.all: three queries fired at once each grab their
+    // own connection from the pool simultaneously, which is where this broke
+    // — see the comment on listForUser below for the full story. One at a
+    // time reuses a single connection and costs a few extra milliseconds,
+    // which is nothing for a notification-bell fetch.
+    const rows = await this.db
+      .select()
+      .from(superAdminNotifications)
+      .orderBy(desc(superAdminNotifications.createdAt))
+      .limit(limit)
+      .offset(offset);
+    const [{ total }] = await this.db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(superAdminNotifications);
+    const [{ unread }] = await this.db
+      .select({ unread: sql<number>`count(*) filter (where ${superAdminNotifications.isRead} = false)::int` })
+      .from(superAdminNotifications);
 
     return {
       items: rows.map((n) => ({ ...n, createdAt: n.createdAt.toISOString() })),
@@ -123,23 +128,33 @@ export class NotificationsService {
   }
 
   async listForUser(userId: string, limit = 20, offset = 0) {
-    const [rows, [{ total }], [{ unread }]] = await Promise.all([
-      this.db
-        .select()
-        .from(userNotifications)
-        .where(eq(userNotifications.userId, userId))
-        .orderBy(desc(userNotifications.createdAt))
-        .limit(limit)
-        .offset(offset),
-      this.db
-        .select({ total: sql<number>`count(*)::int` })
-        .from(userNotifications)
-        .where(eq(userNotifications.userId, userId)),
-      this.db
-        .select({ unread: sql<number>`count(*) filter (where ${userNotifications.isRead} = false)::int` })
-        .from(userNotifications)
-        .where(eq(userNotifications.userId, userId)),
-    ]);
+    // Sequential, not Promise.all — this is the notification-bell poll that
+    // every signed-in screen fires every 20s (see client's NotificationBell),
+    // so it's the single most-hit endpoint in the app, and it was firing
+    // three genuinely simultaneous queries per call. Each one grabs its own
+    // connection from the pool at the same instant; against a serverless
+    // Postgres that has just cold-started after auto-suspend (see
+    // database.module.ts's own comments on this), or under any real
+    // contention, one of the three loses the race and the connection resets
+    // out from under it — which surfaces here as a flat 500 with no useful
+    // detail on the client. Three sequential awaits reuse a single
+    // connection one query at a time; the added latency (a few ms) is
+    // nothing next to "the bell silently 500s."
+    const rows = await this.db
+      .select()
+      .from(userNotifications)
+      .where(eq(userNotifications.userId, userId))
+      .orderBy(desc(userNotifications.createdAt))
+      .limit(limit)
+      .offset(offset);
+    const [{ total }] = await this.db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(userNotifications)
+      .where(eq(userNotifications.userId, userId));
+    const [{ unread }] = await this.db
+      .select({ unread: sql<number>`count(*) filter (where ${userNotifications.isRead} = false)::int` })
+      .from(userNotifications)
+      .where(eq(userNotifications.userId, userId));
 
     return {
       items: rows.map((n) => ({ ...n, createdAt: n.createdAt.toISOString() })),

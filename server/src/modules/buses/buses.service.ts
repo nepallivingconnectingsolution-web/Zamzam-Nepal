@@ -1,5 +1,5 @@
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, gte, ilike, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, sql } from 'drizzle-orm';
 import { DATABASE_CONNECTION, type Database } from '../../database/database.module';
 import { buses, schedules, trips, tickets, ticketReviews, transactions, users } from '../../database/schema';
 import { id, bookingRef } from '../../common/id';
@@ -463,21 +463,31 @@ await this.notifications.notify({
       .where(eq(schedules.operatorId, operatorId))
       .orderBy(desc(schedules.createdAt));
 
+    if (rows.length === 0) return [];
+
+    // One grouped query for every schedule's upcoming-trip count, not one
+    // query PER schedule fired concurrently via Promise.all(rows.map(...)).
+    // That N+1-with-concurrency shape meant an operator with a dozen
+    // schedules opened a dozen simultaneous connections from the pool at
+    // once — fragile under any real contention (a serverless Postgres
+    // cold-starting after auto-suspend, in particular; see
+    // database.module.ts's comments on that) and it's what surfaced as this
+    // endpoint's flat, unhelpful 500. This is also strictly faster: one
+    // round trip instead of N.
     const today = todayIso();
-    const withUpcoming = await Promise.all(
-      rows.map(async (s) => {
-        const [{ count }] = await this.db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(trips)
-          .where(and(eq(trips.scheduleId, s.id), eq(trips.status, 'scheduled'), gte(trips.date, today)));
-        return {
-          ...s,
-          price: Number(s.price),
-          upcomingTrips: count,
-        };
-      }),
-    );
-    return withUpcoming;
+    const scheduleIds = rows.map((s) => s.id);
+    const counts = await this.db
+      .select({ scheduleId: trips.scheduleId, count: sql<number>`count(*)::int` })
+      .from(trips)
+      .where(and(inArray(trips.scheduleId, scheduleIds), eq(trips.status, 'scheduled'), gte(trips.date, today)))
+      .groupBy(trips.scheduleId);
+    const upcomingByScheduleId = new Map(counts.map((c) => [c.scheduleId, c.count]));
+
+    return rows.map((s) => ({
+      ...s,
+      price: Number(s.price),
+      upcomingTrips: upcomingByScheduleId.get(s.id) ?? 0,
+    }));
   }
 
   async createSchedule(operatorId: string, dto: CreateScheduleDto) {

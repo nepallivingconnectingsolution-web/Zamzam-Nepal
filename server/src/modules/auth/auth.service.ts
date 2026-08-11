@@ -5,7 +5,7 @@ import * as bcrypt from 'bcryptjs';
 import { createHash } from 'crypto';
 import { and, eq, lt } from 'drizzle-orm';
 import { DATABASE_CONNECTION, type Database } from '../../database/database.module';
-import { refreshTokens, users } from '../../database/schema';
+import { auditLogs, refreshTokens, superAdmins, users } from '../../database/schema';
 import { id } from '../../common/id';
 import { apiError } from '../../common/exceptions';
 import type { RegisterDto, LoginDto } from './dto/auth.dto';
@@ -166,7 +166,72 @@ private async issueTokens(userId: string, role: Role) {
     };
   }
 
+  /**
+   * Super admin signing in through the ordinary login form.
+   *
+   * Super admin is a separate identity: its own table, its own JWT secret, its
+   * own guard. It stays that way — this only removes the requirement to know
+   * the hidden /x-admin/login URL, so one set of credentials in one form is
+   * enough. It is checked BEFORE the users lookup because the two tables are
+   * independent and an address could in principle exist in both; the admin
+   * identity wins.
+   *
+   * Returns null on any miss, including a super-admin email with the wrong
+   * password. That case deliberately falls through to the normal user lookup
+   * and ends at the standard "Invalid email or password.", so a wrong password
+   * is indistinguishable from an address that isn't an admin — otherwise this
+   * endpoint becomes an oracle for enumerating admin accounts.
+   *
+   * Inlined here rather than delegating to SuperAdminService: that service
+   * pulls in notifications, password-reset and the whole super-admin module
+   * graph, and importing it from AuthModule (which SuperAdminModule already
+   * depends on) would be a circular dependency for the sake of twenty lines.
+   */
+  private async trySuperAdminLogin(dto: LoginDto) {
+    const [admin] = await this.db
+      .select()
+      .from(superAdmins)
+      .where(eq(superAdmins.email, dto.email))
+      .limit(1);
+
+    if (!admin || !(await bcrypt.compare(dto.password, admin.passwordHash))) return null;
+
+    // Same payload shape and secret as SuperAdminService.login, so the token
+    // this hands back is verified by the existing SuperAdminJwtStrategy with
+    // no changes on the guard side.
+    const accessToken = await this.jwt.signAsync(
+      { sub: admin.id, type: 'super_admin_access' },
+      {
+        secret: this.config.get<string>('SUPER_ADMIN_JWT_SECRET'),
+        expiresIn: this.config.get<string>('SUPER_ADMIN_JWT_EXPIRES_IN'),
+      },
+    );
+
+    // Logged under the same action name as the dedicated endpoint: the audit
+    // trail records that an admin signed in, not which form they used.
+    await this.db.insert(auditLogs).values({
+      id: id('audit'),
+      actorId: admin.id,
+      actorType: 'super_admin',
+      action: 'super_admin.login',
+      targetType: null,
+      targetId: null,
+    });
+
+    return {
+      superAdmin: true as const,
+      accessToken,
+      admin: { id: admin.id, name: admin.name, email: admin.email },
+    };
+  }
+
   async login(dto: LoginDto) {
+    // No refresh token in this branch, matching the dedicated super-admin
+    // endpoint: admin sessions are sessionStorage-scoped and expire with the
+    // tab rather than renewing in the background.
+    const superAdminSession = await this.trySuperAdminLogin(dto);
+    if (superAdminSession) return superAdminSession;
+
     const [user] = await this.db.select().from(users).where(eq(users.email, dto.email)).limit(1);
 
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {

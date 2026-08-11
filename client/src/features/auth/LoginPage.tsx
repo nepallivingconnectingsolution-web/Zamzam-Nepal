@@ -10,12 +10,32 @@ import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ForgotPasswordFlow } from "@/components/auth/ForgotPasswordFlow";
 import { useAuthStore } from "@/stores/auth.store";
+import { useSuperAdminStore } from "@/stores/super-admin.store";
 import { toast } from "@/stores/toast.store";
 import { ROLE_HOME } from "@/config";
 import { api, endpoints, ApiError } from "@/api/client";
 import type { User } from "@/types";
 
-type LoginResponse = { accessToken: string; refreshToken: string; user: User; profileComplete: boolean };
+type SuperAdmin = { id: string; name: string; email: string };
+
+/**
+ * Two shapes from one endpoint. A super admin is a different identity — its own
+ * table, its own JWT secret, its own guard — so the server answers with
+ * `superAdmin: true` and an admin instead of a user, and never a refresh token.
+ * The discriminant is what keeps the two apart at the call site.
+ */
+type LoginResponse =
+  | { superAdmin: true; accessToken: string; admin: SuperAdmin }
+  | {
+      // `?: undefined` rather than `?: false` — the server omits the field
+      // entirely for a normal user, and this is the spelling that lets a plain
+      // `if (res.superAdmin)` narrow the union at the call site.
+      superAdmin?: undefined;
+      accessToken: string;
+      refreshToken: string;
+      user: User;
+      profileComplete: boolean;
+    };
 
 
 export function LoginPage() {
@@ -45,12 +65,25 @@ export function LoginPage() {
     }
   }, []);
 
+  /** Hands the tab to the super-admin console. Shared by both paths below. */
+  function enterSuperAdmin(accessToken: string, admin: SuperAdmin) {
+    useSuperAdminStore.getState().setSession(accessToken, admin);
+    toast.success("Signed in", `Welcome back, ${admin.name.split(" ")[0]}.`);
+    navigate("/x-admin");
+  }
+
   async function login() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError("Enter a valid email address.");
     if (!password) return setError("Enter your password.");
     setLoading(true); setError(null); setPending(null);
     try {
       const res = await api.post<LoginResponse>(endpoints.auth.login, { email, password }, { auth: false });
+
+      // Super-admin credentials in the ordinary form. The server recognises
+      // them and answers with an admin session instead of a user one, so the
+      // hidden /x-admin/login URL is no longer something you have to know.
+      if (res.superAdmin) return enterSuperAdmin(res.accessToken, res.admin);
+
       setSession(res.accessToken, res.user, res.refreshToken);
       toast.success("Signed in", `Welcome back, ${res.user.name.split(" ")[0]}.`);
       // New partners finish their business profile on first sign-in; everyone
@@ -69,9 +102,34 @@ export function LoginPage() {
       const detail = e instanceof ApiError ? (e.detail as { code?: string; message?: string }) : null;
       if (detail?.code === "PENDING_APPROVAL") {
         setPending(detail.message ?? "Your account is awaiting super-admin verification.");
-      } else if (detail?.code === "SUSPENDED") {
+        return;
+      }
+      if (detail?.code === "SUSPENDED") {
         setError(detail.message ?? "Account suspended.");
-      } else {
+        return;
+      }
+
+      // Plain invalid-credentials. Before showing it, retry once against the
+      // dedicated super-admin endpoint.
+      //
+      // This exists because the client and the API deploy independently: until
+      // the server carrying the check above is live, /auth/login rejects admin
+      // credentials outright, and this fallback is what makes signing in
+      // through this form work anyway. It stays afterwards as the safety net
+      // for that same skew in the other direction.
+      try {
+        const sa = await api.post<{ accessToken: string; admin: SuperAdmin }>(
+          "/super-admin/auth/login",
+          { email, password },
+          { auth: false },
+        );
+        return enterSuperAdmin(sa.accessToken, sa.admin);
+      } catch {
+        // Deliberately the ORIGINAL error, never anything derived from the
+        // admin attempt. "Invalid email or password." has to read identically
+        // whether the address is unknown, a user with a bad password, or a
+        // real admin who mistyped — anything else turns this form into an
+        // oracle for discovering that an address is a super admin.
         setError(detail?.message ?? "Invalid email or password.");
       }
     } finally { setLoading(false); }
