@@ -211,7 +211,7 @@ export class RestaurantService {
       apiError(400, 'A delivery address is required for delivery orders.');
     }
 
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const [restaurant] = await tx
         .select()
         .from(restaurants)
@@ -305,8 +305,18 @@ export class RestaurantService {
         inbound: false,
       });
 
-      return { orderRef: ref, orderId };
+      return { orderRef: ref, orderId, restaurantName: restaurant.name };
     });
+
+    await this.notifications.notifyUser(customerId, {
+      type: 'order_update',
+      title: 'Order placed',
+      message: `Your order ${result.orderRef} at ${result.restaurantName} has been placed.`,
+      entityType: 'food_order',
+      entityId: result.orderId,
+    });
+
+    return { orderRef: result.orderRef, orderId: result.orderId };
   }
 
   async myOrders(customerId: string) {

@@ -204,7 +204,7 @@ export class GroceryService {
       apiError(400, 'A delivery address is required for delivery orders.');
     }
 
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const [store] = await tx.select().from(groceryStores).where(eq(groceryStores.id, storeId)).limit(1);
       if (!store || !store.isActive) apiError(404, 'This store is no longer available.');
 
@@ -304,8 +304,18 @@ export class GroceryService {
         inbound: false,
       });
 
-      return { orderRef: ref, orderId };
+      return { orderRef: ref, orderId, storeName: store.name };
     });
+
+    await this.notifications.notifyUser(customerId, {
+      type: 'order_update',
+      title: 'Order placed',
+      message: `Your order ${result.orderRef} at ${result.storeName} has been placed.`,
+      entityType: 'grocery_order',
+      entityId: result.orderId,
+    });
+
+    return { orderRef: result.orderRef, orderId: result.orderId };
   }
 
   async myOrders(customerId: string) {

@@ -189,7 +189,7 @@ export class HotelService {
       apiError(400, 'Check-in date cannot be in the past.');
     }
 
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const [hotel] = await tx.select().from(hotels).where(eq(hotels.id, hotelId)).limit(1);
       if (!hotel || !hotel.isActive) apiError(404, 'This hotel is no longer available.');
 
@@ -271,8 +271,18 @@ export class HotelService {
         inbound: false,
       });
 
-      return { bookingRef: ref };
+      return { bookingRef: ref, hotelName: hotel.name, roomName: room.name };
     });
+
+    await this.notifications.notifyUser(customerId, {
+      type: 'booking_confirmed',
+      title: 'Booking confirmed',
+      message: `Your booking ${result.bookingRef} for ${result.roomName} at ${result.hotelName} is confirmed.`,
+      entityType: 'room_booking',
+      entityId: result.bookingRef,
+    });
+
+    return { bookingRef: result.bookingRef };
   }
 
   async myBookings(customerId: string) {
