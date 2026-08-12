@@ -6,6 +6,7 @@ import {
   Building2,
   CheckCheck,
   Info,
+  RefreshCcw,
   ShieldAlert,
   UserPlus,
 } from "lucide-react";
@@ -18,7 +19,7 @@ import { Button } from "@/components/ui/button";
 
 interface NotificationItem {
   id: string;
-  type: "partner_registration" | "business_created" | "dispute_filed" | "system";
+  type: "partner_registration" | "business_created" | "dispute_filed" | "refund_pending" | "system";
   title: string;
   message: string;
   entityType: string | null;
@@ -39,6 +40,7 @@ const TYPE_ICON: Record<NotificationItem["type"], LucideIcon> = {
   partner_registration: UserPlus,
   business_created: Building2,
   dispute_filed: ShieldAlert,
+  refund_pending: RefreshCcw,
   system: Info,
 };
 
