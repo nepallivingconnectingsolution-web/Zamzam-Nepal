@@ -120,7 +120,7 @@ export class BusesService {
       apiError(400, 'Each selected seat needs exactly one passenger.');
     }
 
-    return this.db.transaction(async (tx) => {
+    const result = await this.db.transaction(async (tx) => {
       const [trip] = await tx.select().from(trips).where(eq(trips.id, tripId)).limit(1);
       if (!trip) apiError(404, 'This departure is no longer available.');
       if (trip.status !== 'scheduled') apiError(409, 'This departure is no longer available.');
@@ -218,8 +218,18 @@ export class BusesService {
         inbound: false,
       });
 
-      return { bookingRef: ref };
+      return { bookingRef: ref, from: trip.fromCity, to: trip.toCity };
     });
+
+    await this.notifications.notifyUser(customerId, {
+      type: 'booking_confirmed',
+      title: 'Booking confirmed',
+      message: `Your bus ticket ${result.bookingRef} (${result.from} → ${result.to}) is confirmed.`,
+      entityType: 'bus_ticket',
+      entityId: result.bookingRef,
+    });
+
+    return { bookingRef: result.bookingRef };
   }
 
   async myBookings(customerId: string) {

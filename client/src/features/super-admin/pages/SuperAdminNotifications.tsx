@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Building2, CheckCheck, Info, ShieldAlert, UserPlus } from "lucide-react";
+import { Bell, Building2, CheckCheck, Info, RefreshCcw, ShieldAlert, UserPlus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 interface NotificationItem {
   id: string;
-  type: "partner_registration" | "business_created" | "dispute_filed" | "system";
+  type: "partner_registration" | "business_created" | "dispute_filed" | "refund_pending" | "system";
   title: string;
   message: string;
   entityType: string | null;
@@ -34,6 +34,7 @@ const TYPE_ICON: Record<NotificationItem["type"], LucideIcon> = {
   partner_registration: UserPlus,
   business_created: Building2,
   dispute_filed: ShieldAlert,
+  refund_pending: RefreshCcw,
   system: Info,
 };
 
