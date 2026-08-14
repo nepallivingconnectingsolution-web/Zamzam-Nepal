@@ -1,8 +1,8 @@
 import { Body, Controller, ForbiddenException, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { DATABASE_CONNECTION, type Database } from '../../database/database.module';
-import { driverStatus, foodOrders, groceryOrders, loads, rideReviews, rides, roomBookings, tickets, transactions, users, vehicles } from '../../database/schema';
+import { driverStatus, foodOrders, groceryOrders, loads, rideMessages, rideReviews, rides, roomBookings, tickets, transactions, users, vehicles } from '../../database/schema';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -12,7 +12,7 @@ import { apiError } from '../../common/exceptions';
 import { id } from '../../common/id';
 import { creditWallet, debitWalletOrFail } from '../../common/wallet.util';
 import { etaMinutes, fareFor, haversineKm } from '../../common/geo';
-import { CreateRideDto, CreateRideReviewDto, PayRideDto } from './dto/rides.dto';
+import { CancelRideDto, CreateRideDto, CreateRideMessageDto, CreateRideReviewDto, PayRideDto } from './dto/rides.dto';
 import { CATEGORY_SERVICES } from '../vehicles/vehicles.service';
 
 /**
@@ -98,7 +98,8 @@ export class RidesService {
       .orderBy(desc(rides.createdAt))
       .limit(1);
 
-    if (!row) return null;
+ if (!row) return null;
+    const unreadMessages = row.ride.driverId ? await this.unreadMessagesFor(row.ride.id, 'customer') : 0;
     return {
       ...this.toDto(row.ride),
       driverName: row.driverName,
@@ -107,13 +108,19 @@ export class RidesService {
       vehiclePlate: row.vehiclePlate,
       driverLat: row.driverLat != null ? Number(row.driverLat) : null,
       driverLng: row.driverLng != null ? Number(row.driverLng) : null,
+      unreadMessages,
     };
   }
 
-  async cancel(customerId: string, rideId: string) {
+  async cancel(customerId: string, rideId: string, dto: CancelRideDto) {
     const result = await this.db
       .update(rides)
-      .set({ status: 'CANCELLED', updatedAt: new Date() })
+      .set({
+        status: 'CANCELLED',
+        cancelledBy: 'customer',
+        cancellationReason: dto.reason?.trim() || null,
+        updatedAt: new Date(),
+      })
       .where(
         and(
           eq(rides.id, rideId),
@@ -137,13 +144,18 @@ export class RidesService {
     return rows.map((r) => this.toDto(r));
   }
 
+  async getById(userId: string, rideId: string) {
+    const [ride] = await this.db.select().from(rides).where(eq(rides.id, rideId)).limit(1);
+    if (!ride || (ride.customerId !== userId && ride.driverId !== userId)) apiError(404, 'Trip not found.');
+    return this.toDto(ride);
+  }
+
   /* ───────────────────────────── Reviews ──────────────────────────────────
    * One review per ride (taxi/bike/parcel share the same rides table, so
    * this single review flow covers all three), exactly mirroring the
    * one-review-per-record pattern used by hotel/food/grocery reviews.
    */
-
-  async submitReview(customerId: string, rideId: string, dto: CreateRideReviewDto) {
+async submitReview(customerId: string, rideId: string, dto: CreateRideReviewDto) {
     const [ride] = await this.db.select().from(rides).where(eq(rides.id, rideId)).limit(1);
     if (!ride) apiError(404, 'Ride not found.');
     if (ride.customerId !== customerId) {
@@ -157,7 +169,7 @@ export class RidesService {
     const [existing] = await this.db
       .select()
       .from(rideReviews)
-      .where(eq(rideReviews.rideId, rideId))
+      .where(and(eq(rideReviews.rideId, rideId), eq(rideReviews.reviewerRole, 'customer')))
       .limit(1);
     if (existing) apiError(409, 'You already reviewed this trip.');
 
@@ -168,6 +180,7 @@ export class RidesService {
         rideId,
         driverId: ride.driverId,
         customerId,
+        reviewerRole: 'customer',
         rating: dto.rating,
         comment: dto.comment?.trim() || null,
       })
@@ -175,14 +188,45 @@ export class RidesService {
     return this.toReviewDto(review);
   }
 
-  /** null (not 404) when no review yet — frontend shows the form. */
   async myReview(customerId: string, rideId: string) {
     const [review] = await this.db
       .select()
       .from(rideReviews)
-      .where(eq(rideReviews.rideId, rideId))
+      .where(and(eq(rideReviews.rideId, rideId), eq(rideReviews.reviewerRole, 'customer')))
       .limit(1);
     if (!review || review.customerId !== customerId) return null;
+    return this.toReviewDto(review);
+  }
+
+  async rateCustomer(driverId: string, rideId: string, dto: CreateRideReviewDto) {
+    const [ride] = await this.db.select().from(rides).where(eq(rides.id, rideId)).limit(1);
+    if (!ride) apiError(404, 'Ride not found.');
+    if (ride.driverId !== driverId) {
+      throw new ForbiddenException('You can only rate customers from your own trips.');
+    }
+    if (ride.status !== 'COMPLETED') {
+      apiError(400, 'You can rate a customer once the trip has been completed.');
+    }
+
+    const [existing] = await this.db
+      .select()
+      .from(rideReviews)
+      .where(and(eq(rideReviews.rideId, rideId), eq(rideReviews.reviewerRole, 'driver')))
+      .limit(1);
+    if (existing) apiError(409, 'You already rated this customer.');
+
+    const [review] = await this.db
+      .insert(rideReviews)
+      .values({
+        id: id('rrv'),
+        rideId,
+        driverId,
+        customerId: ride.customerId,
+        reviewerRole: 'driver',
+        rating: dto.rating,
+        comment: dto.comment?.trim() || null,
+      })
+      .returning();
     return this.toReviewDto(review);
   }
 
@@ -233,7 +277,7 @@ export class RidesService {
   }
 
   /** The driver's own current job (ACCEPTED or ONGOING), or null. */
-  async currentJob(driverId: string) {
+ async currentJob(driverId: string) {
     const [row] = await this.db
       .select({ ride: rides, customerName: users.name, customerMobile: users.mobile })
       .from(rides)
@@ -242,7 +286,8 @@ export class RidesService {
       .orderBy(desc(rides.createdAt))
       .limit(1);
     if (!row) return null;
-    return { ...this.toDto(row.ride), customerName: row.customerName, customerMobile: row.customerMobile };
+    const unreadMessages = await this.unreadMessagesFor(row.ride.id, 'driver');
+    return { ...this.toDto(row.ride), customerName: row.customerName, customerMobile: row.customerMobile, unreadMessages };
   }
 
   /**
@@ -338,7 +383,16 @@ export class RidesService {
         .where(and(eq(rides.id, rideId), eq(rides.status, 'PAYMENT_PENDING')))
         .returning();
       if (result.length === 0) {
-        apiError(409, 'This trip has already been settled.', 'ALREADY_SETTLED');
+        const [existing] = await tx
+          .select({ paymentMethod: rides.paymentMethod })
+          .from(rides)
+          .where(eq(rides.id, rideId))
+          .limit(1);
+        apiError(
+          409,
+          'This trip has already been settled.',
+          existing?.paymentMethod === 'wallet' ? 'ALREADY_SETTLED_WALLET' : 'ALREADY_SETTLED_CASH',
+        );
       }
       const ride = result[0];
       const route = `${ride.fromLabel} → ${ride.toLabel}`;
@@ -383,6 +437,59 @@ export class RidesService {
     return this.toDto(dto);
   }
 
+  async messages(userId: string, rideId: string) {
+    const [ride] = await this.db.select().from(rides).where(eq(rides.id, rideId)).limit(1);
+    if (!ride) apiError(404, 'Trip not found.');
+    const myRole = this.roleFor(ride, userId);
+    if (!ride.driverId) apiError(400, 'No driver has been matched for this trip yet.', 'NO_DRIVER');
+
+    await this.db
+      .update(rideMessages)
+      .set({ read: true })
+      .where(and(eq(rideMessages.rideId, rideId), ne(rideMessages.senderRole, myRole), eq(rideMessages.read, false)));
+
+    const rows = await this.db
+      .select()
+      .from(rideMessages)
+      .where(eq(rideMessages.rideId, rideId))
+      .orderBy(asc(rideMessages.createdAt));
+    return rows.map((m) => this.toMessageDto(m));
+  }
+
+  async sendMessage(userId: string, rideId: string, dto: CreateRideMessageDto) {
+    const [ride] = await this.db.select().from(rides).where(eq(rides.id, rideId)).limit(1);
+    if (!ride) apiError(404, 'Trip not found.');
+    const myRole = this.roleFor(ride, userId);
+    if (!ride.driverId) apiError(400, 'No driver has been matched for this trip yet.', 'NO_DRIVER');
+
+    const [row] = await this.db
+      .insert(rideMessages)
+      .values({
+        id: id('rmsg'),
+        rideId,
+        senderId: userId,
+        senderRole: myRole,
+        body: dto.body.trim(),
+      })
+      .returning();
+    return this.toMessageDto(row);
+  }
+
+  private roleFor(ride: typeof rides.$inferSelect, userId: string): 'customer' | 'driver' {
+    if (ride.customerId === userId) return 'customer';
+    if (ride.driverId === userId) return 'driver';
+    throw new ForbiddenException('You are not part of this trip.');
+  }
+
+  private async unreadMessagesFor(rideId: string, viewerRole: 'customer' | 'driver') {
+    const otherRole = viewerRole === 'customer' ? 'driver' : 'customer';
+    const [row] = await this.db
+      .select({ n: count() })
+      .from(rideMessages)
+      .where(and(eq(rideMessages.rideId, rideId), eq(rideMessages.senderRole, otherRole), eq(rideMessages.read, false)));
+    return row?.n ?? 0;
+  }
+
   /* ───────────────────────────── Helpers ─────────────────────────────────── */
 
   private toDto(r: typeof rides.$inferSelect) {
@@ -400,11 +507,13 @@ export class RidesService {
       dropLng: r.dropLng != null ? Number(r.dropLng) : null,
       distanceKm: r.distanceKm != null ? Number(r.distanceKm) : null,
       parcelWeightKg: r.parcelWeightKg,
-     fare: Number(r.fare),
+ fare: Number(r.fare),
       status: r.status,
       paymentMethod: r.paymentMethod,
       completedAt: r.completedAt ? r.completedAt.toISOString() : null,
       paidAt: r.paidAt ? r.paidAt.toISOString() : null,
+      cancelledBy: r.cancelledBy,
+      cancellationReason: r.cancellationReason,
       createdAt: r.createdAt.toISOString(),
     };
   }
@@ -414,9 +523,21 @@ export class RidesService {
       id: r.id,
       rideId: r.rideId,
       driverId: r.driverId,
+      reviewerRole: r.reviewerRole,
       rating: r.rating,
       comment: r.comment,
       createdAt: r.createdAt.toISOString(),
+    };
+  }
+
+  private toMessageDto(m: typeof rideMessages.$inferSelect) {
+    return {
+      id: m.id,
+      rideId: m.rideId,
+      senderId: m.senderId,
+      senderRole: m.senderRole,
+      body: m.body,
+      createdAt: m.createdAt.toISOString(),
     };
   }
 }
@@ -441,9 +562,9 @@ export class RidesController {
     return this.rides.create(user.id, dto);
   }
 
-  @Post(':id/cancel')
-  cancel(@CurrentUser() user: AuthenticatedUser, @Param('id') rideId: string) {
-    return this.rides.cancel(user.id, rideId);
+ @Post(':id/cancel')
+  cancel(@CurrentUser() user: AuthenticatedUser, @Param('id') rideId: string, @Body() dto: CancelRideDto) {
+    return this.rides.cancel(user.id, rideId, dto);
   }
 
   @Post(':id/review')
@@ -458,6 +579,31 @@ export class RidesController {
   @Get(':id/review')
   myReview(@CurrentUser() user: AuthenticatedUser, @Param('id') rideId: string) {
     return this.rides.myReview(user.id, rideId);
+  }
+
+  @Get(':id/messages')
+  messages(@CurrentUser() user: AuthenticatedUser, @Param('id') rideId: string) {
+    return this.rides.messages(user.id, rideId);
+  }
+
+  @Post(':id/messages')
+  sendMessage(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') rideId: string,
+    @Body() dto: CreateRideMessageDto,
+  ) {
+    return this.rides.sendMessage(user.id, rideId, dto);
+  }
+
+  @Post(':id/rate-customer')
+  @UseGuards(RolesGuard)
+  @Roles('driver')
+  rateCustomer(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') rideId: string,
+    @Body() dto: CreateRideReviewDto,
+  ) {
+    return this.rides.rateCustomer(user.id, rideId, dto);
   }
 
   @Get('incoming')
@@ -505,6 +651,11 @@ export class RidesController {
   @Post(':id/pay')
   pay(@CurrentUser() user: AuthenticatedUser, @Param('id') rideId: string, @Body() dto: PayRideDto) {
     return this.rides.pay(user.id, rideId, dto);
+  }
+  
+  @Get(':id')
+  getById(@CurrentUser() user: AuthenticatedUser, @Param('id') rideId: string) {
+    return this.rides.getById(user.id, rideId);
   }
 }
 

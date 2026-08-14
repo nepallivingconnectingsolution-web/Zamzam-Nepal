@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-
+import { cn } from "@/lib/utils";
 /**
  * Real, interactive map surface built on Leaflet + free CARTO dark tiles —
  * no Mapbox/Google API key required. Replaces the static "Live map" preview
@@ -183,5 +183,5 @@ export function LiveMap({ markers, route, className, fallbackCenter }: LiveMapPr
     }
   }, [route]);
 
-  return <div ref={containerRef} className={className ?? "h-full w-full"} />;
+  return <div ref={containerRef} className={cn("isolate", className ?? "h-full w-full")} />;
 }

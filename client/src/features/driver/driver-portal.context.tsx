@@ -39,6 +39,7 @@ export interface CurrentJob {
   pickupLng: number | null;
   dropLat: number | null;
   dropLng: number | null;
+  unreadMessages: number;
 }
 
 /**
@@ -53,6 +54,7 @@ export interface CompletedTrip {
   to: string;
   fare: number;
   method: "cash" | "wallet";
+  customerName: string | null;
 }
 
 interface DriverPortalState {
@@ -131,17 +133,28 @@ const [online, setOnline] = useState(false);
   // was PAYMENT_PENDING and has now vanished from /rides/current without the
   // driver tapping "Cash collected". Snapshot it into lastTrip so the driver
   // still gets their recap, and refresh earnings — the fare just landed.
-  useEffect(() => {
+ useEffect(() => {
     if (job.state === "idle" || job.state === "loading") return;
     const prev = prevJobRef.current;
     if (prev && prev.status === "PAYMENT_PENDING" && !job.data && settledIdRef.current !== prev.id) {
       settledIdRef.current = prev.id;
-      setLastTrip({ id: prev.id, service: prev.service, from: prev.from, to: prev.to, fare: prev.fare, method: "wallet" });
-      toast.success("Fare received", "The customer paid from their Zamzam wallet.");
-      earnings.refetch();
+      api
+        .get<{ paymentMethod: "cash" | "wallet" | null }>(endpoints.rides.detail(prev.id))
+        .then((detail) => {
+          const method = detail.paymentMethod === "wallet" ? "wallet" : "cash";
+          setLastTrip({ id: prev.id, service: prev.service, from: prev.from, to: prev.to, fare: prev.fare, method, customerName: prev.customerName });
+          toast.success(
+            "Fare received",
+            method === "wallet" ? "The customer paid from their Zamzam wallet." : "The customer confirmed they paid you in cash.",
+          );
+          earnings.refetch();
+        })
+        .catch(() => {
+          setLastTrip({ id: prev.id, service: prev.service, from: prev.from, to: prev.to, fare: prev.fare, method: "cash", customerName: prev.customerName });
+          earnings.refetch();
+        });
     }
     prevJobRef.current = job.data ?? null;
-    // earnings is a stable resource object from useResource; job.data drives this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job.data, job.state]);
 
@@ -285,19 +298,20 @@ const [online, setOnline] = useState(false);
     try {
       await api.post(endpoints.rides.confirmCash(current.id));
       settledIdRef.current = current.id;
-      setLastTrip({ id: current.id, service: current.service, from: current.from, to: current.to, fare: current.fare, method: "cash" });
+setLastTrip({ id: current.id, service: current.service, from: current.from, to: current.to, fare: current.fare, method: "cash", customerName: current.customerName });
       toast.success("Cash collected", "The fare has been added to your earnings.");
       earnings.refetch();
       job.refetch();
-    } catch (err) {
+   } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
-        // ALREADY_SETTLED: the customer paid from their wallet a moment
-        // before the tap. That's a success from the driver's point of view —
-        // build the recap right now instead of waiting for the poll to
-        // detect it, and skip the scary error toast.
+        const code = (err.detail as { code?: string } | undefined)?.code;
+        const method = code === "ALREADY_SETTLED_WALLET" ? "wallet" : "cash";
         settledIdRef.current = current.id;
-        setLastTrip({ id: current.id, service: current.service, from: current.from, to: current.to, fare: current.fare, method: "wallet" });
-        toast.success("Fare received", "The customer paid from their Zamzam wallet.");
+        setLastTrip({ id: current.id, service: current.service, from: current.from, to: current.to, fare: current.fare, method, customerName: current.customerName });
+        toast.success(
+          "Fare received",
+          method === "wallet" ? "The customer paid from their Zamzam wallet." : "The customer confirmed they paid you in cash.",
+        );
         earnings.refetch();
       } else {
         toast.error(err instanceof ApiError ? err.message : "Couldn't confirm the payment.");

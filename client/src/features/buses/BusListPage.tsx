@@ -237,9 +237,9 @@ export function BusListPage() {
       </Card>
 
       {/* Filters + sort — only worth showing once there's something to filter */}
-      {(buses.data?.length ?? 0) > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-1 gap-2 overflow-x-auto pb-1">
+    {(buses.data?.length ?? 0) > 0 && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1">
             {TYPE_FILTERS.map((f) => (
               <Chip key={f.id} selected={typeFilter === f.id} onClick={() => setTypeFilter(f.id)}>
                 {f.label}
@@ -251,7 +251,7 @@ export function BusListPage() {
             onChange={(v) => setSort(v as SortOption)}
             options={SORT_OPTIONS}
             placeholder="Sort"
-            className="w-44 shrink-0"
+            className="w-full shrink-0 sm:w-44"
           />
         </div>
       )}

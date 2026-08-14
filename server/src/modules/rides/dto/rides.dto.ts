@@ -41,8 +41,22 @@ export class CreateRideDto {
  * Khalti/eSewa slot in here later without a route change.
  */
 export class PayRideDto {
-  @IsIn(['wallet'], { message: 'Only wallet payment is supported in-app right now.' })
-  method!: 'wallet';
+  @IsIn(['wallet', 'cash'], { message: 'method must be wallet or cash.' })
+  method!: 'wallet' | 'cash';
+}
+
+export class CancelRideDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  reason?: string;
+}
+
+export class CreateRideMessageDto {
+  @IsString()
+  @MinLength(1, { message: 'Message cannot be empty.' })
+  @MaxLength(2000)
+  body!: string;
 }
 
 /** Customer rates a completed taxi/bike/parcel trip. One review per ride. */

@@ -253,8 +253,10 @@ export const endpoints = {
     // In-trip chat between the matched customer and driver.
    messages: (id: string) => `/rides/${id}/messages`,
     rateCustomer: (id: string) => `/rides/${id}/rate-customer`,
+    detail: (id: string) => `/rides/${id}`,
   },
 bookings: { list: "/bookings" },
+  locations: { search: (q: string) => `/locations/search?q=${encodeURIComponent(q)}` },
   support: { tickets: "/support/tickets" },
   // Public, unauthenticated read of active promo banners + which services
   // are switched on — see server's PublicCmsController. Managed from the
