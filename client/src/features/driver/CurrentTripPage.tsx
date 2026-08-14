@@ -1,13 +1,16 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Banknote, CheckCircle2, Navigation, Phone, User, Wallet } from "lucide-react";
+import { Banknote, CheckCircle2, MessageCircle, Navigation, Phone, User, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { LiveMap, type LiveMapMarker } from "@/components/shared/live-map";
+import { RideChatPanel } from "@/components/shared/ride-chat-panel";
 import { npr } from "@/lib/utils";
 import { useDriverPortal, type CompletedTrip, type CurrentJob } from "./driver-portal.context";
+import { RateCustomerPrompt } from "./RateCustomerPrompt";
 
 /**
  * The driver's trip screen is a three-stage flow (the Uber/Pathao closure
@@ -23,6 +26,7 @@ import { useDriverPortal, type CompletedTrip, type CurrentJob } from "./driver-p
 export function CurrentTripPage() {
   const navigate = useNavigate();
   const { job, actionBusy, advanceJob, settleCash, lastTrip, clearLastTrip, earnings, myLocation } = useDriverPortal();
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Stage 3: the fare just settled (cash confirmed, or wallet detected) —
   // show the recap even though /rides/current is null now.
@@ -93,7 +97,7 @@ export function CurrentTripPage() {
                 </div>
               </div>
 
-              {(job.data.customerName || job.data.customerMobile) && (
+             {(job.data.customerName || job.data.customerMobile) && (
                 <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border bg-muted/40 p-3 text-sm">
                   {job.data.customerName && (
                     <span className="flex items-center gap-1.5">
@@ -105,7 +109,28 @@ export function CurrentTripPage() {
                       <Phone className="size-4" /> {job.data.customerMobile}
                     </a>
                   )}
+                  <Button
+                    variant={chatOpen ? "accent" : "outline"}
+                    size="sm"
+                    className="relative ml-auto"
+                    onClick={() => setChatOpen((v) => !v)}
+                  >
+                    <MessageCircle className="size-3.5" /> Chat
+                    {!chatOpen && job.data.unreadMessages > 0 && (
+                      <span className="absolute -right-1.5 -top-1.5 grid size-4 place-items-center rounded-full bg-danger text-[10px] font-semibold text-white">
+                        {job.data.unreadMessages > 9 ? "9+" : job.data.unreadMessages}
+                      </span>
+                    )}
+                  </Button>
                 </div>
+              )}
+
+              {chatOpen && (
+                <RideChatPanel
+                  rideId={job.data.id}
+                  otherPartyName={job.data.customerName ?? "your rider"}
+                  onClose={() => setChatOpen(false)}
+                />
               )}
 
               <Button
@@ -202,6 +227,8 @@ function TripRecap({
   onNext: () => void;
   onDashboard: () => void;
 }) {
+  const [rated, setRated] = useState(false);
+
   return (
     <Card className="space-y-5 p-6 text-center">
       <div className="flex flex-col items-center gap-2">
@@ -222,6 +249,10 @@ function TripRecap({
           <span className="text-muted-fg">Today's earnings</span>{" "}
           <span className="font-display font-semibold font-tabular">{npr(todayTotal)}</span>
         </div>
+      )}
+
+      {!rated && (
+        <RateCustomerPrompt rideId={trip.id} customerName={trip.customerName} onDone={() => setRated(true)} />
       )}
 
       <div className="flex flex-col gap-2">

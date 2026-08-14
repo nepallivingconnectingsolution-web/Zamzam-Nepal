@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { RidesModule } from './modules/rides/rides.module';
+import { LocationsModule } from './modules/locations/locations.module';
 import { BusesModule } from './modules/buses/buses.module';
 import { DriverModule } from './modules/driver/driver.module';
 import { VehiclesModule } from './modules/vehicles/vehicles.module';
@@ -54,6 +55,7 @@ import { PasswordResetModule } from './common/password-reset/password-reset.modu
     ProfileModule,
     WalletModule,
     RidesModule,
+    LocationsModule,
     BusesModule,
     DriverModule,
     VehiclesModule,

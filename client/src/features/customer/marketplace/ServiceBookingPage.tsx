@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  Banknote,
   CheckCircle2,
   ChevronDown,
   Circle,
@@ -33,6 +34,7 @@ import { RideChatPanel } from "@/components/shared/ride-chat-panel";
 import { TripStatusStepper } from "@/components/shared/trip-status-stepper";
 import { CancelReasonPrompt } from "@/components/shared/cancel-reason-prompt";
 import { useResource } from "@/hooks/useResource";
+import { useLocationSearch } from "@/hooks/useLocationSearch";
 import { api, ApiError, endpoints } from "@/api/client";
 import { toast } from "@/stores/toast.store";
 import { cn, npr } from "@/lib/utils";
@@ -42,12 +44,13 @@ import { RateTripPrompt } from "./RateTripPrompt";
 const BOOKABLE = ["taxi", "bike", "parcel"] as const;
 type BookableService = (typeof BOOKABLE)[number];
 
-/**
- * Preset pickup/drop-off points — the honest MVP stand-in for address
- * autocomplete until a Mapbox/Google Places key is provisioned (section 4.1
- * of the architecture doc). Coordinates are the real places.
- */
-const SPOTS: { label: string; lat: number; lng: number }[] = [
+export interface Place {
+  label: string;
+  lat: number;
+  lng: number;
+}
+
+const POPULAR_PLACES: Place[] = [
   { label: "Thamel", lat: 27.7154, lng: 85.3123 },
   { label: "New Road", lat: 27.7041, lng: 85.3131 },
   { label: "Tribhuvan Airport", lat: 27.6981, lng: 85.3592 },
@@ -156,14 +159,9 @@ interface CancelledTrip {
   driverName: string | null;
 }
 
-type PickupChoice = { kind: "spot"; index: number } | { kind: "gps"; lat: number; lng: number };
+type PickupChoice = { kind: "place"; place: Place } | { kind: "gps"; lat: number; lng: number };
 
-/**
- * Bottom-sheet place picker — replaces the raw `<select>` used for
- * pickup/drop-off. `leadingAction` renders an extra row above the list
- * (pickup's "Use my current location"); drop-off has none.
- */
-function PlaceField({
+function LocationField({
   label,
   value,
   onPick,
@@ -171,11 +169,23 @@ function PlaceField({
 }: {
   label: string;
   value: string;
-  onPick: (index: number) => void;
-  /** Extra row above the spot list (pickup's "Use my current location"). Its own onClick closes the sheet after running. */
+  onPick: (place: Place) => void;
   leadingAction?: { label: ReactNode; icon: typeof LocateFixed; disabled?: boolean; onClick: () => void };
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const { results, loading, error } = useLocationSearch(query);
+  const searching = query.trim().length >= 2;
+
+  useEffect(() => {
+    if (open) setQuery("");
+  }, [open]);
+
+  function pick(place: Place) {
+    onPick(place);
+    setOpen(false);
+  }
+
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-muted-fg">{label}</label>
@@ -191,7 +201,18 @@ function PlaceField({
       </button>
       <BottomSheet open={open} onClose={() => setOpen(false)} title={label}>
         <div className="space-y-1 pb-2">
-          {leadingAction && (
+          <div className="relative px-0.5 pb-2">
+            <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-fg" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search for a place or address in Nepal…"
+              className="h-11 w-full rounded-xl border border-input bg-surface pl-10 pr-3.5 text-sm outline-none transition-colors focus:ring-2 focus:ring-accent/40"
+            />
+          </div>
+
+          {leadingAction && !searching && (
             <button
               type="button"
               disabled={leadingAction.disabled}
@@ -205,34 +226,63 @@ function PlaceField({
               {leadingAction.label}
             </button>
           )}
-          {SPOTS.map((s, i) => (
-            <button
-              key={s.label}
-              type="button"
-              onClick={() => {
-                onPick(i);
-                setOpen(false);
-              }}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-fg transition-colors active:bg-surface-2"
-            >
-              <MapPin className="size-4 shrink-0 text-muted-fg" /> {s.label}
-            </button>
-          ))}
+
+          {searching ? (
+            loading ? (
+              <p className="flex items-center justify-center gap-2 py-8 text-xs text-muted-fg">
+                <LoaderCircle className="size-3.5 animate-spin" /> Searching…
+              </p>
+            ) : error ? (
+              <p className="py-8 text-center text-xs text-danger">{error}</p>
+            ) : results.length === 0 ? (
+              <p className="py-8 text-center text-xs text-muted-fg">No matches for &ldquo;{query.trim()}&rdquo;.</p>
+            ) : (
+              results.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => pick({ label: r.label, lat: r.lat, lng: r.lng })}
+                  className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-fg transition-colors active:bg-surface-2"
+                >
+                  <MapPin className="mt-0.5 size-4 shrink-0 text-muted-fg" />
+                  <span className="min-w-0">
+                    <span className="block truncate">{r.label}</span>
+                    {r.secondary && (
+                      <span className="block truncate text-xs font-normal text-muted-fg">{r.secondary}</span>
+                    )}
+                  </span>
+                </button>
+              ))
+            )
+          ) : (
+            <>
+              <p className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-muted-fg">Popular</p>
+              {POPULAR_PLACES.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => pick(p)}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-fg transition-colors active:bg-surface-2"
+                >
+                  <MapPin className="size-4 shrink-0 text-muted-fg" /> {p.label}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       </BottomSheet>
     </div>
   );
 }
-
 export function ServiceBookingPage() {
  const { service } = useParams<{ service: string }>();
 const navigate = useNavigate();
 const svc = SERVICES.find((s) => s.id === service);
   const bookable = BOOKABLE.includes(service as BookableService);
 
-  /* ── Booking form state ── */
-  const [pickup, setPickup] = useState<PickupChoice>({ kind: "spot", index: 0 });
-  const [dropIndex, setDropIndex] = useState(2); // Airport by default
+ /* ── Booking form state ── */
+  const [pickup, setPickup] = useState<PickupChoice>({ kind: "place", place: POPULAR_PLACES[0] });
+  const [drop, setDrop] = useState<Place>(POPULAR_PLACES[2]); // Tribhuvan Airport by default
   const [weightKg, setWeightKg] = useState("5");
   const [locating, setLocating] = useState(false);
   const [bookingBusy, setBookingBusy] = useState(false);
@@ -243,9 +293,8 @@ const svc = SERVICES.find((s) => s.id === service);
   const [cancelPromptOpen, setCancelPromptOpen] = useState(false);
 
   const pickupCoords =
-    pickup.kind === "gps" ? { lat: pickup.lat, lng: pickup.lng } : { lat: SPOTS[pickup.index].lat, lng: SPOTS[pickup.index].lng };
-  const pickupLabel = pickup.kind === "gps" ? "My current location" : SPOTS[pickup.index].label;
-  const drop = SPOTS[dropIndex];
+    pickup.kind === "gps" ? { lat: pickup.lat, lng: pickup.lng } : { lat: pickup.place.lat, lng: pickup.place.lng };
+  const pickupLabel = pickup.kind === "gps" ? "My current location" : pickup.place.label;
   const parcelWeight = Math.max(1, Number(weightKg) || 5);
 
   /* ── The customer's live booking, polled so status changes appear alone ── */
@@ -307,6 +356,29 @@ const svc = SERVICES.find((s) => s.id === service);
       // ALREADY_SETTLED means the driver confirmed cash a moment earlier —
       // the refetch lets the closure effect finish the trip as cash.
       toast.error(err instanceof ApiError ? err.message : "Couldn't complete the payment.");
+      activeRide.refetch();
+    } finally {
+      setPayBusy(false);
+    }
+  }
+
+  async function payCash() {
+    if (!ride) return;
+    setPayBusy(true);
+    try {
+      await api.post(endpoints.rides.pay(ride.id), { method: "cash" });
+      settledIdRef.current = ride.id;
+      setFinishedTrip({ id: ride.id, fare: ride.fare, from: ride.from, to: ride.to, driverName: ride.driverName, method: "cash" });
+      toast.success("Trip completed", "Thanks for riding with Zamzam!");
+      activeRide.refetch();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        settledIdRef.current = ride.id;
+        setFinishedTrip({ id: ride.id, fare: ride.fare, from: ride.from, to: ride.to, driverName: ride.driverName, method: "cash" });
+        toast.success("Trip completed", "Thanks for riding with Zamzam!");
+      } else {
+        toast.error(err instanceof ApiError ? err.message : "Couldn't confirm the payment.");
+      }
       activeRide.refetch();
     } finally {
       setPayBusy(false);
@@ -703,9 +775,12 @@ const svc = SERVICES.find((s) => s.id === service);
                         : `Wallet balance ${npr(wallet.data.available)} — not enough for this fare.`
                       : "Checking your wallet balance…"}
                   </p>
-                  <p className="border-t border-border pt-3 text-center text-xs text-muted-fg">
-                    Or hand the driver {npr(ride.fare)} in cash — they'll confirm it and this wraps up automatically.
-                  </p>
+                 <div className="space-y-2 border-t border-border pt-3">
+                    <p className="text-center text-xs text-muted-fg">Already handed the driver {npr(ride.fare)} in cash?</p>
+                    <Button className="w-full" variant="outline" size="lg" disabled={payBusy} onClick={payCash}>
+                      <Banknote className="size-5" /> I've paid in cash
+                    </Button>
+                  </div>
                 </div>
               )}
             </Card>
@@ -780,10 +855,10 @@ const svc = SERVICES.find((s) => s.id === service);
                 <div className="space-y-3">
                   <div className="flex items-end gap-2">
                     <div className="flex-1">
-                      <PlaceField
+                      <LocationField
                         label="Pickup"
                         value={pickupLabel}
-                        onPick={(i) => setPickup({ kind: "spot", index: i })}
+                        onPick={(place) => setPickup({ kind: "place", place })}
                         leadingAction={{
                           label: locating ? "Locating…" : "Use my current location",
                           icon: LocateFixed,
@@ -794,7 +869,7 @@ const svc = SERVICES.find((s) => s.id === service);
                     </div>
                   </div>
 
-                  <PlaceField label="Drop-off" value={drop.label} onPick={setDropIndex} />
+                  <LocationField label="Drop-off" value={drop.label} onPick={setDrop} />
 
                   {service === "parcel" && (
                     <div className="space-y-1.5">

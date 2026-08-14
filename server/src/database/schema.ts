@@ -525,9 +525,11 @@ export const rides = pgTable(
     // Post-trip settlement (Uber-style closure flow). How the fare was paid
     // ('cash' | 'wallet'), when the driver ended the trip, and when payment
     // actually settled. All nullable so every legacy COMPLETED row stays valid.
-    paymentMethod: varchar('payment_method', { length: 16 }),
+   paymentMethod: varchar('payment_method', { length: 16 }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     paidAt: timestamp('paid_at', { withTimezone: true }),
+    cancelledBy: varchar('cancelled_by', { length: 16 }),
+    cancellationReason: text('cancellation_reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -546,6 +548,8 @@ export const rides = pgTable(
  * never has to join back through rides just to filter by driver — and it
  * stays valid even if the ride's driverId reference were ever cleared.
  */
+export const rideReviewerRoleEnum = pgEnum('ride_reviewer_role', ['customer', 'driver']);
+
 export const rideReviews = pgTable(
   'ride_reviews',
   {
@@ -559,13 +563,35 @@ export const rideReviews = pgTable(
     customerId: varchar('customer_id', { length: 32 })
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    reviewerRole: rideReviewerRoleEnum('reviewer_role').notNull().default('customer'),
     rating: integer('rating').notNull(),
     comment: text('comment'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    rideIdx: uniqueIndex('ride_reviews_ride_unique_idx').on(t.rideId),
+    rideReviewerIdx: uniqueIndex('ride_reviews_ride_reviewer_unique_idx').on(t.rideId, t.reviewerRole),
     driverIdx: index('ride_reviews_driver_idx').on(t.driverId),
+    customerIdx: index('ride_reviews_customer_idx').on(t.customerId),
+  }),
+);
+
+export const rideMessages = pgTable(
+  'ride_messages',
+  {
+    id: varchar('id', { length: 32 }).primaryKey(),
+    rideId: varchar('ride_id', { length: 32 })
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }),
+    senderId: varchar('sender_id', { length: 32 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    senderRole: varchar('sender_role', { length: 16 }).notNull(),
+    body: text('body').notNull(),
+    read: boolean('read').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    rideIdx: index('ride_messages_ride_idx').on(t.rideId, t.createdAt),
   }),
 );
 
@@ -1563,6 +1589,11 @@ export const rideReviewsRelations = relations(rideReviews, ({ one }) => ({
   ride: one(rides, { fields: [rideReviews.rideId], references: [rides.id] }),
   driver: one(users, { fields: [rideReviews.driverId], references: [users.id] }),
   customer: one(users, { fields: [rideReviews.customerId], references: [users.id] }),
+}));
+
+export const rideMessagesRelations = relations(rideMessages, ({ one }) => ({
+  ride: one(rides, { fields: [rideMessages.rideId], references: [rides.id] }),
+  sender: one(users, { fields: [rideMessages.senderId], references: [users.id] }),
 }));
 
 export const loadReviewsRelations = relations(loadReviews, ({ one }) => ({
