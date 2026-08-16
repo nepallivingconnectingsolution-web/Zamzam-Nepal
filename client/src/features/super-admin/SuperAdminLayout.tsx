@@ -136,12 +136,16 @@ export function SuperAdminLayout() {
     // carrying the whole navigation under lg.
     <AppFrame fill>
       <SuperTopbar />
-      <main className="min-w-0 flex-1 overflow-x-hidden px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 lg:overflow-y-auto">
-        <ErrorBoundary>
-          <Suspense fallback={<RouteFallback />}>
-            <Outlet />
-          </Suspense>
-        </ErrorBoundary>
+      {/* lg:max-w-6xl mirrors PortalLayout — this console shows the same
+          kind of dense tables/charts and benefits from the extra width. */}
+      <main className="min-w-0 flex-1 overflow-x-hidden px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 lg:overflow-y-auto lg:px-10">
+        <div className="lg:mx-auto lg:max-w-6xl">
+          <ErrorBoundary>
+            <Suspense fallback={<RouteFallback />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
       </main>
 
       <div>
@@ -221,8 +225,8 @@ function SuperTopbar() {
     navigate("/");
   }
 
-  return (
-    <header className="sticky top-0 z-30 flex h-[calc(3.25rem+env(safe-area-inset-top))] shrink-0 items-center gap-3 border-b border-border bg-bg/85 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
+return (
+    <header className="sticky top-0 z-30 flex h-[calc(3.25rem+env(safe-area-inset-top))] shrink-0 items-center gap-3 border-b border-border bg-bg/85 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl lg:px-10">
       {/* No hamburger: the bottom tab bar replaced the slide-out drawer. */}
       <span className="rounded-sm bg-teal-100 px-2 py-1 text-caption font-bold uppercase tracking-widest text-teal-700 dark:bg-white/10 dark:text-white">
         Super Admin

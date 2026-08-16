@@ -60,8 +60,8 @@ export function CustomerShell() {
     // copy of those classes, which then had to be kept in step by hand with
     // the driver, partner and admin shells.
     <AppFrame fill>
-      <header className="sticky top-0 z-30 flex h-[calc(3.25rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-border bg-bg/85 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
-        <Link to="/app" aria-label="Zamzam home">
+    <header className="sticky top-0 z-30 flex h-[calc(3.25rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-border bg-bg/85 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
+        <Link to="/driver" aria-label="Zamzam driver home">
           <Logo />
         </Link>
         <div className="ml-auto flex items-center gap-1">
@@ -69,23 +69,18 @@ export function CustomerShell() {
           <ThemeToggle />
           <button
             type="button"
-            onClick={() => navigate("/app/settings")}
+            onClick={() => setMoreOpen(true)}
             aria-label="Account"
             className="ml-1 rounded-full active:scale-95"
           >
-            <Avatar name={user?.name ?? "Guest"} className="size-8" />
+            <Avatar name={user?.name ?? "Driver"} className="size-8" />
           </button>
         </div>
       </header>
 
-      {/* 10rem clears the tab bar (6rem — taller than it looks, since the
-          active tab's label sits below the icon) PLUS FloatingAssistant's
-          launcher, which floats right above the tab bar. At 6rem alone, a
-          card's bottom edge (e.g. a bus result's price + "Select seats" row)
-          could scroll up underneath the launcher and end up hidden behind it.
-          At lg the frame has a fixed height, so this is the scroll container
-          rather than the page body. */}
-      <main className="flex-1 px-4 pb-[calc(10rem+env(safe-area-inset-bottom))] pt-4 lg:overflow-y-auto">
+      {/* 6rem — same reasoning as CustomerShell: the tab bar grew when the
+          active tab gained a label, and it's translucent. */}
+      <main className="flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 lg:overflow-y-auto">
         <ErrorBoundary>
           <Suspense fallback={<RouteFallback />}>
             <Outlet />
