@@ -88,13 +88,17 @@ export function PortalLayout({ role }: { role: Exclude<Role, "guest"> }) {
 
       {/* 6rem clears the tab bar, which is taller than it looks — the active
           tab's label sits below its icon. At lg the frame has a fixed height,
-          so this element is the scroll container rather than the page body. */}
-      <main className="min-w-0 flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 lg:overflow-y-auto">
-        <ErrorBoundary>
-          <Suspense fallback={<RouteFallback />}>
-            <Outlet />
-          </Suspense>
-        </ErrorBoundary>
+          so this element is the scroll container rather than the page body.
+          lg:max-w-6xl is wider than the customer/driver shells since these
+          portals show tables and ledgers that benefit from the extra room. */}
+      <main className="min-w-0 flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 lg:overflow-y-auto lg:px-10">
+        <div className="lg:mx-auto lg:max-w-6xl">
+          <ErrorBoundary>
+            <Suspense fallback={<RouteFallback />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
       </main>
 
       <TabBar items={tabs} />
@@ -161,7 +165,7 @@ function Topbar({ role, navTitle }: { role: PortalNavRole; navTitle: string }) {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-[calc(3.25rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-border bg-bg/85 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
+   <header className="sticky top-0 z-30 flex h-[calc(3.25rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-border bg-bg/85 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl lg:px-10">
       <Link to={ROLE_HOME[role]} className="flex min-w-0 items-center gap-2" aria-label="Zamzam home">
         <Logo />
         {/* Which portal you're in. The sidebar used to say this above its nav

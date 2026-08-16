@@ -43,7 +43,7 @@ export function DriverShell() {
 
   return (
     <AppFrame fill>
-      <header className="sticky top-0 z-30 flex h-[calc(3.25rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-border bg-bg/85 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl">
+      <header className="sticky top-0 z-30 flex h-[calc(3.25rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-border bg-bg/85 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl lg:px-10">
         <Link to="/driver" aria-label="Zamzam driver home">
           <Logo />
         </Link>
@@ -62,13 +62,16 @@ export function DriverShell() {
       </header>
 
       {/* 6rem — same reasoning as CustomerShell: the tab bar grew when the
-          active tab gained a label, and it's translucent. */}
-      <main className="flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 lg:overflow-y-auto">
-        <ErrorBoundary>
-          <Suspense fallback={<RouteFallback />}>
-            <Outlet />
-          </Suspense>
-        </ErrorBoundary>
+          active tab gained a label, and it's translucent. The lg:max-w-5xl
+          wrapper keeps page content at a readable width on a wide screen. */}
+      <main className="flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 lg:overflow-y-auto lg:px-10">
+        <div className="lg:mx-auto lg:max-w-5xl">
+          <ErrorBoundary>
+            <Suspense fallback={<RouteFallback />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
       </main>
 
       <TabBar items={tabs} />
