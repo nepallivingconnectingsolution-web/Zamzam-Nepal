@@ -45,6 +45,23 @@ services:
       - "4000"
     networks: [zamzam_net]
 
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+      args:
+        VITE_API_URL: https://api.zamzam.com.np
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    networks: [zamzam_net]
+
 networks:
   zamzam_net:
 
@@ -52,3 +69,5 @@ volumes:
   postgres_data:
   redis_data:
   uploads_data:
+  certbot_conf:
+  certbot_www:
