@@ -19,6 +19,8 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/src/database ./src/database
 COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/drizzle.config.ts ./drizzle.config.ts
+# Backup scripts (backup.sh, prune-b2.ts) run via sh and npx tsx at runtime
+COPY scripts ./scripts
 RUN npm install tsx --no-save
 RUN mkdir -p uploads
 EXPOSE 4000
