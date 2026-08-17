@@ -41,10 +41,11 @@ KVM4 VPS, served at `zamzam.com.np`.
                         ┌─────────────────────────────────────────┐
                         │         Hostinger KVM4 VPS               │
                         │                                           │
-  zamzam.com.np ───────▶│  nginx (TLS via certbot/Let's Encrypt)    │
-  (A record)             │   ├── / (static)  → client dist/         │
-                        │   └── /api/* → proxy → api:4000           │
-                        │                                           │
+  zamzam.com.np,          │  nginx (TLS via certbot/Let's Encrypt,   │
+  www.zamzam.com.np ────▶│   one SAN cert for all 3 hostnames)      │
+  (A records)             │   ├── zamzam.com.np      → client dist/ │
+  api.zamzam.com.np ────▶│   └── api.zamzam.com.np  → proxy api:4000│
+  (A record)              │                                           │
                         │  ┌────────┐  ┌──────────┐  ┌───────────┐  │
                         │  │  api   │──│ postgres │  │   redis   │  │
                         │  │ (Nest) │  │  (data   │  │ (sessions,│  │
@@ -90,10 +91,23 @@ Single `docker-compose.yml` at the repo root defining:
 is left in place but unused (or removed at implementation time if that's
 cleaner).
 
-**DNS/TLS:** `zamzam.com.np` and `www.zamzam.com.np` → VPS IP (A records).
-Certbot issues/renews Let's Encrypt certs; nginx redirects HTTP → HTTPS.
-API is reached at `zamzam.com.np/api/*` (path-based routing through the
-same nginx vhost) — no separate `api.` subdomain/cert needed.
+**DNS/TLS:** `zamzam.com.np`, `www.zamzam.com.np`, and `api.zamzam.com.np`
+→ VPS IP (A records). Certbot issues one Let's Encrypt cert covering all
+three (SAN cert, one `certbot` invocation); nginx redirects HTTP → HTTPS.
+
+**Correction from the original draft:** the API is reached at
+`api.zamzam.com.np` (its own nginx server block, proxied to the `api`
+container), not a `zamzam.com.np/api/*` path prefix. The NestJS app has
+no global route prefix today — controllers are mounted at bare paths
+(`/auth`, `/driver/documents`, etc.) and `/uploads/*` is served by Nest
+itself via `useStaticAssets`. Retrofitting a `/api` prefix would mean
+touching every controller and carving out an exception for
+`/uploads`, for no real benefit. The client already reads its API base
+from a single `VITE_API_URL` env var
+(`client/src/api/client.ts`), so pointing it at a subdomain is a
+zero-code-change, build-time config value — the simpler and lower-risk
+option, at the cost of one extra DNS record covered by the same
+certificate.
 
 ### 2. Database — self-hosted Postgres
 
@@ -105,17 +119,22 @@ same nginx vhost) — no separate `api.` subdomain/cert needed.
 - `POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_DB` set via a top-level
   `.env` consumed by docker-compose.
 
-### 3. Redis — sessions + rate limiting
+### 3. Redis — rate limiting
 
 - `@nestjs/throttler`'s storage backed by Redis (e.g.
   `@nest-lab/throttler-storage-redis`) instead of the current in-memory
-  store, so auth rate limits (`AUTH_RATE_LIMIT_*`) survive app restarts
-  and would work correctly if ever scaled to >1 instance.
-- Refresh-token/session state stored in Redis, keyed by user id, TTL
-  matching `JWT_REFRESH_EXPIRES_IN`. Enables server-side session
-  revocation (logout-everywhere), which pure stateless JWT can't do
-  today.
+  store, so both the general API limiter and the stricter auth-endpoint
+  `@Throttle()` overrides survive app restarts and would work correctly
+  if ever scaled to >1 instance.
 - `REDIS_URL=redis://redis:6379` env var.
+- **Correction from the original draft:** refresh-token/session state is
+  already durable in Postgres (`refreshTokens` table, keyed by `jti`,
+  revocable per-device — see `auth.service.ts`), so there is no session
+  data to move to Redis. Logout-everywhere already works by deleting a
+  user's `refreshTokens` rows; the only residual exposure is that an
+  already-issued *access* token (15 min TTL) keeps working until it
+  naturally expires, which is an accepted tradeoff, not a gap being
+  closed by this project.
 
 ### 4. Email — Resend (unchanged)
 
@@ -141,11 +160,21 @@ same nginx vhost) — no separate `api.` subdomain/cert needed.
 
 - Scope: the two real upload endpoints today —
   `server/src/modules/driver-documents` and
-  `server/src/modules/partner-documents`.
-- Flow: on upload, before the file is written to disk, call Rekognition
-  `DetectModerationLabels` with the raw multer buffer (inline bytes, no
-  S3 round-trip needed — Rekognition accepts up to 5MB inline, comfortably
-  covering document photos).
+  `server/src/modules/partner-documents`. Both currently accept
+  `image/jpeg`, `image/png`, `image/webp`, or `application/pdf` and use
+  multer's `diskStorage`, which streams straight to disk with no buffer
+  available to inspect first.
+- Both controllers switch from `diskStorage` to `memoryStorage` so the
+  file bytes are available in memory before anything is written; the
+  service layer writes the buffer to disk itself only after moderation
+  passes.
+- Flow: on upload, for image mimetypes only, call Rekognition
+  `DetectModerationLabels` with the raw buffer (inline bytes, no S3
+  round-trip needed — Rekognition accepts up to 5MB inline, comfortably
+  covering document photos; the existing 5MB `MAX_FILE_SIZE_BYTES` limit
+  already enforces this). `application/pdf` uploads are **not** sent to
+  Rekognition (it doesn't moderate PDFs) and pass straight through, same
+  as today.
 - If any returned label exceeds a configured confidence threshold
   (default 80%, tunable via `REKOGNITION_MIN_CONFIDENCE`) for categories
   like explicit/inappropriate content, the upload is rejected with a 422
