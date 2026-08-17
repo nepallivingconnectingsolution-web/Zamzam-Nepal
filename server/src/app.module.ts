@@ -26,6 +26,7 @@ import { SupportModule } from './modules/support/support.module';
 import { MaintenanceGuard } from './common/guards/maintenance.guard';
 import { MailerModule } from './common/mailer/mailer.module';
 import { PasswordResetModule } from './common/password-reset/password-reset.module';
+import { buildThrottlerStorage } from './common/throttler/redis-throttler-storage';
 
 
 @Module({
@@ -44,6 +45,7 @@ import { PasswordResetModule } from './common/password-reset/password-reset.modu
             limit: Number(config.get('API_RATE_LIMIT_LIMIT') ?? 300),
           },
         ],
+        storage: buildThrottlerStorage(config.get<string>('REDIS_URL')),
       }),
     }),
     ScheduleModule.forRoot(),

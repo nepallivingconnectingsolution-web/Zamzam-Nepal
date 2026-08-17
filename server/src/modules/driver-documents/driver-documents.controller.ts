@@ -9,8 +9,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { memoryStorage } from 'multer';
 import { DriverDocumentsService } from './driver-documents.service';
 import { DRIVER_DOCUMENT_TYPES, type DriverDocumentType } from './dto/driver-documents.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -18,8 +17,6 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/jwt.strategy';
-import { DRIVER_DOCUMENTS_DIR, ensureDriverDocumentsDir } from './storage';
-import { id } from '../../common/id';
 
 /** Photos of physical documents and scanned PDFs — nothing else. */
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -45,13 +42,10 @@ export class DriverDocumentsController {
   @Post(':type')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => {
-          ensureDriverDocumentsDir();
-          cb(null, DRIVER_DOCUMENTS_DIR);
-        },
-        filename: (_req, file, cb) => cb(null, `${id('doc')}${extname(file.originalname).toLowerCase()}`),
-      }),
+      // memoryStorage (not diskStorage) so the buffer is available for
+      // Rekognition moderation before anything is written to disk — see
+      // driver-documents.service.ts's upload().
+      storage: memoryStorage(),
       limits: { fileSize: MAX_FILE_SIZE_BYTES },
       fileFilter: (_req, file, cb) => {
         if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {

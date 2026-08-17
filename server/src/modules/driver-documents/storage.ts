@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, unlinkSync } from 'fs';
-import { join } from 'path';
+import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'fs';
+import { join, extname } from 'path';
+import { id } from '../../common/id';
 
 /**
  * Driver documents are stored on local disk (not S3 — this deployment has
@@ -14,6 +15,18 @@ export const DRIVER_DOCUMENTS_DIR = join(process.cwd(), 'uploads', 'driver-docum
 
 export function ensureDriverDocumentsDir(): void {
   if (!existsSync(DRIVER_DOCUMENTS_DIR)) mkdirSync(DRIVER_DOCUMENTS_DIR, { recursive: true });
+}
+
+/**
+ * Writes an in-memory upload buffer to disk under a random filename and
+ * returns that filename. Called only after moderation (for images) has
+ * already passed — see driver-documents.service.ts's upload().
+ */
+export function writeDriverDocumentFile(buffer: Buffer, originalName: string): string {
+  ensureDriverDocumentsDir();
+  const filename = `${id('doc')}${extname(originalName).toLowerCase()}`;
+  writeFileSync(join(DRIVER_DOCUMENTS_DIR, filename), buffer);
+  return filename;
 }
 
 /** Best-effort cleanup of the previous file when a document is re-uploaded. Never blocks the request. */
