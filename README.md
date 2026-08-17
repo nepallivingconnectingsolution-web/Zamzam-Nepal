@@ -56,3 +56,27 @@ in this repo.
 
 Full documentation lives in `client/README.md`, `client/ARCHITECTURE.md`,
 and `server/README.md`.
+
+## Deploying to the VPS
+
+One-time setup on a fresh Hostinger KVM4 VPS:
+
+1. Install Docker + Docker Compose plugin (see Docker's official install docs for the VPS's distro).
+2. Point DNS: create A records for `zamzam.com.np`, `www.zamzam.com.np`, and `api.zamzam.com.np`, all pointing at the VPS's public IP. Wait for propagation (`dig zamzam.com.np` should return the VPS IP).
+3. Clone this repo onto the VPS, `cd` into it.
+4. `cp .env.example .env` and `cp server/.env.example server/.env`, fill in every value (strong Postgres password, JWT secrets via `openssl rand -base64 48`, Resend API key, AWS keys, B2 keys, Sentry DSN — see each file's comments).
+5. `docker compose up -d postgres redis` and wait for both to report healthy (`docker compose ps`).
+6. `docker compose run --rm api npx tsx src/database/migrate.ts` then `docker compose run --rm api npx tsx src/database/seed-super-admin.ts`.
+7. `docker compose up -d --build` — brings up `api` and `nginx` (HTTP only at this point).
+8. Issue the TLS certificate:
+   ```bash
+   docker compose run --rm nginx certbot --nginx \
+     -d zamzam.com.np -d www.zamzam.com.np -d api.zamzam.com.np \
+     --non-interactive --agree-tos -m <your-email>
+   docker compose restart nginx
+   ```
+9. Verify: `curl -I https://zamzam.com.np` and `curl -I https://api.zamzam.com.np/auth/me` both succeed over HTTPS.
+
+Certbot's container sets up its own renewal timer; confirm with `docker compose exec nginx certbot renew --dry-run` after step 8.
+
+Redeploying after a code change: `git pull && docker compose up -d --build api nginx`.
