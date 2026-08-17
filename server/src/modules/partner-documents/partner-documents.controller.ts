@@ -3,8 +3,7 @@ import {
   UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { memoryStorage } from 'multer';
 import { PartnerDocumentsService } from './partner-documents.service';
 import { PARTNER_DOCUMENT_CATALOG, type PartnerType } from './dto/partner-documents.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -12,8 +11,6 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/jwt.strategy';
-import { PARTNER_DOCUMENTS_DIR, ensurePartnerDocumentsDir } from './storage';
-import { id } from '../../common/id';
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
@@ -32,13 +29,7 @@ export class PartnerDocumentsController {
   @Post(':type')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => {
-          ensurePartnerDocumentsDir();
-          cb(null, PARTNER_DOCUMENTS_DIR);
-        },
-        filename: (_req, file, cb) => cb(null, `${id('doc')}${extname(file.originalname).toLowerCase()}`),
-      }),
+      storage: memoryStorage(),
       limits: { fileSize: MAX_FILE_SIZE_BYTES },
       fileFilter: (_req, file, cb) => {
         if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
