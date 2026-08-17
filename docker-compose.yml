@@ -28,9 +28,27 @@ services:
       retries: 10
     networks: [zamzam_net]
 
+  api:
+    build:
+      context: ./server
+    restart: unless-stopped
+    env_file:
+      - ./server/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
+    expose:
+      - "4000"
+    networks: [zamzam_net]
+
 networks:
   zamzam_net:
 
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:
