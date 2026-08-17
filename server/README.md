@@ -3,6 +3,8 @@
 Production backend for the Zamzam Super App — NestJS, Drizzle ORM, Neon
 (serverless Postgres), JWT auth.
 
+> For the full self-hosted production setup (Docker Compose, Postgres/Redis, Nginx/TLS, backups), see the repo root `README.md` and `docs/superpowers/specs/2026-08-17-production-infrastructure-design.md`.
+
 ## Stack
 
 - **NestJS 10** — modules, guards, pipes, DI
