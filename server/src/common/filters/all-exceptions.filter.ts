@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import * as Sentry from '@sentry/nestjs';
 
 /**
  * Normalises every thrown error into the shape the frontend already expects:
@@ -57,7 +58,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.error('Unknown exception thrown', JSON.stringify(exception));
     }
 
+    // Only report real bugs, not expected 4xx client errors (bad input,
+    // auth failures, etc) — those would drown out actual signal in Sentry.
     if (status >= 500) {
+      Sentry.captureException(exception);
       this.logger.error(`${request.method} ${request.url} -> ${status}: ${message}`);
     }
 

@@ -8,6 +8,8 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
+import * as Sentry from '@sentry/nestjs';
+import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ensureDriverDocumentsDir } from './modules/driver-documents/storage';
@@ -44,6 +46,16 @@ process.on('uncaughtException', (err) => {
 });
 
 async function bootstrap() {
+  const nodeEnv = process.env.NODE_ENV ?? 'development';
+  if (nodeEnv === 'production' && process.env.SENTRY_DSN_SERVER) {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN_SERVER,
+      environment: nodeEnv,
+      integrations: [nodeProfilingIntegration()],
+      tracesSampleRate: 0.1,
+    });
+  }
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
@@ -59,6 +71,12 @@ async function bootstrap() {
       throw new Error(
         `Refusing to start in production with weak/placeholder secrets: ${weak.join(', ')}. ` +
           'Generate strong values, e.g. `openssl rand -base64 48`.',
+      );
+    }
+    if (!config.get<string>('AWS_REGION')) {
+      throw new Error(
+        'Refusing to start in production without AWS_REGION set — uploads would go unmoderated. ' +
+          'Set AWS_REGION/AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY in server/.env.',
       );
     }
   }
