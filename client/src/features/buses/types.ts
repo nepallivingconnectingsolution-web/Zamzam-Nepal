@@ -201,7 +201,7 @@ export interface BusReview {
   createdAt: string;
 }
 
-/** A review as seen by the operator, with enough booking context to place it. */
+/** A review as seen by the operator, with enough booking context to place it — matches BusesService.operatorReviews. */
 export interface PartnerBusReview {
   id: string;
   rating: number;
@@ -209,8 +209,9 @@ export interface PartnerBusReview {
   createdAt: string;
   customerName: string;
   bookingRef: string;
-  route: string;
-  date: string;
+  from: string;
+  to: string;
+  tripDate: string;
 }
 
 export interface BusReviewSummary {

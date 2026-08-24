@@ -27,17 +27,15 @@ export interface GeneratedTrip {
 }
 
 /**
- * Generates dated departures for a schedule template, looking ~21 days
- * ahead — the exact horizon and once/daily/weekly semantics from the
- * original mock engine's `generateTrips()`. Re-running this for the same
- * schedule on a later day naturally extends coverage further into the
- * future (see buses.cron.ts), since it always looks forward from "today".
+ * Generates dated departures for a schedule, looking
+ * TRIP_GENERATION_HORIZON_DAYS ahead of "today". Always anchored to today
+ * rather than the schedule's original validFrom, so re-running this later
+ * (see buses.cron.ts) naturally extends coverage further out.
  */
 export function generateTripsForSchedule(schedule: ScheduleRow, busAmenities: string[]): GeneratedTrip[] {
-  const out: GeneratedTrip[] = [];
   const start = todayIso();
 
-  const make = (date: string): GeneratedTrip => ({
+  const makeTrip = (date: string): GeneratedTrip => ({
     id: id('trip'),
     scheduleId: schedule.id,
     operatorId: schedule.operatorId,
@@ -58,24 +56,19 @@ export function generateTripsForSchedule(schedule: ScheduleRow, busAmenities: st
   });
 
   if (schedule.frequency === 'once') {
-    if (schedule.onceDate && schedule.onceDate >= start) {
-      out.push(make(schedule.onceDate));
-    }
-    return out;
+    return schedule.onceDate && schedule.onceDate >= start ? [makeTrip(schedule.onceDate)] : [];
   }
 
-  const from = schedule.validFrom && schedule.validFrom > start ? schedule.validFrom : start;
-  const until = schedule.validUntil ?? addDaysIso(start, TRIP_GENERATION_HORIZON_DAYS);
+  const rangeStart = schedule.validFrom > start ? schedule.validFrom : start;
+  const rangeEnd = schedule.validUntil ?? addDaysIso(start, TRIP_GENERATION_HORIZON_DAYS);
 
-  let d = from;
-  let i = 0;
-  while (d <= until && i < TRIP_GENERATION_HORIZON_DAYS) {
-    const dow = dayOfWeek(d);
-    if (schedule.frequency === 'daily' || (schedule.frequency === 'weekly' && schedule.operatingDays.includes(dow))) {
-      out.push(make(d));
-    }
-    d = addDaysIso(d, 1);
-    i++;
+  const out: GeneratedTrip[] = [];
+  let date = rangeStart;
+  for (let i = 0; i < TRIP_GENERATION_HORIZON_DAYS && date <= rangeEnd; i++, date = addDaysIso(date, 1)) {
+    const runsToday =
+      schedule.frequency === 'daily' ||
+      (schedule.frequency === 'weekly' && schedule.operatingDays.includes(dayOfWeek(date)));
+    if (runsToday) out.push(makeTrip(date));
   }
   return out;
 }

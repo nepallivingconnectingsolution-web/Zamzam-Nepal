@@ -20,13 +20,6 @@ import { AMENITIES, NEPAL_CITIES } from "./types";
 
 const LOW_SEATS_THRESHOLD = 5;
 
-/**
- * Only categories that honestly fall out of the real BUS_TYPES taxonomy
- * (see types.ts) — "AC Deluxe"/"AC Tourist" start with "AC ", "Non-AC …"
- * types start with "Non-AC ", sleeper types contain "Sleeper". No invented
- * category (e.g. a "Luxury" bucket) gets a chip since nothing in the data
- * actually distinguishes that.
- */
 type TypeFilter = "all" | "ac" | "non-ac" | "sleeper";
 const TYPE_FILTERS: { id: TypeFilter; label: string }[] = [
   { id: "all", label: "All" },
@@ -51,7 +44,7 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: "duration", label: "Shortest duration" },
 ];
 
-/** "7h 30m" / "45m" / "2h" -> minutes. Unparseable input sorts last, not crashes. */
+/** "7h 30m" / "45m" -> minutes. Unparseable input sorts last, doesn't crash. */
 function durationMinutes(duration: string): number {
   const h = /(\d+)\s*h/.exec(duration);
   const m = /(\d+)\s*m/.exec(duration);
@@ -59,20 +52,18 @@ function durationMinutes(duration: string): number {
   return total || Number.POSITIVE_INFINITY;
 }
 
-/** "18:30" -> 1110 (minutes since midnight), for chronological sort. */
+/** "07:00 AM" -> minutes since midnight, for chronological sort. */
 function timeMinutes(time: string): number {
-  const match = /^(\d{1,2}):(\d{2})/.exec(time);
-  if (!match) return Number.POSITIVE_INFINITY;
-  return Number(match[1]) * 60 + Number(match[2]);
+  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)?/i.exec(time);
+  if (!m) return Number.POSITIVE_INFINITY;
+  let h = Number(m[1]);
+  if (m[3]?.toUpperCase() === "PM" && h !== 12) h += 12;
+  if (m[3]?.toUpperCase() === "AM" && h === 12) h = 0;
+  return h * 60 + Number(m[2]);
 }
 
 /* --------------------------- Recent searches ------------------------------- */
-// Plain localStorage, not a store — this is page-local, best-effort UX sugar,
-// not app state anything else needs to read.
-interface RecentRoute {
-  from: string;
-  to: string;
-}
+interface RecentRoute { from: string; to: string }
 const RECENT_KEY = "zz_recent_bus_searches";
 const MAX_RECENT = 5;
 
@@ -92,8 +83,7 @@ function saveRecentSearches(list: RecentRoute[]) {
   try {
     localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, MAX_RECENT)));
   } catch {
-    // Private-mode / quota-full localStorage — recent searches just won't
-    // persist this session, nothing else depends on it.
+    // Private-mode / quota-full localStorage — best-effort UX sugar only.
   }
 }
 
@@ -102,8 +92,6 @@ export function BusListPage() {
   const [to, setTo] = useState("");
   const [date, setDate] = useState("");
   const [applied, setApplied] = useState({ from: "", to: "", date: "" });
-  // Keeps spinning the same direction on repeated taps instead of snapping
-  // back to 0deg each time — a running angle, not a boolean toggle.
   const [swapRotation, setSwapRotation] = useState(0);
 
   function handleSwap() {
@@ -133,18 +121,13 @@ export function BusListPage() {
     setApplied({ from: f, to: t, date: d });
     if (f.trim() && t.trim()) {
       setRecent((prev) => {
-        const next = [{ from: f, to: t }, ...prev.filter((r) => !(r.from === f && r.to === t))].slice(
-          0,
-          MAX_RECENT,
-        );
+        const next = [{ from: f, to: t }, ...prev.filter((r) => !(r.from === f && r.to === t))].slice(0, MAX_RECENT);
         saveRecentSearches(next);
         return next;
       });
     }
   }
 
-  // Only surfaced on the unfiltered "browse everything" view — once a route
-  // is actually searched, popular-elsewhere routes aren't relevant anymore.
   const popularRoutes = useMemo(() => {
     if (applied.from || applied.to) return [];
     const counts = new Map<string, { from: string; to: string; count: number }>();
@@ -154,9 +137,7 @@ export function BusListPage() {
       if (existing) existing.count += 1;
       else counts.set(key, { from: b.from, to: b.to, count: 1 });
     }
-    return [...counts.values()]
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 6);
+    return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 6);
   }, [buses.data, applied.from, applied.to]);
 
   const visibleBuses = useMemo(() => {
@@ -164,7 +145,7 @@ export function BusListPage() {
     if (sort === "price") return [...rows].sort((a, b) => a.price - b.price);
     if (sort === "departure") return [...rows].sort((a, b) => timeMinutes(a.departure) - timeMinutes(b.departure));
     if (sort === "duration") return [...rows].sort((a, b) => durationMinutes(a.duration) - durationMinutes(b.duration));
-    return rows; // "recommended" — server's own order
+    return rows;
   }, [buses.data, typeFilter, sort]);
 
   return (
@@ -179,16 +160,16 @@ export function BusListPage() {
         }
       />
 
-      {/* Search bar */}
       <Card className="p-5">
-        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+        {/* The From/To pair holds two text inputs plus a swap button, so it
+            needs roughly twice a single field's share of the row — giving it
+            the same 1fr as Date (which is one field) starved it down to
+            where the swap button's opaque circle, centered across the whole
+            pair, covered most of the From field and all of the To field. */}
+        <div className="grid gap-3 md:grid-cols-[2fr_1fr_auto] md:items-end">
           <div className="relative grid gap-3 md:grid-cols-2">
-            <Field label="From">
-              <CityInput value={from} onChange={setFrom} placeholder="Departure city" />
-            </Field>
-            <Field label="To">
-              <CityInput value={to} onChange={setTo} placeholder="Destination city" />
-            </Field>
+            <Field label="From"><CityInput value={from} onChange={setFrom} placeholder="Departure city" /></Field>
+            <Field label="To"><CityInput value={to} onChange={setTo} placeholder="Destination city" /></Field>
             <motion.button
               type="button"
               onClick={handleSwap}
@@ -205,9 +186,7 @@ export function BusListPage() {
             <Search className="size-4" /> Search
           </Button>
         </div>
-        <p className="mt-3 text-xs text-muted-fg">
-          Leave fields empty to browse every active bus added by operators.
-        </p>
+        <p className="mt-3 text-xs text-muted-fg">Leave fields empty to browse every active bus added by operators.</p>
 
         {recent.length > 0 && (
           <div className="mt-4 border-t border-border pt-4">
@@ -236,57 +215,33 @@ export function BusListPage() {
         )}
       </Card>
 
-      {/* Filters + sort — only worth showing once there's something to filter */}
-    {(buses.data?.length ?? 0) > 0 && (
+      {(buses.data?.length ?? 0) > 0 && (
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1">
             {TYPE_FILTERS.map((f) => (
-              <Chip key={f.id} selected={typeFilter === f.id} onClick={() => setTypeFilter(f.id)}>
-                {f.label}
-              </Chip>
+              <Chip key={f.id} selected={typeFilter === f.id} onClick={() => setTypeFilter(f.id)}>{f.label}</Chip>
             ))}
           </div>
-          <SelectField
-            value={sort}
-            onChange={(v) => setSort(v as SortOption)}
-            options={SORT_OPTIONS}
-            placeholder="Sort"
-            className="w-full shrink-0 sm:w-44"
-          />
+          <SelectField value={sort} onChange={(v) => setSort(v as SortOption)} options={SORT_OPTIONS} placeholder="Sort" className="w-full shrink-0 sm:w-44" />
         </div>
       )}
 
-      {/* Results */}
       <AsyncBoundary
         state={buses.state}
         onRetry={buses.refetch}
         label="Buses"
-        empty={
-          <EmptyState
-            icon={<Bus className="size-6" />}
-            title="No buses found"
-            description="No active schedules match your search yet. Try different cities or clear the filters."
-          />
-        }
+        empty={<EmptyState icon={<Bus className="size-6" />} title="No buses found" description="No active schedules match your search yet. Try different cities or clear the filters." />}
       >
         {visibleBuses.length === 0 ? (
           <EmptyState
             icon={<Bus className="size-6" />}
             title="No buses match this filter"
             description="Try a different bus type, or switch back to All."
-            action={
-              typeFilter !== "all" ? (
-                <Button variant="accent" onClick={() => setTypeFilter("all")}>
-                  Clear filter
-                </Button>
-              ) : undefined
-            }
+            action={typeFilter !== "all" ? <Button variant="accent" onClick={() => setTypeFilter("all")}>Clear filter</Button> : undefined}
           />
         ) : (
           <div className="space-y-3">
-            {visibleBuses.map((b) => (
-              <BusResultCard key={b.id} bus={b} />
-            ))}
+            {visibleBuses.map((b) => <BusResultCard key={b.id} bus={b} />)}
           </div>
         )}
       </AsyncBoundary>
@@ -313,35 +268,27 @@ function BusResultCard({ bus }: { bus: BusSearchResult }) {
 
   return (
     <Card className="overflow-hidden">
-      {/* Hierarchy is fixed by the system: times and price are Display-weight
-          and the largest things here. Operator, type, rating and seat count
-          are all Body-small or Caption — they're what you check AFTER the
-          card has already earned a look. */}
       <button
         type="button"
         onClick={() => canExpand && setExpanded((v) => !v)}
         className={cn("w-full p-5 text-left", canExpand && "cursor-pointer")}
         aria-expanded={canExpand ? expanded : undefined}
       >
-        {/* Journey: departure — terrain — arrival */}
         <div className="flex items-center gap-3">
           <div className="shrink-0">
             <p className="font-display text-h1 font-extrabold font-tabular leading-none">{bus.departure}</p>
             <p className="mt-1 text-caption text-muted-fg">{bus.from}</p>
           </div>
-
           <div className="min-w-0 flex-1 px-1 text-center text-teal-700 dark:text-accent">
             <TerrainLine variant="mini" />
             <p className="mt-1 text-caption text-muted-fg">{bus.duration}</p>
           </div>
-
           <div className="shrink-0 text-right">
             <p className="font-display text-h1 font-extrabold font-tabular leading-none">{bus.arrival}</p>
             <p className="mt-1 text-caption text-muted-fg">{bus.to}</p>
           </div>
         </div>
 
-        {/* Operator line — deliberately quiet */}
         <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-body-sm text-muted-fg">
           <Bus className="size-3.5 shrink-0" />
           <span className="font-medium text-fg">{bus.operator}</span>
@@ -355,12 +302,9 @@ function BusResultCard({ bus }: { bus: BusSearchResult }) {
           )}
         </div>
 
-        {/* Price + action */}
         <div className="mt-4 flex items-end justify-between gap-4 border-t border-border pt-4">
           <div>
-            <p className="font-display text-h1 font-extrabold font-tabular leading-none">
-              रू {bus.price.toLocaleString()}
-            </p>
+            <p className="font-display text-h1 font-extrabold font-tabular leading-none">रू {bus.price.toLocaleString()}</p>
             {soldOut ? (
               <p className="mt-1 text-caption text-muted-fg">Sold out</p>
             ) : lowSeats ? (
@@ -369,27 +313,14 @@ function BusResultCard({ bus }: { bus: BusSearchResult }) {
               <p className="mt-1 text-caption text-muted-fg">{bus.seatsLeft} seats left</p>
             )}
           </div>
-
           <div className="flex items-center gap-2">
             {canExpand && (
-              <ChevronDown
-                className={cn(
-                  "size-4 shrink-0 text-muted-fg transition-transform duration-base ease-standard",
-                  expanded && "rotate-180",
-                )}
-                aria-hidden
-              />
+              <ChevronDown className={cn("size-4 shrink-0 text-muted-fg transition-transform duration-base ease-standard", expanded && "rotate-180")} aria-hidden />
             )}
             {soldOut ? (
-              <Button variant="secondary" disabled onClick={(e) => e.stopPropagation()}>
-                Full
-              </Button>
+              <Button variant="secondary" disabled onClick={(e) => e.stopPropagation()}>Full</Button>
             ) : (
-              <Link
-                to={`/app/buses/${bus.id}`}
-                onClick={(e) => e.stopPropagation()}
-                className={cn(buttonVariants({ variant: "accent" }))}
-              >
+              <Link to={`/app/buses/${bus.id}`} onClick={(e) => e.stopPropagation()} className={cn(buttonVariants({ variant: "accent" }))}>
                 Select seats
               </Link>
             )}
@@ -411,18 +342,12 @@ function BusResultCard({ bus }: { bus: BusSearchResult }) {
                 <div>
                   <p className="mb-1.5 text-xs font-medium text-muted-fg">All amenities</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {bus.amenities.map((a) => (
-                      <AmenityChip key={a} id={a} />
-                    ))}
+                    {bus.amenities.map((a) => <AmenityChip key={a} id={a} />)}
                   </div>
                 </div>
               )}
               {bus.busPhoto ? (
-                <img
-                  src={bus.busPhoto}
-                  alt={`${bus.operator} bus`}
-                  className="h-40 w-full rounded-xl border border-border object-cover"
-                />
+                <img src={bus.busPhoto} alt={`${bus.operator} bus`} className="h-40 w-full rounded-xl border border-border object-cover" />
               ) : (
                 <div className="flex h-24 items-center justify-center gap-2 rounded-xl border border-dashed border-border text-xs text-muted-fg">
                   <ImageOff className="size-4" /> No bus photo yet
@@ -445,27 +370,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function CityInput({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-}) {
+function CityInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
     <>
-      <Input
-        list="nepal-cities"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-      />
+      <Input list="nepal-cities" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
       <datalist id="nepal-cities">
-        {NEPAL_CITIES.map((c) => (
-          <option key={c} value={c} />
-        ))}
+        {NEPAL_CITIES.map((c) => <option key={c} value={c} />)}
       </datalist>
     </>
   );

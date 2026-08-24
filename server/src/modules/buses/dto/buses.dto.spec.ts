@@ -1,6 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { BookBusDto, RegisterBusDto } from './buses.dto';
+import { BookBusDto, CreateScheduleDto, RegisterBusDto, UpdateTripStatusDto } from './buses.dto';
 
 const validPassenger = {
   firstName: 'Anita',
@@ -76,5 +76,86 @@ describe('RegisterBusDto', () => {
         (e) => e.property === 'totalSeats',
       ),
     ).toBe(true);
+  });
+});
+
+describe('CreateScheduleDto', () => {
+  const base = {
+    busId: 'bus_1',
+    fromCity: 'Kathmandu',
+    toCity: 'Pokhara',
+    departureTime: '07:00 AM',
+    arrivalTime: '01:30 PM',
+    price: 1500,
+    frequency: 'once',
+    onceDate: '2026-04-01',
+  };
+
+  it('accepts a valid one-time schedule', async () => {
+    const errors = await validate(plainToInstance(CreateScheduleDto, base));
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts a valid daily schedule with validFrom/validUntil', async () => {
+    const { onceDate: _onceDate, ...rest } = base;
+    const errors = await validate(
+      plainToInstance(CreateScheduleDto, { ...rest, frequency: 'daily', validFrom: '2026-04-01', validUntil: '2026-04-30' }),
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts a valid weekly schedule with operatingDays', async () => {
+    const { onceDate: _onceDate, ...rest } = base;
+    const errors = await validate(
+      plainToInstance(CreateScheduleDto, { ...rest, frequency: 'weekly', operatingDays: [1, 3, 5] }),
+    );
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects a departureTime not in "07:00 AM" 12-hour format', async () => {
+    for (const bad of ['19:00', '7:00', '07:00', 'seven am']) {
+      const errors = await validate(plainToInstance(CreateScheduleDto, { ...base, departureTime: bad }));
+      expect(errors.some((e) => e.property === 'departureTime')).toBe(true);
+    }
+  });
+
+  it('rejects a non-positive price', async () => {
+    const errors = await validate(plainToInstance(CreateScheduleDto, { ...base, price: 0 }));
+    expect(errors.some((e) => e.property === 'price')).toBe(true);
+  });
+
+  it('rejects a frequency outside once/daily/weekly', async () => {
+    const errors = await validate(plainToInstance(CreateScheduleDto, { ...base, frequency: 'monthly' }));
+    expect(errors.some((e) => e.property === 'frequency')).toBe(true);
+  });
+
+  it('rejects operatingDays values outside 0-6', async () => {
+    const { onceDate: _onceDate, ...rest } = base;
+    const errors = await validate(
+      plainToInstance(CreateScheduleDto, { ...rest, frequency: 'weekly', operatingDays: [7] }),
+    );
+    expect(errors.some((e) => e.property === 'operatingDays')).toBe(true);
+  });
+
+  it('rejects a validFrom/validUntil not in YYYY-MM-DD format', async () => {
+    const { onceDate: _onceDate, ...rest } = base;
+    const errors = await validate(
+      plainToInstance(CreateScheduleDto, { ...rest, frequency: 'daily', validFrom: '04/01/2026' }),
+    );
+    expect(errors.some((e) => e.property === 'validFrom')).toBe(true);
+  });
+});
+
+describe('UpdateTripStatusDto', () => {
+  it('accepts each valid status', async () => {
+    for (const status of ['scheduled', 'cancelled', 'completed']) {
+      const errors = await validate(plainToInstance(UpdateTripStatusDto, { status }));
+      expect(errors).toHaveLength(0);
+    }
+  });
+
+  it('rejects a status outside the allow-list', async () => {
+    const errors = await validate(plainToInstance(UpdateTripStatusDto, { status: 'delayed' }));
+    expect(errors.some((e) => e.property === 'status')).toBe(true);
   });
 });

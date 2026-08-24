@@ -25,26 +25,23 @@ interface TicketReview {
 }
 
 const statusVariant: Record<BusTicket["status"], "success" | "warning" | "danger" | "accent"> = {
-  CONFIRMED: "success",
   PENDING: "warning",
-  CANCELLED: "danger",
+  CONFIRMED: "success",
   COMPLETED: "accent",
+  CANCELLED: "danger",
 };
 
 export function BusBookingsPage() {
   const tickets = useResource<BusTicket[]>(() => api.get(endpoints.buses.myBookings), []);
   const [busyId, setBusyId] = useState<string | null>(null);
-  // `openTicket` is never cleared on close (only reassigned on the next
-  // "View ticket" click) so the sheet keeps its content through the close
-  // animation instead of the body going blank a beat before it slides away.
   const [openTicket, setOpenTicket] = useState<BusTicket | null>(null);
   const [ticketSheetOpen, setTicketSheetOpen] = useState(false);
 
   async function cancel(id: string) {
     setBusyId(id);
     try {
-     await api.post(endpoints.buses.cancel(id));
-      toast.success("Booking cancelled", "Wallet payments are refunded to your wallet instantly; other payments are returned to the original payment method.");
+      await api.post(endpoints.buses.cancel(id));
+      toast.success("Booking cancelled", "Wallet payments are refunded to your wallet instantly; other payments go back via the original method.");
       tickets.refetch();
     } catch {
       toast.error("Couldn't cancel", "Please try again in a moment.");
@@ -103,8 +100,7 @@ export function BusBookingsPage() {
                       <Clock className="size-3.5 text-accent" /> {t.bus?.date} • {t.bus?.departure}
                     </p>
                     <p className="mt-1 text-sm text-muted-fg">
-                      Seats: <span className="font-medium text-fg">{t.seats.join(", ")}</span> •{" "}
-                      {t.passengers.length} passenger(s)
+                      Seats: <span className="font-medium text-fg">{t.seats.join(", ")}</span> • {t.passengers.length} passenger(s)
                     </p>
                   </div>
                 </div>
@@ -112,23 +108,11 @@ export function BusBookingsPage() {
                 <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
                   <p className="font-display text-lg font-bold font-tabular">रू {t.grandTotal.toLocaleString()}</p>
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setOpenTicket(t);
-                        setTicketSheetOpen(true);
-                      }}
-                    >
+                    <Button variant="outline" size="sm" onClick={() => { setOpenTicket(t); setTicketSheetOpen(true); }}>
                       <Printer className="size-4" /> E-ticket
                     </Button>
                     {t.status === "CONFIRMED" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busyId === t.id}
-                        onClick={() => cancel(t.id)}
-                      >
+                      <Button variant="outline" size="sm" disabled={busyId === t.id} onClick={() => cancel(t.id)}>
                         {busyId === t.id ? "Cancelling…" : "Cancel"}
                       </Button>
                     )}
@@ -151,7 +135,6 @@ export function BusBookingsPage() {
   );
 }
 
-/** Show the existing review, or the form to leave one — mirrors the food/hotel/ride/load review flow. */
 function TicketReviewPanel({ ticketId }: { ticketId: string }) {
   const review = useResource<TicketReview | null>(() => api.get(endpoints.buses.review(ticketId)), [ticketId]);
   const [rating, setRating] = useState(5);

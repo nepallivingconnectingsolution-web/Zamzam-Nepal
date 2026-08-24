@@ -1,18 +1,13 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { BusesService } from './buses.service';
 import { BookBusDto, CancelTicketDto, CreateTicketReviewDto } from './dto/buses.dto';
-
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/jwt.strategy';
 
-/**
- * Customer-facing bus search/booking. Search and detail are public (no
- * guard) so unauthenticated visitors can browse before signing in — booking
- * itself requires a logged-in customer.
- */
+/** Search/detail are public so visitors can browse before signing in; booking requires a logged-in customer. */
 @Controller('buses')
 export class BusesController {
   constructor(private readonly buses: BusesService) {}
@@ -32,22 +27,14 @@ export class BusesController {
   @Post('bookings/:ticketId/cancel')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('customer')
- cancelBooking(
-   @CurrentUser() user: AuthenticatedUser,
-   @Param('ticketId') ticketId: string,
-   @Body() dto: CancelTicketDto,
- ) {
-   return this.buses.cancelBooking(user.id, ticketId, dto);
+  cancelBooking(@CurrentUser() user: AuthenticatedUser, @Param('ticketId') ticketId: string, @Body() dto: CancelTicketDto) {
+    return this.buses.cancelBooking(user.id, ticketId, dto);
   }
 
   @Post('bookings/:ticketId/review')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('customer')
-  submitReview(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('ticketId') ticketId: string,
-    @Body() dto: CreateTicketReviewDto,
-  ) {
+  submitReview(@CurrentUser() user: AuthenticatedUser, @Param('ticketId') ticketId: string, @Body() dto: CreateTicketReviewDto) {
     return this.buses.submitReview(user.id, ticketId, dto);
   }
 

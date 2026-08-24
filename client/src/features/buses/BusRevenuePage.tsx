@@ -1,146 +1,94 @@
-import { TrendingUp } from "lucide-react";
+import { useMemo } from "react";
+import { AlertCircle, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
-import { StatCard } from "@/components/shared/stat-card";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
-import { RevenueAreaChart } from "@/components/shared/revenue-area-chart";
+import { AsyncBoundary } from "@/components/shared/async-states";
+import { Card } from "@/components/ui/card";
 import { useResource } from "@/hooks/useResource";
 import { api, endpoints } from "@/api/client";
-import { npr } from "@/lib/utils";
 import type { PartnerBusRevenue } from "./types";
 
 export function BusRevenuePage() {
   const revenue = useResource<PartnerBusRevenue>(() => api.get(endpoints.buses.op.revenue), []);
-  const s = revenue.data?.summary;
 
-  const categories = (revenue.data?.daily ?? []).map((d) =>
-    new Date(d.date).toLocaleDateString("en-NP", { month: "short", day: "numeric" }),
+  const activeDays = useMemo(
+    () => revenue.data?.daily.filter((d) => d.bookings > 0 || d.cancelled > 0) ?? [],
+    [revenue.data],
   );
-  const netProfitSeries = (revenue.data?.daily ?? []).map((d) => d.netProfit);
-  const dailyRows = [...(revenue.data?.daily ?? [])].reverse().filter((d) => d.bookings > 0 || d.cancelled > 0);
+  const maxDaily = useMemo(
+    () => Math.max(1, ...(revenue.data?.daily.map((d) => d.netProfit) ?? [1])),
+    [revenue.data],
+  );
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Revenue" subtitle="Daily earnings, platform fees, and refunds across your routes." />
+      <PageHeader title="Revenue" subtitle="Your earnings across every route, updated in real time." />
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <StatCard label="Revenue (today)" icon="Banknote" state={revenue.state} value={s ? npr(s.todayRevenue, { compact: true }) : undefined} caption="Net profit from today's tickets" />
-        <StatCard label="Revenue (this month)" icon="TrendingUp" state={revenue.state} value={s ? npr(s.monthRevenue, { compact: true }) : undefined} caption="Net profit so far this month" />
-        <StatCard label="Total revenue" icon="Wallet" state={revenue.state} value={s ? npr(s.totalRevenue, { compact: true }) : undefined} caption="All-time, confirmed tickets" />
-        <StatCard label="Platform fee (not yours)" icon="ArrowLeftRight" state={revenue.state} value={s ? npr(s.totalPlatformFee, { compact: true }) : undefined} caption="Zamzam's 2% booking commission" />
-        <StatCard label="Refunded" icon="AlertTriangle" state={revenue.state} value={s ? npr(s.totalRefunded, { compact: true }) : undefined} caption={s ? `${s.totalCancelled} cancelled ticket(s)` : undefined} />
-        <StatCard label="Avg. ticket value" icon="Star" state={revenue.state} value={s ? npr(s.avgBookingValue, { compact: true }) : undefined} caption={s ? `${s.totalBookings} confirmed ticket(s)` : undefined} />
-      </div>
+      <AsyncBoundary state={revenue.state} onRetry={revenue.refetch} label="Revenue">
+        {revenue.data && (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Stat label="Today" value={revenue.data.summary.todayRevenue} />
+              <Stat label="This month" value={revenue.data.summary.monthRevenue} />
+              <Stat label="All-time net profit" value={revenue.data.summary.netProfit} highlight />
+              <Stat label="Avg. booking value" value={revenue.data.summary.avgBookingValue} />
+              <Stat label="Total bookings" value={revenue.data.summary.totalBookings} plain />
+              <Stat label="Cancelled" value={revenue.data.summary.totalCancelled} plain />
+              <Stat label="Platform fee (riders paid)" value={revenue.data.summary.totalPlatformFee} />
+              <Stat label="Refunded to riders" value={revenue.data.summary.totalRefunded} />
+            </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Daily net profit</CardTitle>
-          <CardDescription>Last 30 days — the fare revenue you keep, after excluding cancellations.</CardDescription>
-        </CardHeader>
-        <div className="px-5 pb-5">
-          <AsyncBoundary
-            state={revenue.state}
-            onRetry={revenue.refetch}
-            label="Revenue"
-            empty={
-              <EmptyState
-                icon={<TrendingUp className="size-6 text-muted-fg" />}
-                title="No revenue yet"
-                description="This chart fills in as tickets are sold on your routes."
-              />
-            }
-          >
-            <RevenueAreaChart
-              categories={categories}
-              series={[{ name: "Net profit", color: "#10B981", data: netProfitSeries }]}
-              height={280}
-            />
-          </AsyncBoundary>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Daily breakdown</CardTitle>
-          <CardDescription>Tickets, seats, fees, and refunds by day — most recent first.</CardDescription>
-        </CardHeader>
-        <AsyncBoundary
-          state={revenue.state}
-          onRetry={revenue.refetch}
-          label="Revenue"
-          empty={<div className="px-5 pb-5"><EmptyState icon={<TrendingUp className="size-6" />} title="No tickets sold yet" /></div>}
-        >
-          {/* Desktop / tablet: full table, scrolls horizontally only if the viewport is still tight */}
-          <div className="hidden overflow-x-auto px-5 pb-5 md:block">
-            <table className="w-full min-w-[720px] text-sm font-tabular">
-              <thead>
-                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-fg">
-                  <th className="py-2 pr-3 font-medium">Date</th>
-                  <th className="py-2 pr-3 font-medium">Tickets</th>
-                  <th className="py-2 pr-3 font-medium">Seats</th>
-                  <th className="py-2 pr-3 font-medium">Gross revenue</th>
-                  <th className="py-2 pr-3 font-medium">Platform fee</th>
-                  <th className="py-2 pr-3 font-medium">Net profit</th>
-                  <th className="py-2 pr-3 font-medium">Cancelled</th>
-                  <th className="py-2 font-medium">Refunded</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dailyRows.map((d) => (
-                  <tr key={d.date} className="border-b border-border/60 last:border-0">
-                    <td className="py-2 pr-3">{d.date}</td>
-                    <td className="py-2 pr-3">{d.bookings}</td>
-                    <td className="py-2 pr-3">{d.seats}</td>
-                    <td className="py-2 pr-3 font-tabular">रू {d.grossRevenue.toLocaleString()}</td>
-                    <td className="py-2 pr-3 text-muted-fg">रू {d.platformFee.toLocaleString()}</td>
-                    <td className="py-2 pr-3 font-medium">रू {d.netProfit.toLocaleString()}</td>
-                    <td className="py-2 pr-3">{d.cancelled}</td>
-                    <td className="py-2 text-muted-fg">रू {d.refunded.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile: one card per day instead of a cramped, horizontally-scrolling table */}
-          <div className="space-y-3 px-5 pb-5 font-tabular md:hidden">
-            {dailyRows.map((d) => (
-              <div key={d.date} className="rounded-xl border border-border/60 bg-surface-2/40 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{d.date}</span>
-                  <span className="text-sm font-semibold text-fg">रू {d.netProfit.toLocaleString()}</span>
-                </div>
-                <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-                  <div className="flex items-center justify-between">
-                    <dt className="text-muted-fg">Tickets</dt>
-                    <dd className="font-medium text-fg">{d.bookings}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="text-muted-fg">Seats</dt>
-                    <dd className="font-medium text-fg">{d.seats}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="text-muted-fg">Gross revenue</dt>
-                    <dd className="font-medium text-fg font-tabular">रू {d.grossRevenue.toLocaleString()}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="text-muted-fg">Platform fee</dt>
-                    <dd className="font-medium text-fg">रू {d.platformFee.toLocaleString()}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="text-muted-fg">Cancelled</dt>
-                    <dd className="font-medium text-fg">{d.cancelled}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="text-muted-fg">Refunded</dt>
-                    <dd className="font-medium text-fg">रू {d.refunded.toLocaleString()}</dd>
-                  </div>
-                </dl>
+            <Card className="p-5">
+              <div className="mb-4 flex items-center gap-2">
+                <TrendingUp className="size-4 text-muted-fg" />
+                <h3 className="font-display text-sm font-semibold">Last 30 days</h3>
               </div>
-            ))}
-          </div>
-        </AsyncBoundary>
-      </Card>
+
+              {activeDays.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-fg">
+                  <AlertCircle className="size-5" />
+                  No bookings in the last 30 days yet.
+                </div>
+              ) : (
+                <>
+                  <div className="flex h-32 items-end gap-1">
+                    {revenue.data.daily.map((d) => (
+                      <div
+                        key={d.date}
+                        title={`${d.date}: रू ${d.netProfit.toLocaleString()}`}
+                        className="flex-1 rounded-t bg-teal-700 dark:bg-accent"
+                        style={{ height: `${Math.max(2, (d.netProfit / maxDaily) * 100)}%` }}
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-4 max-h-64 space-y-1 overflow-y-auto pr-1">
+                    {activeDays
+                      .slice()
+                      .reverse()
+                      .map((d) => (
+                        <div key={d.date} className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm hover:bg-surface-2">
+                          <span className="text-muted-fg">{d.date}</span>
+                          <span className="text-muted-fg">{d.bookings} booking{d.bookings === 1 ? "" : "s"} · {d.seats} seats</span>
+                          <span className="font-tabular font-semibold">रू {d.netProfit.toLocaleString()}</span>
+                        </div>
+                      ))}
+                  </div>
+                </>
+              )}
+            </Card>
+          </>
+        )}
+      </AsyncBoundary>
     </div>
+  );
+}
+
+function Stat({ label, value, highlight, plain }: { label: string; value: number; highlight?: boolean; plain?: boolean }) {
+  return (
+    <Card className="p-5">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-fg">{label}</p>
+      <p className={`mt-2 font-display font-tabular text-xl font-bold ${highlight ? "text-teal-700 dark:text-accent" : ""}`}>
+        {plain ? value.toLocaleString() : `रू ${value.toLocaleString()}`}
+      </p>
+    </Card>
   );
 }

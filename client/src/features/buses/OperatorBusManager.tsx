@@ -13,29 +13,13 @@ import { cn } from "@/lib/utils";
 import { useResource } from "@/hooks/useResource";
 import { api, ApiError, endpoints } from "@/api/client";
 import { toast } from "@/stores/toast.store";
-import type { BusTicket, OperatorBus, OperatorSchedule, OperatorTrip, ScheduleFrequency } from "./types";
+import type { BusTicket, OperatorBus, OperatorSchedule, OperatorTrip } from "./types";
 import { AMENITIES, BUS_TYPES, FUEL_TYPES, NEPAL_CITIES, WEEKDAYS } from "./types";
-
-/** Native <input type="time"> gives "HH:MM" (24h). Backend wants "07:00 AM" (12h). */
-function to12Hour(hhmm: string): string {
-  if (!hhmm) return "";
-  const [hStr, mStr] = hhmm.split(":");
-  let h = parseInt(hStr, 10);
-  const period = h >= 12 ? "PM" : "AM";
-  h = h % 12;
-  if (h === 0) h = 12;
-  return `${String(h).padStart(2, "0")}:${mStr} ${period}`;
-}
-
-/** "YYYY-MM-DD" + n days -> "YYYY-MM-DD", for the 1-week / 1-month quick-fill buttons. */
-function plusDays(dateIso: string, n: number): string {
-  const d = new Date(`${dateIso}T00:00:00`);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
+import type { ScheduleFormState } from "./schedule-form.utils";
+import { buildSchedulePayload, computeMissingScheduleFields, plusDays } from "./schedule-form.utils";
 
 type Tab = "fleet" | "schedules" | "bookings";
+
 export function OperatorBusManager({
   title = "Buses",
   subtitle = "Register buses, publish schedules and track ticket sales.",
@@ -48,7 +32,6 @@ export function OperatorBusManager({
   const [tab, setTab] = useState<Tab>(initialTab);
 
   return (
-
     <div className="space-y-6">
       <PageHeader title={title} subtitle={subtitle} />
 
@@ -74,8 +57,6 @@ function FleetTab() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        {/* Secondary for the same reason as the Schedules tab: the form's
-            own submit button is the screen's one amber action. */}
         <Button variant="secondary" onClick={() => setOpen((v) => !v)}>
           <Plus className="size-4" /> {open ? "Close form" : "Add bus"}
         </Button>
@@ -91,27 +72,7 @@ function FleetTab() {
       >
         <div className="grid gap-3 sm:grid-cols-2">
           {fleet.data?.map((b) => (
-            <Card key={b.id} className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="font-display text-base font-semibold">{b.busName}</h3>
-                  <p className="text-sm text-muted-fg">{b.busNumber} • {b.registrationNo}</p>
-                </div>
-                <Badge variant="accent">{b.type}</Badge>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-fg">
-                <span className="rounded-md bg-surface-2 px-2 py-0.5">{b.totalSeats} seats</span>
-                <span className="rounded-md bg-surface-2 px-2 py-0.5">{b.fuelType}</span>
-                {b.amenities.map((a) => (
-                  <span key={a} className="rounded-md bg-surface-2 px-2 py-0.5">{a}</span>
-                ))}
-              </div>
-              <div className="mt-4 flex justify-end">
-                <Button variant="ghost" size="sm" onClick={() => deleteBus(b.id, fleet.refetch)}>
-                  <Trash2 className="size-4" /> Remove
-                </Button>
-              </div>
-            </Card>
+            <BusCard key={b.id} bus={b} onRemoved={fleet.refetch} />
           ))}
         </div>
       </AsyncBoundary>
@@ -119,14 +80,44 @@ function FleetTab() {
   );
 }
 
-async function deleteBus(id: string, refetch: () => void) {
-  try {
-    await api.delete(endpoints.buses.op.bus(id));
-    toast.success("Bus removed", "It's no longer in your fleet.");
-    refetch();
-  } catch (e) {
-    toast.error(errMsg(e, "Could not remove bus"));
+function BusCard({ bus, onRemoved }: { bus: OperatorBus; onRemoved: () => void }) {
+  const [removing, setRemoving] = useState(false);
+
+  async function handleRemove() {
+    setRemoving(true);
+    try {
+      await api.delete(endpoints.buses.op.bus(bus.id));
+      toast.success("Bus removed", "It's no longer in your fleet.");
+      onRemoved();
+    } catch (e) {
+      toast.error(errMsg(e, "Could not remove bus"));
+      setRemoving(false);
+    }
   }
+
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="font-display text-base font-semibold">{bus.busName}</h3>
+          <p className="text-sm text-muted-fg">{bus.busNumber} • {bus.registrationNo}</p>
+        </div>
+        <Badge variant="accent">{bus.type}</Badge>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-fg">
+        <span className="rounded-md bg-surface-2 px-2 py-0.5">{bus.totalSeats} seats</span>
+        <span className="rounded-md bg-surface-2 px-2 py-0.5">{bus.fuelType}</span>
+        {bus.amenities.map((a) => (
+          <span key={a} className="rounded-md bg-surface-2 px-2 py-0.5">{a}</span>
+        ))}
+      </div>
+      <div className="mt-4 flex justify-end">
+        <Button variant="ghost" size="sm" disabled={removing} onClick={handleRemove}>
+          <Trash2 className="size-4" /> Remove
+        </Button>
+      </div>
+    </Card>
+  );
 }
 
 function AddBusForm({ onAdded }: { onAdded: () => void }) {
@@ -148,6 +139,8 @@ function AddBusForm({ onAdded }: { onAdded: () => void }) {
   function toggleAmenity(a: string) {
     set("amenities", form.amenities.includes(a) ? form.amenities.filter((x) => x !== a) : [...form.amenities, a]);
   }
+
+  const canSubmit = !busy && form.busName.trim() !== "" && form.busNumber.trim() !== "" && form.registrationNo.trim() !== "";
 
   async function submit() {
     setBusy(true);
@@ -217,11 +210,11 @@ function AddBusForm({ onAdded }: { onAdded: () => void }) {
         After saving, head to the <span className="font-medium text-fg">Schedules</span> tab to publish routes for this bus — including daily or weekly recurring trips and return journeys.
       </p>
 
-      {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+      {error && <p className="mt-3 text-body text-error">{error}</p>}
 
       <div className="mt-4 flex justify-end">
-        <Button variant="accent" disabled={busy || !form.busName || !form.busNumber || !form.registrationNo} onClick={submit}>
-          {busy ? "Saving…" : "Register bus"}
+        <Button variant="accent" disabled={!canSubmit} loading={busy} onClick={submit}>
+          Register bus
         </Button>
       </div>
     </Card>
@@ -234,15 +227,15 @@ function SchedulesTab() {
   const schedules = useResource<OperatorSchedule[]>(() => api.get(endpoints.buses.op.schedules), []);
   const fleet = useResource<OperatorBus[]>(() => api.get(endpoints.buses.op.buses), []);
   const [open, setOpen] = useState(false);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  function toggleExpanded(scheduleId: string) {
+    setExpandedId((current) => (current === scheduleId ? null : scheduleId));
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        {/* Secondary: this only opens/closes the form. The form's own
-            "Publish schedule" is the commit action and owns the screen's one
-            amber fill — two amber buttons visible at once made it ambiguous
-            which one actually creates the schedule. */}
         <Button variant="secondary" onClick={() => setOpen((v) => !v)} disabled={fleet.state === "empty"}>
           <Plus className="size-4" /> {open ? "Close form" : "Add schedule"}
         </Button>
@@ -260,40 +253,78 @@ function SchedulesTab() {
         state={schedules.state}
         onRetry={schedules.refetch}
         label="Schedules"
-        empty={<EmptyState icon={<CalendarClock className="size-6" />} title="No schedules yet" description="Publish a route so customers can book it. You can run it once, daily, or on chosen weekdays — and add the return leg as a second schedule." />}
+        empty={<EmptyState icon={<CalendarClock className="size-6" />} title="No schedules yet" description="Publish a route so customers can book it. Run it once, daily, or on chosen weekdays — and add the return leg as a second schedule." />}
       >
         <div className="space-y-3">
           {schedules.data?.map((s) => (
-            <Card key={s.id} className="p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-display text-sm font-semibold">{s.fromCity} → {s.toCity}</h3>
-                    <Badge variant={s.status === "active" ? "success" : "danger"}>{s.status}</Badge>
-                    <FrequencyBadge schedule={s} />
-                  </div>
-                  <p className="mt-1 text-sm text-muted-fg">
-                    {s.busName} • {s.departure}–{s.arrival} ({s.duration})
-                  </p>
-                  <p className="mt-1 text-sm">रू {s.price.toLocaleString()} • {s.upcomingTrips} upcoming departure{s.upcomingTrips === 1 ? "" : "s"}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setExpanded(expanded === s.id ? null : s.id)}>
-                    {expanded === s.id ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-                    {expanded === s.id ? "Hide dates" : "View dates"}
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => deleteSchedule(s.id, schedules.refetch)}>
-                    <Trash2 className="size-4" /> Delete
-                  </Button>
-                </div>
-              </div>
-
-              {expanded === s.id && <ScheduleTripsList scheduleId={s.id} />}
-            </Card>
+            <ScheduleCard
+              key={s.id}
+              schedule={s}
+              expanded={expandedId === s.id}
+              onToggleExpanded={() => toggleExpanded(s.id)}
+              onDeleted={schedules.refetch}
+            />
           ))}
         </div>
       </AsyncBoundary>
     </div>
+  );
+}
+
+function ScheduleCard({
+  schedule,
+  expanded,
+  onToggleExpanded,
+  onDeleted,
+}: {
+  schedule: OperatorSchedule;
+  expanded: boolean;
+  onToggleExpanded: () => void;
+  onDeleted: () => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await api.delete(endpoints.buses.op.schedule(schedule.id));
+      toast.success("Schedule deleted");
+      onDeleted();
+    } catch (e) {
+      toast.error(errMsg(e, "Could not delete schedule"));
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-display text-sm font-semibold">{schedule.fromCity} → {schedule.toCity}</h3>
+            <Badge variant={schedule.status === "active" ? "success" : "danger"}>{schedule.status}</Badge>
+            <FrequencyBadge schedule={schedule} />
+          </div>
+          <p className="mt-1 text-sm text-muted-fg">
+            {schedule.busName} • {schedule.departure}–{schedule.arrival} ({schedule.duration})
+          </p>
+          <p className="mt-1 text-sm">
+            रू {schedule.price.toLocaleString()} • {schedule.upcomingTrips} upcoming departure{schedule.upcomingTrips === 1 ? "" : "s"}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={onToggleExpanded}>
+            {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+            {expanded ? "Hide dates" : "View dates"}
+          </Button>
+          <Button variant="ghost" size="sm" disabled={deleting} onClick={handleDelete}>
+            <Trash2 className="size-4" /> Delete
+          </Button>
+        </div>
+      </div>
+
+      {expanded && <ScheduleTripsList scheduleId={schedule.id} />}
+    </Card>
   );
 }
 
@@ -333,26 +364,7 @@ function ScheduleTripsList({ scheduleId }: { scheduleId: string }) {
       >
         <div className="max-h-72 space-y-2 overflow-y-auto overflow-x-hidden pr-1">
           {trips.data?.map((t) => (
-            <div
-              key={t.id}
-              className="flex flex-col gap-2 rounded-lg bg-surface-2 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="font-medium">{t.date}</span>
-                <span className="text-muted-fg">{t.departure}–{t.arrival}</span>
-                <Badge variant={t.status === "scheduled" ? "success" : t.status === "cancelled" ? "danger" : "accent"}>
-                  {t.status}
-                </Badge>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
-                <span className="text-muted-fg">{t.seatsLeft}/{t.totalSeats} seats free</span>
-                {t.status === "scheduled" && (
-                  <Button variant="ghost" size="sm" onClick={() => cancelTrip(t.id, trips.refetch)}>
-                    Cancel this date
-                  </Button>
-                )}
-              </div>
-            </div>
+            <TripRow key={t.id} trip={t} onCancelled={trips.refetch} />
           ))}
         </div>
       </AsyncBoundary>
@@ -360,93 +372,79 @@ function ScheduleTripsList({ scheduleId }: { scheduleId: string }) {
   );
 }
 
-async function cancelTrip(id: string, refetch: () => void) {
-  try {
-    await api.patch(endpoints.buses.op.trip(id), { status: "cancelled" });
-    toast.success("Departure cancelled", "Affected passengers will be notified.");
-    refetch();
-  } catch (e) {
-    toast.error(errMsg(e, "Could not cancel this departure"));
-  }
-}
+function TripRow({ trip, onCancelled }: { trip: OperatorTrip; onCancelled: () => void }) {
+  const [cancelling, setCancelling] = useState(false);
 
-async function deleteSchedule(id: string, refetch: () => void) {
-  try {
-    await api.delete(endpoints.buses.op.schedule(id));
-    toast.success("Schedule deleted");
-    refetch();
-  } catch (e) {
-    toast.error(errMsg(e, "Could not delete schedule"));
+  async function handleCancel() {
+    setCancelling(true);
+    try {
+      await api.patch(endpoints.buses.op.trip(trip.id), { status: "cancelled" });
+      toast.success("Departure cancelled", "Confirmed passengers were automatically refunded and notified.");
+      onCancelled();
+    } catch (e) {
+      toast.error(errMsg(e, "Could not cancel this departure"));
+      setCancelling(false);
+    }
   }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg bg-surface-2 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="font-medium">{trip.date}</span>
+        <span className="text-muted-fg">{trip.departure}–{trip.arrival}</span>
+        <Badge variant={trip.status === "scheduled" ? "success" : trip.status === "cancelled" ? "danger" : "accent"}>
+          {trip.status}
+        </Badge>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
+        <span className="text-muted-fg">{trip.seatsLeft}/{trip.totalSeats} seats free</span>
+        {trip.status === "scheduled" && (
+          <Button variant="ghost" size="sm" disabled={cancelling} onClick={handleCancel}>
+            Cancel this date
+          </Button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function AddScheduleForm({ buses, onAdded }: { buses: OperatorBus[]; onAdded: () => void }) {
   const todayIso = new Date().toISOString().slice(0, 10);
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<ScheduleFormState>({
     busId: buses[0]?.id ?? "",
     fromCity: "",
     toCity: "",
-    departureTime24: "", // "HH:MM", from <input type="time">
+    departureTime24: "",
     arrivalTime24: "",
     price: 1000,
-    frequency: "once" as ScheduleFrequency,
+    frequency: "once",
     onceDate: "",
-    operatingDays: [] as number[],
+    operatingDays: [],
     validFrom: todayIso,
     validUntil: "",
-    addReturn: false, // also publish the reverse leg right away
+    addReturn: false,
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
+  function set<K extends keyof ScheduleFormState>(k: K, v: ScheduleFormState[K]) {
     setForm((f) => ({ ...f, [k]: v }));
   }
   function toggleDay(d: number) {
     set("operatingDays", form.operatingDays.includes(d) ? form.operatingDays.filter((x) => x !== d) : [...form.operatingDays, d]);
   }
 
-  /**
-   * What's still missing, in the order the fields appear. Previously this was
-   * a single boolean and the button just sat greyed out — filling in every
-   * visible field and still not being able to submit (because "Just this
-   * once" needs a date further down) gave the user no way to work out why.
-   */
-  const missing: string[] = [
-    !form.busId && "a bus",
-    !form.fromCity.trim() && "departure city",
-    !form.toCity.trim() && "destination city",
-    !form.departureTime24 && "departure time",
-    !form.arrivalTime24 && "arrival time",
-    form.frequency === "once" && !form.onceDate && "a date",
-    form.frequency === "weekly" && form.operatingDays.length === 0 && "at least one weekday",
-  ].filter(Boolean) as string[];
-
+  const missing = computeMissingScheduleFields(form);
   const canSubmit = missing.length === 0;
 
-  function buildPayload(fromCity: string, toCity: string) {
-    return {
-      busId: form.busId,
-      fromCity,
-      toCity,
-      departureTime: to12Hour(form.departureTime24),
-      arrivalTime: to12Hour(form.arrivalTime24),
-      price: Number(form.price),
-      frequency: form.frequency,
-      ...(form.frequency === "once" ? { onceDate: form.onceDate } : {}),
-      ...(form.frequency === "weekly" ? { operatingDays: form.operatingDays } : {}),
-      ...(form.frequency !== "once" ? { validFrom: form.validFrom, validUntil: form.validUntil || undefined } : {}),
-    };
-  }
-
-  async function submit() {  
+  async function submit() {
     setBusy(true);
     setError(null);
     try {
-      const requests = [api.post(endpoints.buses.op.schedules, buildPayload(form.fromCity, form.toCity))];
+      const requests = [api.post(endpoints.buses.op.schedules, buildSchedulePayload(form, form.fromCity, form.toCity))];
       if (form.addReturn) {
-        requests.push(api.post(endpoints.buses.op.schedules, buildPayload(form.toCity, form.fromCity)));
+        requests.push(api.post(endpoints.buses.op.schedules, buildSchedulePayload(form, form.toCity, form.fromCity)));
       }
       await Promise.all(requests);
       toast.success("Schedule created", "Departures have been generated.");
@@ -702,17 +700,10 @@ function Labeled({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-/**
- * The datalist lives OUTSIDE this component. It used to be rendered inside,
- * and since the form uses CityInput twice (From and To) that put two elements
- * with id="op-cities" in the DOM — duplicate ids are invalid, and which one a
- * browser binds `list=` to is not guaranteed.
- */
 function CityInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return <Input list="op-cities" value={value} onChange={(e) => onChange(e.target.value)} placeholder="City" />;
 }
 
-/** Rendered once per form, not once per input. */
 function CityOptions() {
   return (
     <datalist id="op-cities">

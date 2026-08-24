@@ -4,70 +4,59 @@ import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { Card } from "@/components/ui/card";
 import { useResource } from "@/hooks/useResource";
 import { api, endpoints } from "@/api/client";
-import { StarRating } from "@/features/hotels/StarRating";
+import { cn } from "@/lib/utils";
+import type { BusReviewSummary, PartnerBusReview } from "./types";
 
-interface OperatorReview {
-  id: string;
-  rating: number;
-  comment: string | null;
-  createdAt: string;
-  customerName: string;
-  bookingRef: string;
-  from: string;
-  to: string;
-  tripDate: string;
-}
-
-interface ReviewSummary {
-  average: number;
-  count: number;
-  distribution: { star: number; count: number }[];
-}
-
-/**
- * The bus-operator "admin" view of every rating a passenger has left — same
- * shape as RestaurantReviewsPage / GroceryReviewsPage / HotelReviewsPage /
- * DriverRatingsPage / FreightReviewsPage, reading GET /operator/buses/reviews
- * (+ /operator/buses/reviews/summary). Passengers submit these from the
- * "Rate this trip" panel on the bus bookings page once their ticket's trip
- * date has passed, so whichever operator ran that route sees it here.
- */
 export function OperatorReviewsPage() {
-  const summary = useResource<ReviewSummary>(() => api.get(endpoints.buses.op.reviewSummary), []);
-  const reviews = useResource<OperatorReview[]>(() => api.get(endpoints.buses.op.reviews), []);
+  const summary = useResource<BusReviewSummary>(() => api.get(endpoints.buses.op.reviewSummary), []);
+  const reviews = useResource<PartnerBusReview[]>(() => api.get(endpoints.buses.op.reviews), []);
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Reviews" subtitle="What passengers are saying about your trips." />
+      <PageHeader title="Reviews" subtitle="What passengers are saying about your buses." />
 
-      <SummaryCard summary={summary.state === "success" ? summary.data : null} loading={summary.state === "loading"} />
+      <AsyncBoundary state={summary.state} onRetry={summary.refetch} label="Rating summary">
+        {summary.data && (
+          <Card className="flex flex-col gap-6 p-5 sm:flex-row sm:items-center">
+            <div className="text-center">
+              <p className="font-display font-tabular text-4xl font-bold">{summary.data.average || "—"}</p>
+              <StarRow rating={Math.round(summary.data.average)} size="size-4" />
+              <p className="mt-1 text-xs text-muted-fg">{summary.data.count} review{summary.data.count === 1 ? "" : "s"}</p>
+            </div>
+            <div className="flex-1 space-y-1.5">
+              {summary.data.distribution.map((d) => (
+                <div key={d.star} className="flex items-center gap-2 text-xs">
+                  <span className="w-3 text-muted-fg">{d.star}</span>
+                  <Star className="size-3 fill-current text-amber-500" />
+                  <div className="h-2 flex-1 rounded-full bg-surface-2">
+                    <div
+                      className="h-2 rounded-full bg-teal-700 dark:bg-accent"
+                      style={{ width: summary.data!.count ? `${(d.count / summary.data!.count) * 100}%` : "0%" }}
+                    />
+                  </div>
+                  <span className="w-6 text-right text-muted-fg font-tabular">{d.count}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+      </AsyncBoundary>
 
       <AsyncBoundary
         state={reviews.state}
         onRetry={reviews.refetch}
         label="Reviews"
-        empty={
-          <EmptyState
-            icon={<Star className="size-6" />}
-            title="No reviews yet"
-            description="Once passengers rate a completed trip, their feedback will show up here."
-          />
-        }
+        empty={<EmptyState icon={<Star className="size-6" />} title="No reviews yet" description="Reviews appear here once a passenger completes and rates a trip." />}
       >
         <div className="space-y-3">
           {reviews.data?.map((r) => (
             <Card key={r.id} className="p-5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-display text-base font-semibold">{r.customerName}</h3>
-                  <StarRating value={r.rating} size={15} />
-                </div>
-                <span className="text-xs text-muted-fg">{new Date(r.createdAt).toLocaleDateString()}</span>
+              <div className="flex items-center justify-between">
+                <p className="font-display text-sm font-semibold">{r.customerName}</p>
+                <StarRow rating={r.rating} size="size-3.5" />
               </div>
-              <p className="mt-1 text-sm text-muted-fg">
-                {r.from} → {r.to} • {r.bookingRef} • {new Date(r.tripDate).toLocaleDateString()}
-              </p>
-              {r.comment && <p className="mt-2.5 text-sm leading-relaxed">{r.comment}</p>}
+              <p className="mt-1 text-xs text-muted-fg">{r.from} → {r.to} • {r.tripDate} • {r.bookingRef}</p>
+              {r.comment && <p className="mt-2 text-sm text-fg">{r.comment}</p>}
             </Card>
           ))}
         </div>
@@ -76,33 +65,12 @@ export function OperatorReviewsPage() {
   );
 }
 
-function SummaryCard({ summary, loading }: { summary: ReviewSummary | null; loading: boolean }) {
+function StarRow({ rating, size }: { rating: number; size: string }) {
   return (
-    <Card className="p-5">
-      <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-        <div className="flex shrink-0 flex-col items-center gap-1.5 sm:border-r sm:border-border sm:pr-6">
-          <p className="font-display text-4xl font-bold tracking-tight">
-            {loading || !summary ? "—" : summary.average.toFixed(1)}
-          </p>
-          <StarRating value={summary?.average ?? 0} size={16} />
-          <p className="text-xs text-muted-fg">{summary ? `${summary.count} review(s)` : ""}</p>
-        </div>
-        <div className="flex-1 space-y-1.5">
-          {(summary?.distribution ?? [5, 4, 3, 2, 1].map((star) => ({ star, count: 0 }))).map((d) => {
-            const total = summary?.count ?? 0;
-            const pct = total === 0 ? 0 : Math.round((d.count / total) * 100);
-            return (
-              <div key={d.star} className="flex items-center gap-3 text-xs">
-                <span className="w-8 text-muted-fg">{d.star} ★</span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-2">
-                  <div className="h-full rounded-full bg-warning" style={{ width: `${pct}%` }} />
-                </div>
-                <span className="w-8 text-right text-muted-fg">{d.count}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </Card>
+    <div className="mt-1 flex justify-center gap-0.5 sm:justify-start">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Star key={i} className={cn(size, i < rating ? "fill-amber-500 text-amber-500" : "text-muted-fg/30")} />
+      ))}
+    </div>
   );
 }

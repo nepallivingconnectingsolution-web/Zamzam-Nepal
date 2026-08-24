@@ -68,7 +68,7 @@ export function BusReviewsPage() {
                   <span className="text-xs text-muted-fg">{new Date(r.createdAt).toLocaleDateString("en-NP", { year: "numeric", month: "short", day: "numeric" })}</span>
                 </div>
                 <div className="text-xs text-muted-fg">
-                  {r.route} · {r.date} · {r.bookingRef}
+                  {r.from} → {r.to} · {r.tripDate} · {r.bookingRef}
                 </div>
                 {r.comment && <p className="text-sm leading-relaxed">{r.comment}</p>}
               </CardContent>
