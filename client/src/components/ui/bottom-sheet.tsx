@@ -71,13 +71,20 @@ export function BottomSheet({
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+        <div className="pointer-events-none fixed inset-0 z-50 flex flex-col justify-end">
           {/* Scrim is ink at 40%, never a pure-black wash — a black scrim
-              flattens the brand color out of the screen behind it. */}
+              flattens the brand color out of the screen behind it.
+              pointerEvents flips to "none" the instant the exit transition
+              starts (not when it finishes) — a discrete style prop like this
+              is applied immediately, not tweened, so even if the exit
+              animation's unmount is ever delayed or interrupted, this
+              full-viewport layer stops swallowing clicks right away instead
+              of silently freezing the page behind it until it eventually
+              clears. See BusListPage/OperatorBusManager incident, 2026-08-24. */}
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0, pointerEvents: "none" }}
+            animate={{ opacity: 1, pointerEvents: "auto" }}
+            exit={{ opacity: 0, pointerEvents: "none" }}
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             onClick={onClose}
             className="absolute inset-0 backdrop-blur-[2px]"
@@ -89,9 +96,9 @@ export function BottomSheet({
             aria-modal="true"
             aria-labelledby={title ? titleId : undefined}
             tabIndex={-1}
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
+            initial={{ y: "100%", pointerEvents: "none" }}
+            animate={{ y: 0, pointerEvents: "auto" }}
+            exit={{ y: "100%", pointerEvents: "none" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}
