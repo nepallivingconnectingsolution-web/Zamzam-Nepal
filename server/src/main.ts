@@ -74,10 +74,11 @@ async function bootstrap() {
       );
     }
     if (!config.get<string>('AWS_REGION')) {
-      throw new Error(
-        'Refusing to start in production without AWS_REGION set — uploads would go unmoderated. ' +
-          'Set AWS_REGION/AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY in server/.env.',
-      );
+      // TEMPORARILY DISABLED for initial deploy (2026-08-17) — uploads are UNMODERATED.
+      // Set up AWS Rekognition (AWS_REGION/AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY) and
+      // remove this override ASAP. See server/.env.example.
+      // eslint-disable-next-line no-console
+      console.warn('[SECURITY] AWS_REGION not set — uploads are running UNMODERATED.');
     }
   }
 
