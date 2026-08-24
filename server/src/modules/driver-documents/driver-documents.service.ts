@@ -1,12 +1,13 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { desc, eq, and } from 'drizzle-orm';
 import { DATABASE_CONNECTION, type Database } from '../../database/database.module';
 import { auditLogs, driverDocuments, users } from '../../database/schema';
 import { apiError } from '../../common/exceptions';
 import { id } from '../../common/id';
 import { NotificationsService } from '../notifications/notifications.service';
-import { deleteUploadedDocumentFile } from './storage';
+import { deleteUploadedDocumentFile, writeDriverDocumentFile } from './storage';
 import { DRIVER_DOCUMENT_TYPES, type DriverDocumentType } from './dto/driver-documents.dto';
+import { ModerationService } from '../../common/moderation/moderation.service';
 
 export const DRIVER_DOCUMENT_LABELS: Record<DriverDocumentType, string> = {
   citizenship: 'Citizenship certificate',
@@ -21,6 +22,7 @@ export class DriverDocumentsService {
   constructor(
     @Inject(DATABASE_CONNECTION) private readonly db: Database,
     private readonly notifications: NotificationsService,
+    private readonly moderation: ModerationService,
   ) {}
 
   /* ─────────────────────────────── Driver side ────────────────────────── */
@@ -54,7 +56,27 @@ export class DriverDocumentsService {
   }
 
   async upload(driverId: string, type: DriverDocumentType, file: Express.Multer.File) {
-    const fileUrl = `/uploads/driver-documents/${file.filename}`;
+    // Rekognition doesn't moderate PDFs — only run it on actual images.
+    // Fail closed: if the moderation call itself errors, reject the
+    // upload rather than let an unchecked image through.
+    if (file.mimetype.startsWith('image/')) {
+      let result: { allowed: boolean; reasons: string[] };
+      try {
+        result = await this.moderation.checkImage(file.buffer);
+      } catch {
+        throw new UnprocessableEntityException(
+          'Could not verify this image right now. Please try again in a moment.',
+        );
+      }
+      if (!result.allowed) {
+        throw new UnprocessableEntityException(
+          'This image was flagged by automated content moderation and cannot be uploaded.',
+        );
+      }
+    }
+
+    const filename = writeDriverDocumentFile(file.buffer, file.originalname);
+    const fileUrl = `/uploads/driver-documents/${filename}`;
 
     const [existing] = await this.db
       .select()
@@ -64,8 +86,6 @@ export class DriverDocumentsService {
 
     let row: DocumentRow;
     if (existing) {
-      // Re-upload replaces the old file and drops back to PENDING — a
-      // prior approval was for the old file, not this one.
       deleteUploadedDocumentFile(existing.fileUrl);
       [row] = await this.db
         .update(driverDocuments)

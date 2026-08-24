@@ -3,6 +3,8 @@
 Production backend for the Zamzam Super App — NestJS, Drizzle ORM, Neon
 (serverless Postgres), JWT auth.
 
+> For the full self-hosted production setup (Docker Compose, Postgres/Redis, Nginx/TLS, backups), see the repo root `README.md` and `docs/superpowers/specs/2026-08-17-production-infrastructure-design.md`.
+
 ## Stack
 
 - **NestJS 10** — modules, guards, pipes, DI
@@ -30,6 +32,13 @@ npm run start:dev        # http://localhost:4000
 
 The frontend (`../client`) expects this server at `VITE_API_URL`
 (`../client/.env.example`, defaults to `http://localhost:4000`).
+
+## Restoring from a Backblaze B2 backup
+
+1. Download the dump: `aws s3 cp s3://<bucket>/postgres/pg-<timestamp>.sql.gz . --endpoint-url <B2_ENDPOINT>`
+2. Restore it: `gunzip -c pg-<timestamp>.sql.gz | docker compose exec -T postgres psql -U <user> -d <db>`
+3. Download and extract the uploads archive similarly: `aws s3 cp s3://<bucket>/uploads/uploads-<timestamp>.tar.gz . --endpoint-url <B2_ENDPOINT> && tar -xzf uploads-<timestamp>.tar.gz`
+4. Copy the extracted `uploads/` directory's contents into the running `api` container's volume, or stop the stack and place them directly in the `uploads_data` volume's mount path before restarting.
 
 ## Architecture notes
 

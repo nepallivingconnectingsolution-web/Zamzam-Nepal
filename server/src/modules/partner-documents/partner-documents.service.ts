@@ -1,12 +1,13 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { desc, eq, and } from 'drizzle-orm';
 import { DATABASE_CONNECTION, type Database } from '../../database/database.module';
 import { auditLogs, partnerDocuments, users } from '../../database/schema';
 import { apiError } from '../../common/exceptions';
 import { id } from '../../common/id';
 import { NotificationsService } from '../notifications/notifications.service';
-import { deleteUploadedPartnerDocumentFile } from './storage';
+import { deleteUploadedPartnerDocumentFile, writePartnerDocumentFile } from './storage';
 import { PARTNER_DOCUMENT_CATALOG, type PartnerType } from './dto/partner-documents.dto';
+import { ModerationService } from '../../common/moderation/moderation.service';
 
 type DocumentRow = typeof partnerDocuments.$inferSelect;
 
@@ -23,6 +24,7 @@ export class PartnerDocumentsService {
   constructor(
     @Inject(DATABASE_CONNECTION) private readonly db: Database,
     private readonly notifications: NotificationsService,
+    private readonly moderation: ModerationService,
   ) {}
 
   /**
@@ -82,7 +84,25 @@ export class PartnerDocumentsService {
 
   async upload(partnerId: string, partnerType: PartnerType, type: string, file: Express.Multer.File) {
     const spec = PARTNER_DOCUMENT_CATALOG[partnerType].find((d) => d.type === type)!;
-    const fileUrl = `/uploads/partner-documents/${file.filename}`;
+
+    if (file.mimetype.startsWith('image/')) {
+      let result: { allowed: boolean; reasons: string[] };
+      try {
+        result = await this.moderation.checkImage(file.buffer);
+      } catch {
+        throw new UnprocessableEntityException(
+          'Could not verify this image right now. Please try again in a moment.',
+        );
+      }
+      if (!result.allowed) {
+        throw new UnprocessableEntityException(
+          'This image was flagged by automated content moderation and cannot be uploaded.',
+        );
+      }
+    }
+
+    const filename = writePartnerDocumentFile(file.buffer, file.originalname);
+    const fileUrl = `/uploads/partner-documents/${filename}`;
 
     const [existing] = await this.db
       .select().from(partnerDocuments)
