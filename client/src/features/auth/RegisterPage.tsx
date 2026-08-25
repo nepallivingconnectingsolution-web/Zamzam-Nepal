@@ -9,6 +9,12 @@ import { Input } from "@/components/ui/input";
 import { NameInput, PhoneField, isValidPhone, splitPhone } from "@/components/ui/phone-field";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Icon } from "@/components/ui/icon";
+import taxiImg from "@/assets/services/taxi.webp";
+import hotelImg from "@/assets/services/hotels.webp";
+import foodImg from "@/assets/services/food.webp";
+import groceryImg from "@/assets/services/grocery.webp";
+import busImg from "@/assets/services/bus.webp";
+import freightImg from "@/assets/services/freight.webp";
 import { ROLE_LABEL, ROLE_HOME } from "@/config";
 import { api, endpoints, ApiError } from "@/api/client";
 import { useAuthStore } from "@/stores/auth.store";
@@ -41,13 +47,13 @@ type Intent = "customer" | "partner";
 
 type PartnerRole = Exclude<Role, "guest" | "admin" | "customer">;
 
-const PARTNER_ROLES: { role: PartnerRole; icon: string }[] = [
-  { role: "driver", icon: "Car" },
-  { role: "hotel", icon: "BedDouble" },
-  { role: "restaurant", icon: "UtensilsCrossed" },
-  { role: "grocery", icon: "ShoppingBasket" },
-  { role: "bus_operator", icon: "Bus" },
-  { role: "freight", icon: "Truck" },
+const PARTNER_ROLES: { role: PartnerRole; icon: string; image: string }[] = [
+  { role: "driver", icon: "Car", image: taxiImg },
+  { role: "hotel", icon: "BedDouble", image: hotelImg },
+  { role: "restaurant", icon: "UtensilsCrossed", image: foodImg },
+  { role: "grocery", icon: "ShoppingBasket", image: groceryImg },
+  { role: "bus_operator", icon: "Bus", image: busImg },
+  { role: "freight", icon: "Truck", image: freightImg },
 ];
 
 export function RegisterPage() {
@@ -144,7 +150,13 @@ export function RegisterPage() {
                             : "border-border text-muted-fg hover:bg-surface-2"
                         }`}
                       >
-                        <Icon name={r.icon} className="size-5" />
+                        <span className="grid size-9 place-items-center overflow-hidden rounded-lg bg-surface-2">
+                          {r.image ? (
+                            <img src={r.image} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <Icon name={r.icon} className="size-5" />
+                          )}
+                        </span>
                         {ROLE_LABEL[r.role].split(" ")[0]}
                       </button>
                     ))}
