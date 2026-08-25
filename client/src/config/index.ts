@@ -1,9 +1,9 @@
 import type { ServiceVertical, NavItem, Role } from "@/types";
 import { icon } from "leaflet";
 import taxiImg from "@/assets/services/taxi.webp";
-import bikeImg from "@/assets/services/bike.png";
+import bikeImg from "@/assets/services/bike.webp";
 import busImg from "@/assets/services/bus.webp";
-import freightImg from "@/assets/services/freight.png";
+import freightImg from "@/assets/services/freight.webp";
 import parcelImg from "@/assets/services/parcel.webp";
 import hotelImg from "@/assets/services/hotels.webp";
 import toursImg from "@/assets/services/tours.webp";
