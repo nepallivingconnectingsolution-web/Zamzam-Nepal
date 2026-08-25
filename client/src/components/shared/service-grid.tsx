@@ -52,8 +52,12 @@ export function ServiceGrid({
               )}
             />
             <div className="relative">
-              <span className="grid size-11 place-items-center rounded-xl bg-surface-2 text-fg">
-                <Icon name={s.icon} className="size-5" />
+                            <span className="grid size-11 place-items-center overflow-hidden rounded-xl bg-surface-2 text-fg">
+                {s.image ? (
+                  <img src={s.image} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <Icon name={s.icon} className="size-5" />
+                )}
               </span>
               <div className="mt-3 flex items-center gap-2">
                 <h3 className="font-display font-semibold tracking-tight">{s.name}</h3>

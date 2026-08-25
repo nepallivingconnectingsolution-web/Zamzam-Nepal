@@ -10,6 +10,10 @@ import {
   ShoppingBasket,
   UtensilsCrossed,
 } from "lucide-react";
+import busImg from "@/assets/services/bus.webp";
+import hotelImg from "@/assets/services/hotels.webp";
+import foodImg from "@/assets/services/food.webp";
+import groceryImg from "@/assets/services/grocery.webp";
 import { TabBar, type TabBarItem } from "@/components/ui/tab-bar";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Avatar } from "@/components/ui/avatar";
@@ -104,10 +108,10 @@ export function CustomerShell() {
               Services
             </p>
             <div className="space-y-0.5">
-              <ShellLink to="/app/buses" icon={Bus} label="Buses" onNavigate={() => setMoreOpen(false)} />
-              <ShellLink to="/app/hotels" icon={BedDouble} label="Hotels" onNavigate={() => setMoreOpen(false)} />
-              <ShellLink to="/app/restaurants" icon={UtensilsCrossed} label="Food" onNavigate={() => setMoreOpen(false)} />
-              <ShellLink to="/app/grocery" icon={ShoppingBasket} label="Grocery" onNavigate={() => setMoreOpen(false)} />
+                            <ShellLink to="/app/buses" icon={Bus} image={busImg} label="Buses" onNavigate={() => setMoreOpen(false)} />
+              <ShellLink to="/app/hotels" icon={BedDouble} image={hotelImg} label="Hotels" onNavigate={() => setMoreOpen(false)} />
+              <ShellLink to="/app/restaurants" icon={UtensilsCrossed} image={foodImg} label="Food" onNavigate={() => setMoreOpen(false)} />
+              <ShellLink to="/app/grocery" icon={ShoppingBasket} image={groceryImg} label="Grocery" onNavigate={() => setMoreOpen(false)} />
             </div>
           </div>
 
@@ -142,11 +146,13 @@ export function CustomerShell() {
 function ShellLink({
   to,
   icon: Icon,
+  image,
   label,
   onNavigate,
 }: {
   to: string;
   icon: typeof Settings;
+  image?: string;
   label: string;
   onNavigate: () => void;
 }) {
@@ -156,7 +162,11 @@ function ShellLink({
       onClick={onNavigate}
       className="flex items-center gap-3 rounded-md px-3 py-3 text-body font-medium text-fg transition-colors duration-fast ease-standard active:bg-surface-2"
     >
-      <Icon className="size-[18px] text-muted-fg" />
+      {image ? (
+        <img src={image} alt="" className="size-5 shrink-0 rounded-[5px] object-cover" />
+      ) : (
+        <Icon className="size-[18px] text-muted-fg" />
+      )}
       {label}
     </Link>
   );

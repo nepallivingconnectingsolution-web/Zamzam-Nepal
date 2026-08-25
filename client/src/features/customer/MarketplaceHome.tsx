@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ServiceGrid } from "@/components/shared/service-grid";
+import { HeroNaturePhoto } from "@/components/ui/hero-nature-photo";
 import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -132,7 +133,8 @@ export function MarketplaceHome() {
             the terrain line drawing in beneath it. Greeting and wallet live
             inside it rather than competing as separate sections; the old
             layout had three things fighting above the fold. */}
-        <div className="relative -mx-4 -mt-4 overflow-hidden bg-teal-700 px-4 pb-8 pt-6 text-white">
+                        <div className="relative -mx-4 -mt-4 overflow-hidden bg-teal-700 px-4 pb-5 pt-5 text-white lg:px-10 lg:pb-6 lg:pt-6">
+          <HeroNaturePhoto />
           <TerrainLine variant="hero" animate />
           <div className="relative">
             <h1 className="font-display text-display font-extrabold text-balance">
@@ -329,12 +331,16 @@ export function MarketplaceHome() {
                   <p className="font-display font-semibold">{g}</p>
                   <p className="mt-1 text-sm text-muted-fg">{count} services</p>
                   <div className="mt-3 flex -space-x-1.5">
-                    {SERVICES.filter((s) => s.group === g).map((s) => (
+                                       {SERVICES.filter((s) => s.group === g).map((s) => (
                       <span
                         key={s.id}
-                        className="grid size-7 place-items-center rounded-lg border border-border bg-surface text-muted-fg"
+                        className="grid size-7 place-items-center overflow-hidden rounded-lg border border-border bg-surface text-muted-fg"
                       >
-                        <Icon name={s.icon} className="size-3.5" />
+                        {s.image ? (
+                          <img src={s.image} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <Icon name={s.icon} className="size-3.5" />
+                        )}
                       </span>
                     ))}
                   </div>

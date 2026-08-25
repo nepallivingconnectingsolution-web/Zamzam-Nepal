@@ -1,5 +1,14 @@
 import type { ServiceVertical, NavItem, Role } from "@/types";
 import { icon } from "leaflet";
+import taxiImg from "@/assets/services/taxi.webp";
+import bikeImg from "@/assets/services/bike.png";
+import busImg from "@/assets/services/bus.webp";
+import freightImg from "@/assets/services/freight.png";
+import parcelImg from "@/assets/services/parcel.webp";
+import hotelImg from "@/assets/services/hotels.webp";
+import toursImg from "@/assets/services/tours.webp";
+import foodImg from "@/assets/services/food.webp";
+import groceryImg from "@/assets/services/grocery.webp";
 
 /**
  * The Zamzam marketplace catalog. This is product configuration — the set of
@@ -7,20 +16,20 @@ import { icon } from "leaflet";
  * (drivers, listings, prices) comes from the backend at runtime.
  */
 export const SERVICES: ServiceVertical[] = [
-  { id: "taxi", name: "Taxi", tagline: "On-demand cars, valley-wide", group: "Mobility", icon: "Car", to: "/app/book/taxi", accent: "from-vertical-taxi/15 to-vertical-taxi/0", live: true },
-  { id: "bike", name: "Bike", tagline: "Beat the traffic", group: "Mobility", icon: "Bike", to: "/app/book/bike", accent: "from-vertical-bike/15 to-vertical-bike/0", live: true },
+  { id: "taxi", name: "Taxi", tagline: "On-demand cars, valley-wide", group: "Mobility", icon: "Car", image: taxiImg, to: "/app/book/taxi", accent: "from-vertical-taxi/15 to-vertical-taxi/0", live: true },
+  { id: "bike", name: "Bike", tagline: "Beat the traffic", group: "Mobility", icon: "Bike", image: bikeImg, to: "/app/book/bike", accent: "from-vertical-bike/15 to-vertical-bike/0", live: true },
   // → /app/buses (the real schedule-search + seat-selection flow), NOT
   //   /app/book/bus. That route is the generic point-to-point ride form,
   //   which for "bus" only renders a "coming soon" dead end — so this tile
   //   used to be the one marketplace tile that led nowhere, and the bus
   //   booking feature was unreachable by tapping anything in the app.
-  { id: "bus", name: "Intercity bus", tagline: "Book seats across Nepal", group: "Mobility", icon: "Bus", to: "/app/buses", accent: "from-vertical-bus/15 to-vertical-bus/0", live: true },
-  { id: "freight", name: "Freight", tagline: "Post loads, get bids", group: "Logistics", icon: "Truck", to: "/app/book/freight", accent: "from-vertical-freight/15 to-vertical-freight/0", live: true },
-  { id: "parcel", name: "Parcel", tagline: "Same-day delivery", group: "Logistics", icon: "Package", to: "/app/book/parcel", accent: "from-vertical-freight/15 to-vertical-freight/0", live: true },
-  { id: "hotels", name: "Hotels", tagline: "Stays from trek to city", group: "Tourism", icon: "BedDouble", to: "/app/hotels", accent: "from-vertical-hotel/15 to-vertical-hotel/0", live: true },
-  { id: "tours", name: "Tours", tagline: "Guided trips & guides", group: "Tourism", icon: "Mountain", to: "/app/book/tours", accent: "from-vertical-hotel/15 to-vertical-hotel/0", live: true },
-  { id: "food", name: "Food", tagline: "Order from local kitchens", group: "Commerce", icon: "UtensilsCrossed", to: "/app/restaurants", accent: "from-vertical-restaurant/15 to-vertical-restaurant/0", live: true },
-  { id: "grocery", name: "Grocery", tagline: "Daily essentials", group: "Commerce", icon: "ShoppingBasket", to: "/app/grocery", accent: "from-vertical-grocery/15 to-vertical-grocery/0", live: true },
+  { id: "bus", name: "Intercity bus", tagline: "Book seats across Nepal", group: "Mobility", icon: "Bus", image: busImg, to: "/app/buses", accent: "from-vertical-bus/15 to-vertical-bus/0", live: true },
+  { id: "freight", name: "Freight", tagline: "Post loads, get bids", group: "Logistics", icon: "Truck", image: freightImg, to: "/app/book/freight", accent: "from-vertical-freight/15 to-vertical-freight/0", live: true },
+  { id: "parcel", name: "Parcel", tagline: "Same-day delivery", group: "Logistics", icon: "Package", image: parcelImg, to: "/app/book/parcel", accent: "from-vertical-freight/15 to-vertical-freight/0", live: true },
+  { id: "hotels", name: "Hotels", tagline: "Stays from trek to city", group: "Tourism", icon: "BedDouble", image: hotelImg, to: "/app/hotels", accent: "from-vertical-hotel/15 to-vertical-hotel/0", live: true },
+  { id: "tours", name: "Tours", tagline: "Guided trips & guides", group: "Tourism", icon: "Mountain", image: toursImg, to: "/app/book/tours", accent: "from-vertical-hotel/15 to-vertical-hotel/0", live: true },
+  { id: "food", name: "Food", tagline: "Order from local kitchens", group: "Commerce", icon: "UtensilsCrossed", image: foodImg, to: "/app/restaurants", accent: "from-vertical-restaurant/15 to-vertical-restaurant/0", live: true },
+  { id: "grocery", name: "Grocery", tagline: "Daily essentials", group: "Commerce", icon: "ShoppingBasket", image: groceryImg, to: "/app/grocery", accent: "from-vertical-grocery/15 to-vertical-grocery/0", live: true },
 ];
 
 export const SERVICE_GROUPS = ["Mobility", "Logistics", "Tourism", "Commerce"] as const;

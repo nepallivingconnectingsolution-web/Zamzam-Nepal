@@ -4,6 +4,7 @@ import { ArrowRight, MapPin, Navigation, ShieldCheck, Wallet } from "lucide-reac
 import { AppFrame } from "@/components/layout/app-frame";
 import { Logo } from "@/components/layout/logo";
 import { Button } from "@/components/ui/button";
+import { HeroNaturePhoto } from "@/components/ui/hero-nature-photo";
 import { Icon } from "@/components/ui/icon";
 import { TerrainLine } from "@/components/ui/terrain-line";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -60,7 +61,8 @@ export function AppHome() {
       </header>
 
       <main className="flex-1 pb-[calc(2.5rem+env(safe-area-inset-bottom))] lg:overflow-y-auto">
-        <div className="relative overflow-hidden bg-teal-700 px-4 pb-8 pt-6 text-white lg:px-10 lg:pb-14 lg:pt-10">
+        <div className="relative overflow-hidden bg-teal-700 px-4 pb-5 pt-5 text-white lg:px-10 lg:pb-7 lg:pt-7">
+          <HeroNaturePhoto />
           <TerrainLine variant="hero" animate />
           <div className="relative lg:mx-auto lg:max-w-5xl">
             <span className="inline-flex items-center gap-2 rounded-sm bg-white/10 px-2.5 py-1 text-caption font-semibold uppercase tracking-wider text-white/80">
@@ -75,11 +77,11 @@ export function AppHome() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
-              className="mt-4 font-display text-display font-extrabold text-balance lg:text-[3.5rem] lg:leading-tight"
+              className="mt-3 font-display text-h1 font-extrabold text-balance lg:text-[2.5rem] lg:leading-tight"
             >
               Where to?
             </motion.h1>
-            <p className="mt-1 text-body text-white/70 lg:text-h2">Pick a service to get started.</p>
+            <p className="mt-1 text-body-sm text-white/70 lg:text-body">Pick a service to get started.</p>
           </div>
         </div>
 
@@ -104,8 +106,12 @@ export function AppHome() {
                   onClick={() => handleServiceClick(s)}
                   className="group flex flex-col items-center gap-2 rounded-xl px-1 py-3 text-center transition-transform duration-fast ease-standard active:scale-[0.96] hover:bg-surface-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 dark:focus-visible:ring-accent lg:py-5"
                 >
-                  <span className="grid size-11 place-items-center rounded-xl bg-surface-2 text-fg transition-colors group-hover:bg-teal-100 group-hover:text-teal-700 dark:group-hover:bg-white/10 dark:group-hover:text-accent lg:size-14">
-                    <Icon name={s.icon} className="size-5 lg:size-6" />
+                                    <span className="grid size-11 place-items-center overflow-hidden rounded-xl bg-surface-2 text-fg transition-colors group-hover:bg-teal-100 group-hover:text-teal-700 dark:group-hover:bg-white/10 dark:group-hover:text-accent lg:size-14">
+                    {s.image ? (
+                      <img src={s.image} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <Icon name={s.icon} className="size-5 lg:size-6" />
+                    )}
                   </span>
                   <span className="text-body-sm font-medium leading-tight">{s.name}</span>
                 </button>

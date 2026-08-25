@@ -38,6 +38,7 @@ export interface ServiceVertical {
   tagline: string;
   group: string;
   icon: string;
+  image?: string; 
   to: string;
   accent: string;
   live: boolean;
