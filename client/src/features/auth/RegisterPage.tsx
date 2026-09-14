@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, Mail, Lock, Clock, ShieldCheck } from "lucide-react";
@@ -8,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NameInput, PhoneField, isValidPhone, splitPhone } from "@/components/ui/phone-field";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { HeroNaturePhoto } from "@/components/ui/hero-nature-photo";
+import { TerrainLine } from "@/components/ui/terrain-line";
 import { Icon } from "@/components/ui/icon";
 import taxiImg from "@/assets/services/taxi.webp";
 import hotelImg from "@/assets/services/hotels.webp";
@@ -116,13 +119,61 @@ export function RegisterPage() {
     } finally { setLoading(false); }
   }
 
+  // Mirrors LoginPage's shell: a signed-out visitor moving between "Sign in"
+  // and "Create an account" should feel like one continuous door, not two
+  // different apps — same header, same hero photo/terrain-ridge band below
+  // lg, same full-height split pane at lg+. See LoginPage.tsx for the fuller
+  // rationale on why the layout forks at that breakpoint.
   return (
     <AppFrame>
-      <div className="relative flex flex-1 items-center justify-center p-6">
-        <div className="absolute right-4 top-4"><ThemeToggle /></div>
-        <div className="w-full max-w-sm">
-          <div className="mb-6"><Logo /></div>
+     <div className="flex flex-1 flex-col lg:flex-row">
+      <div className="relative hidden shrink-0 overflow-hidden bg-teal-700 text-white lg:flex lg:w-[38%] lg:flex-col lg:justify-between xl:w-[34%]">
+        <HeroNaturePhoto />
+        <TerrainLine variant="hero" animate />
+        <div className="relative z-10 p-10"><Logo className="text-white" /></div>
+        <div className="relative z-10 p-10">
+          <span className="inline-flex items-center gap-2 rounded-sm bg-white/10 px-2.5 py-1 text-caption font-semibold uppercase tracking-wider text-white/80">
+            <span className="relative flex size-1.5">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-500 opacity-75" />
+              <span className="relative inline-flex size-1.5 rounded-full bg-amber-500" />
+            </span>
+            Kathmandu · Nepal
+          </span>
+          <p className="mt-4 font-display text-display font-extrabold text-balance">Namaste 👋</p>
+          <p className="mt-2 text-body text-white/70">Your journey across Nepal starts here.</p>
+        </div>
+      </div>
 
+      <div className="flex flex-1 flex-col">
+        <header className="flex h-[calc(3.25rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 px-4 pt-[env(safe-area-inset-top)] lg:px-10">
+          <Logo className="lg:hidden" />
+          <div className="ml-auto"><ThemeToggle /></div>
+        </header>
+
+        {/* Mobile/tablet-only photo band — replaced by the left pane at lg. */}
+        <div className="relative shrink-0 overflow-hidden bg-teal-700 px-6 pb-12 pt-3 text-white lg:hidden">
+          <HeroNaturePhoto />
+          <TerrainLine variant="hero" animate />
+          <div className="relative">
+            <span className="inline-flex items-center gap-2 rounded-sm bg-white/10 px-2.5 py-1 text-caption font-semibold uppercase tracking-wider text-white/80">
+              <span className="relative flex size-1.5">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-500 opacity-75" />
+                <span className="relative inline-flex size-1.5 rounded-full bg-amber-500" />
+              </span>
+              Kathmandu · Nepal
+            </span>
+            <p className="mt-3 font-display text-h1 font-extrabold text-balance">Namaste 👋</p>
+            <p className="mt-1 text-body-sm text-white/70">Your journey across Nepal starts here.</p>
+          </div>
+        </div>
+
+        <motion.div
+          className="relative z-10 -mt-6 flex-1 rounded-t-2xl bg-bg px-6 pb-8 pt-7 shadow-e2 lg:mt-0 lg:flex lg:items-center lg:justify-center lg:rounded-none lg:px-10 lg:shadow-none"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+        <div className="mx-auto w-full max-w-sm py-2">
           <h1 className="font-display text-2xl font-bold tracking-tight">
             {intent === "partner" ? "List your business" : "Create your account"}
           </h1>
@@ -223,7 +274,9 @@ export function RegisterPage() {
             </div>
           )}
         </div>
+        </motion.div>
       </div>
+     </div>
     </AppFrame>
   );
 }

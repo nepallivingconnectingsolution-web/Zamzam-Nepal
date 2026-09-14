@@ -8,6 +8,8 @@ import { AppFrame } from "@/components/layout/app-frame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { HeroNaturePhoto } from "@/components/ui/hero-nature-photo";
+import { TerrainLine } from "@/components/ui/terrain-line";
 import { ForgotPasswordFlow } from "@/components/auth/ForgotPasswordFlow";
 import { useAuthStore } from "@/stores/auth.store";
 import { useSuperAdminStore } from "@/stores/super-admin.store";
@@ -136,21 +138,71 @@ export function LoginPage() {
   }
 
   // Sign-in is the app's front door now (see RootEntry in routes/index.tsx),
-  // so it renders in the same phone frame as every in-app screen. The old
-  // lg:grid-cols-2 split with a marketing panel down the left was a website
-  // pattern — fine for a page you arrive at from an ad, wrong for the first
-  // screen of an application.
+  // so it renders in the same phone frame as every in-app screen. It borrows
+  // the home screen's hero treatment — the Pashupatinath valley photo and
+  // the terrain-ridge line — so the first and second screens a signed-out
+  // visitor sees read as one place, not a website login bolted onto an app.
+  //
+  // Below lg it's the stacked phone layout: a short photo band over a card.
+  // At lg+ that band would have to stretch edge-to-edge to avoid looking like
+  // a stray floating strip, and a band that wide but still short crops the
+  // photo down to a sliver (see HeroNaturePhoto usage below). So at lg the
+  // photo instead becomes a full-height LEFT PANE next to the form, the
+  // classic split-screen shape — tall enough that object-cover has real
+  // room to work with, and it fills the desktop viewport properly instead
+  // of leaving the photo band an odd, narrow ribbon over a wide blank page.
   return (
    <AppFrame>
-      <div className="relative flex flex-1 items-center justify-center p-6">
-        <div className="absolute right-4 top-4"><ThemeToggle /></div>
+    <div className="flex flex-1 flex-col lg:flex-row">
+      {/* Desktop-only left pane. Hidden below lg — the mobile layout gets
+          its own shorter photo band further down instead. */}
+      <div className="relative hidden shrink-0 overflow-hidden bg-teal-700 text-white lg:flex lg:w-[38%] lg:flex-col lg:justify-between xl:w-[34%]">
+        <HeroNaturePhoto />
+        <TerrainLine variant="hero" animate />
+        <div className="relative z-10 p-10"><Logo className="text-white" /></div>
+        <div className="relative z-10 p-10">
+          <span className="inline-flex items-center gap-2 rounded-sm bg-white/10 px-2.5 py-1 text-caption font-semibold uppercase tracking-wider text-white/80">
+            <span className="relative flex size-1.5">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-500 opacity-75" />
+              <span className="relative inline-flex size-1.5 rounded-full bg-amber-500" />
+            </span>
+            Kathmandu · Nepal
+          </span>
+          <p className="mt-4 font-display text-display font-extrabold text-balance">Namaste 👋</p>
+          <p className="mt-2 text-body text-white/70">Your journey across Nepal starts here.</p>
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col">
+        <header className="flex h-[calc(3.25rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 px-4 pt-[env(safe-area-inset-top)] lg:px-10">
+          <Logo className="lg:hidden" />
+          <div className="ml-auto"><ThemeToggle /></div>
+        </header>
+
+        {/* Mobile/tablet-only photo band — replaced by the left pane at lg. */}
+        <div className="relative shrink-0 overflow-hidden bg-teal-700 px-6 pb-12 pt-3 text-white lg:hidden">
+          <HeroNaturePhoto />
+          <TerrainLine variant="hero" animate />
+          <div className="relative">
+            <span className="inline-flex items-center gap-2 rounded-sm bg-white/10 px-2.5 py-1 text-caption font-semibold uppercase tracking-wider text-white/80">
+              <span className="relative flex size-1.5">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-500 opacity-75" />
+                <span className="relative inline-flex size-1.5 rounded-full bg-amber-500" />
+              </span>
+              Kathmandu · Nepal
+            </span>
+            <p className="mt-3 font-display text-h1 font-extrabold text-balance">Namaste 👋</p>
+            <p className="mt-1 text-body-sm text-white/70">Your journey across Nepal starts here.</p>
+          </div>
+        </div>
+
         <motion.div
-          className="w-full max-w-sm"
+          className="relative z-10 -mt-6 flex-1 rounded-t-2xl bg-bg px-6 pb-8 pt-7 shadow-e2 lg:mt-0 lg:flex lg:items-center lg:justify-center lg:rounded-none lg:px-10 lg:shadow-none"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="mb-8"><Logo /></div>
+          <div className="mx-auto w-full max-w-sm">
           <h2 className="font-display text-2xl font-bold tracking-tight">Welcome back</h2>
           <p className="mt-1 text-sm text-muted-fg">Sign in with your email and password.</p>
 
@@ -194,10 +246,12 @@ export function LoginPage() {
               New here? <Link to="/register" state={{ from }} className="text-accent hover:underline">Create an account</Link>
             </p>
           </div>
+          </div>
         </motion.div>
       </div>
+    </div>
 
-      <ForgotPasswordFlow open={forgotOpen} onClose={() => setForgotOpen(false)} mode="user" />
-    </AppFrame>
+    <ForgotPasswordFlow open={forgotOpen} onClose={() => setForgotOpen(false)} mode="user" />
+   </AppFrame>
   );
 }
