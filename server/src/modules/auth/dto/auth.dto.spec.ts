@@ -1,6 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { LoginDto, RegisterDto } from './auth.dto';
+import { GoogleSignInDto, LoginDto, RegisterDto } from './auth.dto';
 
 async function errorsFor<T extends object>(cls: new () => T, payload: Record<string, unknown>) {
   const instance = plainToInstance(cls, payload);
@@ -61,5 +61,21 @@ describe('LoginDto', () => {
   it('rejects an empty password', async () => {
     const errors = await errorsFor(LoginDto, { email: 'a@b.com', password: '' });
     expect(errors.some((e) => e.property === 'password')).toBe(true);
+  });
+});
+
+describe('GoogleSignInDto', () => {
+  it('accepts a valid payload', async () => {
+    expect(await errorsFor(GoogleSignInDto, { idToken: 'a-valid-looking-jwt' })).toHaveLength(0);
+  });
+
+  it('rejects a missing idToken', async () => {
+    const errors = await errorsFor(GoogleSignInDto, {});
+    expect(errors.some((e) => e.property === 'idToken')).toBe(true);
+  });
+
+  it('rejects an empty idToken', async () => {
+    const errors = await errorsFor(GoogleSignInDto, { idToken: '' });
+    expect(errors.some((e) => e.property === 'idToken')).toBe(true);
   });
 });

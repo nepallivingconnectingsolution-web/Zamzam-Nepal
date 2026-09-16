@@ -41,3 +41,9 @@ export class RefreshDto {
   @MinLength(1)
   refreshToken!: string;
 }
+
+export class GoogleSignInDto {
+  @IsString()
+  @MinLength(1, { message: 'Missing Google credential.' })
+  idToken!: string;
+}

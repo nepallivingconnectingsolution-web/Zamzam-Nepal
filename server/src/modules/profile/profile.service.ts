@@ -23,11 +23,29 @@ export class ProfileService {
       if (taken) apiError(409, 'That email is already in use by another account.');
     }
 
+    // Google sign-ups land here with no mobile number yet (see schema.ts —
+    // the column is nullable for exactly this case). Everyone else already
+    // has one from registration, so this only ever fires for that first
+    // profile-completion save.
+    const [current] = await this.db.select({ mobile: users.mobile }).from(users).where(eq(users.id, userId)).limit(1);
+    if (!current?.mobile && !dto.mobile) {
+      apiError(400, 'Enter your mobile number.');
+    }
+    if (dto.mobile) {
+      const [mobileTaken] = await this.db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.mobile, dto.mobile), ne(users.id, userId)))
+        .limit(1);
+      if (mobileTaken) apiError(409, 'That mobile number is already in use by another account.');
+    }
+
     await this.db
       .update(users)
       .set({
         name: dto.fullName.trim(),
         ...(dto.email ? { email: dto.email.trim() } : {}),
+        ...(dto.mobile ? { mobile: dto.mobile } : {}),
         profileComplete: true,
         updatedAt: new Date(),
       })

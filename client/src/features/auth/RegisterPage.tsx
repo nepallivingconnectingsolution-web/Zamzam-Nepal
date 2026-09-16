@@ -12,6 +12,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { HeroNaturePhoto } from "@/components/ui/hero-nature-photo";
 import { TerrainLine } from "@/components/ui/terrain-line";
 import { Icon } from "@/components/ui/icon";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import taxiImg from "@/assets/services/taxi.webp";
 import hotelImg from "@/assets/services/hotels.webp";
 import foodImg from "@/assets/services/food.webp";
@@ -117,6 +118,19 @@ export function RegisterPage() {
     } catch (e) {
       setError((e instanceof ApiError && (e.detail as { message?: string })?.message) || "Couldn't create your account.");
     } finally { setLoading(false); }
+  }
+
+  /** Google always signs up (or in) as a customer — same session handling as the password form. */
+  function handleGoogleSuccess(res: { accessToken: string; refreshToken: string; user: User; profileComplete: boolean }) {
+    setSession(res.accessToken, res.user, res.refreshToken);
+    toast.success("Account created", "Let's finish setting up your profile.");
+    if (!res.profileComplete) {
+      navigate("/profile/setup", { state: { from } });
+    } else if (from) {
+      navigate(from);
+    } else {
+      navigate(ROLE_HOME[res.user.role]);
+    }
   }
 
   // Mirrors LoginPage's shell: a signed-out visitor moving between "Sign in"
@@ -244,6 +258,23 @@ export function RegisterPage() {
 
               {error && (
                 <p className="rounded-lg bg-danger/10 px-3 py-2 text-xs font-medium text-danger">{error}</p>
+              )}
+
+              {/* Google always creates/matches a customer account, so it has no
+                  place on the partner form — that door is password + KYC only. */}
+              {intent === "customer" && (
+                <>
+                  <div className="flex items-center gap-3 py-1">
+                    <div className="h-px flex-1 bg-border" />
+                    <span className="text-xs font-medium text-muted-fg">or</span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+                  <GoogleSignInButton
+                    label="Sign up with Google"
+                    onSuccess={handleGoogleSuccess}
+                    onError={setError}
+                  />
+                </>
               )}
 
               {/* The other door. Quiet, but always present on both sides. */}

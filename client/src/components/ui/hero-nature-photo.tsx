@@ -27,7 +27,7 @@ export function HeroNaturePhoto({ className }: { className?: string }) {
         aria-hidden="true"
         loading="eager"
         fetchPriority="high"
-        className="h-full w-full object-cover object-[50%_38%]"
+        className="h-full w-full object-cover object-[50%_27%]"
       />
       {/* Brand color grade — multiply keeps photo detail, shifts its native
           daylight tones into ZamZam teal. */}

@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class SetCustomerProfileDto {
   @IsString()
@@ -8,6 +8,13 @@ export class SetCustomerProfileDto {
   @IsOptional()
   @IsEmail()
   email?: string;
+
+  // Optional here — only required (enforced in ProfileService) when the
+  // account doesn't already have one, i.e. a Google sign-up completing
+  // their profile for the first time. Same shape as RegisterDto.mobile.
+  @IsOptional()
+  @Matches(/^[0-9]{7,15}$/, { message: 'Enter a valid mobile number.' })
+  mobile?: string;
 }
 
 export class SetBusinessProfileDto {

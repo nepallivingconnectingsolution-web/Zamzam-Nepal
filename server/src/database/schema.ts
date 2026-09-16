@@ -172,7 +172,12 @@ export const users = pgTable(
   {
     id: varchar('id', { length: 32 }).primaryKey(),
     name: text('name').notNull(),
-    mobile: varchar('mobile', { length: 20 }).notNull(),
+    // Nullable: a Google sign-up has no phone number yet — the account is
+    // created immediately (profileComplete: false) and the person supplies
+    // it on /profile/setup before they can use the app. Postgres allows
+    // multiple NULLs under a unique index, so the "no two accounts share a
+    // phone number" guarantee below is untouched for every real number.
+    mobile: varchar('mobile', { length: 20 }),
     email: varchar('email', { length: 255 }).notNull(),
     passwordHash: text('password_hash').notNull(),
     role: roleEnum('role').notNull(),
