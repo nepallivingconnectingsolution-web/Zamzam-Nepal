@@ -7,6 +7,9 @@ COPY client/ .
 # hostname, not localhost, for a production build.
 ARG VITE_API_URL=https://api.zamzam.com.np
 ENV VITE_API_URL=$VITE_API_URL
+# Google Sign-In (customer accounts only) — same bake-at-build-time deal.
+ARG VITE_GOOGLE_CLIENT_ID=
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 RUN npm run build
 
 FROM nginx:1.27-alpine
