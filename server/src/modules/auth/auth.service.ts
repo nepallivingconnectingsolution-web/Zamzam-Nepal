@@ -2,13 +2,14 @@ import { ConflictException, Inject, Injectable, UnauthorizedException } from '@n
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import { createHash } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { and, eq, lt } from 'drizzle-orm';
 import { DATABASE_CONNECTION, type Database } from '../../database/database.module';
 import { auditLogs, refreshTokens, superAdmins, users } from '../../database/schema';
 import { id } from '../../common/id';
 import { apiError } from '../../common/exceptions';
-import type { RegisterDto, LoginDto } from './dto/auth.dto';
+import type { RegisterDto, LoginDto, GoogleSignInDto } from './dto/auth.dto';
 import type { Role } from '../../database/schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PasswordResetService } from '../../common/password-reset/password-reset.service';
@@ -41,19 +42,27 @@ const PARTNER_ROLE_LABELS: Record<typeof PARTNER_ROLES[number], string> = {
 
 @Injectable()
 export class AuthService {
+  private readonly googleClient: OAuth2Client;
+
   constructor(
     @Inject(DATABASE_CONNECTION) private readonly db: Database,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly notifications: NotificationsService,
     private readonly passwordReset: PasswordResetService,
-  ) {}
+  ) {
+    this.googleClient = new OAuth2Client(this.config.get<string>('GOOGLE_CLIENT_ID'));
+  }
 
   private toPublicUser(u: typeof users.$inferSelect): PublicUser {
     return {
       id: u.id,
       name: u.name,
-      mobile: u.mobile,
+      // '' rather than null: PublicUser.mobile is a plain string everywhere
+      // else in the app (every non-Google account always has one) — the
+      // frontend treats an empty string as "needs to complete their profile"
+      // the same way it already treats profileComplete: false.
+      mobile: u.mobile ?? '',
       email: u.email,
       role: u.role,
       avatarUrl: u.avatarUrl,
@@ -252,6 +261,90 @@ private async issueTokens(userId: string, role: Role) {
       refreshToken,
       user: this.toPublicUser(user),
       profileComplete: user.profileComplete,
+    };
+  }
+
+  /**
+   * Google Sign-In — customer accounts only.
+   *
+   * Matches purely by verified email; there's no separate googleId column,
+   * because Google itself already vouches for email ownership
+   * (email_verified) and email is unique on `users`, so it's the whole
+   * account key. An existing password-registered customer who later taps
+   * "Continue with Google" with the same address links straight in.
+   *
+   * A non-customer email (driver/hotel/.../admin) is rejected outright —
+   * partner and admin accounts stay password-only, on purpose: they go
+   * through KYC / are provisioned by super-admin, not self-serve social
+   * sign-up. An unrecognized email is auto-registered as a brand-new
+   * customer, mirroring register()'s "customer" branch (instant APPROVED,
+   * tokens issued immediately, no KYC wait).
+   */
+  async googleSignIn(dto: GoogleSignInDto) {
+    let payload: { email?: string; email_verified?: boolean; name?: string; picture?: string } | undefined;
+    try {
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken: dto.idToken,
+        audience: this.config.get<string>('GOOGLE_CLIENT_ID'),
+      });
+      payload = ticket.getPayload();
+    } catch {
+      // falls through to the check below with payload still undefined
+    }
+
+    if (!payload || !payload.email || !payload.email_verified) {
+      apiError(401, 'Could not verify your Google account.');
+    }
+    const email = payload.email.toLowerCase();
+
+    const [existing] = await this.db.select().from(users).where(eq(users.email, email)).limit(1);
+
+    if (existing) {
+      if (existing.role !== 'customer') {
+        apiError(
+          403,
+          'Google sign-in is only available for customer accounts. Please use your email/password login.',
+          'GOOGLE_NOT_CUSTOMER',
+        );
+      }
+      if (existing.kycStatus === 'SUSPENDED') {
+        apiError(403, 'This account has been suspended. Contact support for help.', 'SUSPENDED');
+      }
+
+      const { accessToken, refreshToken } = await this.issueTokens(existing.id, existing.role);
+      return {
+        accessToken,
+        refreshToken,
+        user: this.toPublicUser(existing),
+        profileComplete: existing.profileComplete,
+      };
+    }
+
+    // New customer. No mobile yet (Google doesn't hand one over) and no
+    // real password — passwordHash is NOT NULL, so this fills it with a
+    // random value nobody knows; password login stays impossible for this
+    // account until they set one through the forgot-password flow.
+    const newId = id('u');
+    await this.db.insert(users).values({
+      id: newId,
+      name: payload.name?.trim() || 'Zamzam user',
+      email,
+      mobile: null,
+      passwordHash: await bcrypt.hash(randomBytes(32).toString('hex'), 10),
+      role: 'customer',
+      kycStatus: 'APPROVED',
+      profileComplete: false,
+      avatarUrl: payload.picture ?? null,
+    });
+
+    const [createdUser] = await this.db.select().from(users).where(eq(users.id, newId)).limit(1);
+    const { accessToken, refreshToken } = await this.issueTokens(newId, 'customer');
+
+    return {
+      accessToken,
+      refreshToken,
+      user: this.toPublicUser(createdUser),
+      profileComplete: false,
     };
   }
 

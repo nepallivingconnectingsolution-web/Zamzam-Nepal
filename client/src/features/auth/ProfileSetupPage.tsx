@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneField, isValidPhone, splitPhone } from "@/components/ui/phone-field";
 import { Logo } from "@/components/layout/logo";
 import { AppFrame } from "@/components/layout/app-frame";
 import { useAuthStore } from "@/stores/auth.store";
@@ -12,14 +13,18 @@ import { api, endpoints, ApiError } from "@/api/client";
 export function ProfileSetupPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuthStore();
+  const { user, updateUser } = useAuthStore();
   const isBusiness = !!user && user.role !== "customer" && user.role !== "admin";
+  // Google sign-ups land here with no phone number (Google never hands one
+  // over) — everyone who registered the normal way already has one.
+  const needsMobile = !isBusiness && !user?.mobile;
   // The service page the person originally tapped (e.g. /app/book/taxi),
   // carried all the way from the homepage tile through login/register.
   const from = (location.state as { from?: string } | null)?.from;
 
   const [fullName, setFullName] = useState(user?.name && user.name !== "Zamzam user" ? user.name : "");
   const [email, setEmail] = useState(user?.email ?? "");
+  const [mobile, setMobile] = useState("+977");
   const [businessName, setBusinessName] = useState("");
   const [address, setAddress] = useState("");
   const [documentRef, setDocumentRef] = useState("");
@@ -36,7 +41,15 @@ export function ProfileSetupPage() {
         await api.post(endpoints.profile.business, { businessName, address, documentRef });
       } else {
         if (!fullName.trim()) throw new Error("Your name is required.");
-        await api.post(endpoints.profile.customer, { fullName, email: email || undefined });
+        if (needsMobile && !isValidPhone(mobile)) throw new Error("Enter your mobile number with its country code.");
+        const { dial, national } = splitPhone(mobile);
+        const mobileDigits = `${dial}${national}`.replace("+", "");
+        await api.post(endpoints.profile.customer, {
+          fullName,
+          email: email || undefined,
+          mobile: needsMobile ? mobileDigits : undefined,
+        });
+        if (needsMobile) updateUser({ mobile: mobileDigits });
       }
       toast.success(isBusiness ? "Business saved" : "Profile saved", "You're all set.");
       if (!isBusiness && user!.role === "customer" && from) {
@@ -77,6 +90,9 @@ export function ProfileSetupPage() {
             <>
               <Field label="Full name"><Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your name" /></Field>
               <Field label="Email (optional)"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" /></Field>
+              {needsMobile && (
+                <Field label="Mobile number"><PhoneField value={mobile} onChange={setMobile} /></Field>
+              )}
             </>
           )}
           {error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-xs font-medium text-danger">{error}</p>}

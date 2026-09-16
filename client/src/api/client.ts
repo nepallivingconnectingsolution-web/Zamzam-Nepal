@@ -222,6 +222,7 @@ export const endpoints = {
   auth: {
     register: "/auth/register",
     login: "/auth/login",
+    google: "/auth/google",
     me: "/auth/me",
     refresh: "/auth/refresh",
     forgotPassword: "/auth/forgot-password",

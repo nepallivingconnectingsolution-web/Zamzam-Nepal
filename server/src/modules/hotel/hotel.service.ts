@@ -415,7 +415,7 @@ export class HotelService {
 
   private toBookingDto(
     b: typeof roomBookings.$inferSelect,
-    account?: { name: string; email: string; mobile: string; kycStatus: string } | null,
+    account?: { name: string; email: string; mobile: string | null; kycStatus: string } | null,
   ) {
     return {
       id: b.id,
@@ -438,7 +438,9 @@ export class HotelService {
       method: b.method,
       bookedAt: b.bookedAt.toISOString(),
       account: account
-        ? { name: account.name, email: account.email, mobile: account.mobile, kycStatus: account.kycStatus }
+        // '' when null — a customer who signed up via Google and hasn't
+        // completed their profile yet (see AuthService.toPublicUser).
+        ? { name: account.name, email: account.email, mobile: account.mobile ?? '', kycStatus: account.kycStatus }
         : null,
     };
   }

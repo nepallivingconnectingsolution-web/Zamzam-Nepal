@@ -11,6 +11,7 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { HeroNaturePhoto } from "@/components/ui/hero-nature-photo";
 import { TerrainLine } from "@/components/ui/terrain-line";
 import { ForgotPasswordFlow } from "@/components/auth/ForgotPasswordFlow";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { useAuthStore } from "@/stores/auth.store";
 import { useSuperAdminStore } from "@/stores/super-admin.store";
 import { toast } from "@/stores/toast.store";
@@ -74,6 +75,19 @@ export function LoginPage() {
     navigate("/x-admin");
   }
 
+  /** Shared by password login and Google sign-in once a user session comes back. */
+  function enterUserSession(res: { accessToken: string; refreshToken: string; user: User; profileComplete: boolean }) {
+    setSession(res.accessToken, res.user, res.refreshToken);
+    toast.success("Signed in", `Welcome back, ${res.user.name.split(" ")[0]}.`);
+    if (!res.profileComplete) {
+      navigate("/profile/setup", { state: { from } });
+    } else if (from && res.user.role === "customer") {
+      navigate(from);
+    } else {
+      navigate(ROLE_HOME[res.user.role]);
+    }
+  }
+
   async function login() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError("Enter a valid email address.");
     if (!password) return setError("Enter your password.");
@@ -86,20 +100,9 @@ export function LoginPage() {
       // hidden /x-admin/login URL is no longer something you have to know.
       if (res.superAdmin) return enterSuperAdmin(res.accessToken, res.admin);
 
-      setSession(res.accessToken, res.user, res.refreshToken);
-      toast.success("Signed in", `Welcome back, ${res.user.name.split(" ")[0]}.`);
       // New partners finish their business profile on first sign-in; everyone
       // whose profile is already complete goes straight to their portal.
-      if (!res.profileComplete) {
-        navigate("/profile/setup", { state: { from } });
-      } else if (from && res.user.role === "customer") {
-        // Only customers use the /app/* service pages, so only honor `from`
-        // for that role — a driver/partner/admin login always goes to their
-        // own portal home.
-        navigate(from);
-      } else {
-        navigate(ROLE_HOME[res.user.role]);
-      }
+      enterUserSession(res);
     } catch (e) {
       const detail = e instanceof ApiError ? (e.detail as { code?: string; message?: string }) : null;
       if (detail?.code === "PENDING_APPROVAL") {
@@ -241,6 +244,14 @@ export function LoginPage() {
             {error && (
               <p className="rounded-lg bg-danger/10 px-3 py-2 text-xs font-medium text-danger">{error}</p>
             )}
+
+            <div className="flex items-center gap-3 py-1">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs font-medium text-muted-fg">or</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+
+            <GoogleSignInButton onSuccess={enterUserSession} onError={setError} />
 
             <p className="text-center text-xs text-muted-fg">
               New here? <Link to="/register" state={{ from }} className="text-accent hover:underline">Create an account</Link>

@@ -40,6 +40,7 @@
     "class-validator": "^0.14.1",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.36.4",
+    "google-auth-library": "^11.0.2",
     "helmet": "^8.0.0",
     "ioredis": "^6.0.0",
     "multer": "^2.0.2",

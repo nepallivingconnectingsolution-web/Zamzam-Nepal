@@ -842,7 +842,7 @@ export class RestaurantService {
 
   private toOrderDto(
     o: typeof foodOrders.$inferSelect,
-    account: { name: string; email: string; mobile: string; kycStatus: string } | null,
+    account: { name: string; email: string; mobile: string | null; kycStatus: string } | null,
     items: OrderLineItem[],
   ) {
     return {
@@ -865,7 +865,9 @@ export class RestaurantService {
       placedAt: o.placedAt.toISOString(),
       updatedAt: o.updatedAt.toISOString(),
       account: account
-        ? { name: account.name, email: account.email, mobile: account.mobile, kycStatus: account.kycStatus }
+        // '' when null — a customer who signed up via Google and hasn't
+        // completed their profile yet (see AuthService.toPublicUser).
+        ? { name: account.name, email: account.email, mobile: account.mobile ?? '', kycStatus: account.kycStatus }
         : null,
     };
   }
