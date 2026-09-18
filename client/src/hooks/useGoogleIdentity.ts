@@ -34,6 +34,7 @@ interface GoogleMomentNotification {
   isNotDisplayed: () => boolean;
   isSkippedMoment: () => boolean;
   isDismissedMoment: () => boolean;
+  getDismissedReason: () => "credential_returned" | "cancel_called" | "flow_restarted" | "unknown_reason";
 }
 
 const SCRIPT_SRC = "https://accounts.google.com/gsi/client";
@@ -90,9 +91,11 @@ export function useGoogleIdentity() {
       onUnavailable?.();
       return;
     }
-    callbackRef.current = onToken;
+        callbackRef.current = onToken;
     window.google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment() || notification.isDismissedMoment()) {
+      const dismissedForSuccess =
+        notification.isDismissedMoment() && notification.getDismissedReason() === "credential_returned";
+      if (!dismissedForSuccess && (notification.isNotDisplayed() || notification.isSkippedMoment() || notification.isDismissedMoment())) {
         onUnavailable?.();
       }
     });

@@ -16,7 +16,13 @@
          the native shell has the assets bundled. -->
   </head>
   <body>
-    <div id="root"></div>
+    <!-- #boot: the first painted frame. Matches the SplashScreen's deep-teal
+         ground exactly, so there's no white flash between the native launch
+         and React mounting. React clears #root on render, removing this
+         seamlessly as the animated splash (same ground) takes over. -->
+    <div id="root">
+      <div style="position:fixed;inset:0;background:radial-gradient(120% 92% at 50% 8%, #0A4A3D 0%, #04342C 46%, #021B16 100%)"></div>
+    </div>
     <div id="print-root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

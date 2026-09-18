@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Zamzam Super App — UI Design Overview</title>
+<style>
+  :root{
+    --teal900:#04342C; --teal700:#085041; --teal100:#E1F5EE;
+    --amber:#EF9F27; --ink:#1E2723; --paper:#FBFAF7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:"Plus Jakarta Sans","Public Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:radial-gradient(1200px 600px at 20% -10%, #0a4a3d 0%, #04342C 45%, #021b16 100%);
+    color:var(--paper);
+    padding:56px clamp(24px,4vw,72px) 96px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1680px;margin:0 auto}
+
+  header.masthead{margin-bottom:44px}
+  .kicker{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--amber);font-weight:700}
+  h1{font-size:clamp(30px,4vw,52px);line-height:1.02;letter-spacing:-.02em;margin:10px 0 10px;font-weight:800}
+  .lede{font-size:16px;line-height:1.5;color:#bfe3d6;max-width:720px}
+  .meta{margin-top:14px;font-size:13px;color:#8fc4b4}
+  .meta b{color:var(--paper);font-weight:600}
+
+  /* token legend */
+  .legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;margin:34px 0 8px}
+  .panel{background:rgba(255,255,255,.04);border:1px solid rgba(225,245,238,.14);border-radius:20px;padding:18px 18px 20px}
+  .panel h3{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#8fc4b4;margin-bottom:14px;font-weight:700}
+  .swatches{display:flex;flex-direction:column;gap:9px}
+  .sw{display:flex;align-items:center;gap:11px;font-size:12.5px}
+  .chip{width:26px;height:26px;border-radius:8px;flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+  .sw code{margin-left:auto;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:11px;color:#9fd3c4}
+  .sw .nm{color:#e7f6f0}.sw .role{color:#7fb8a8;font-size:11px}
+  .tk{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:6px 0;border-bottom:1px dashed rgba(225,245,238,.12)}
+  .tk:last-child{border-bottom:0}.tk span:first-child{color:#e7f6f0}.tk span:last-child{color:#9fd3c4;font-family:"JetBrains Mono",monospace;font-size:11px;text-align:right}
+
+  /* sections */
+  section{margin-top:52px}
+  .sechead{display:flex;align-items:baseline;gap:14px;margin-bottom:22px;padding-bottom:12px;border-bottom:1px solid rgba(225,245,238,.16)}
+  .sechead .no{font-family:"JetBrains Mono",monospace;color:var(--amber);font-size:14px;font-weight:700}
+  .sechead h2{font-size:22px;letter-spacing:-.01em;font-weight:700}
+  .sechead .cnt{margin-left:auto;font-size:12px;color:#8fc4b4}
+
+  .grid{display:grid;gap:24px}
+  .g-phone{grid-template-columns:repeat(auto-fill,minmax(232px,1fr))}
+  .g-wide{grid-template-columns:1fr}
+
+  figure{background:#fff;border-radius:18px;overflow:hidden;border:1px solid rgba(4,52,44,.10);box-shadow:0 18px 40px rgba(0,0,0,.35)}
+  figure .shot{display:block;width:100%;height:auto}
+  .g-phone figure .shot{height:560px;object-fit:cover;object-position:top center}
+  .g-wide figure .shot{height:560px;object-fit:cover;object-position:top center}
+  figcaption{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--paper);color:var(--ink);border-top:1px solid rgba(4,52,44,.08)}
+  figcaption .t{font-weight:700;font-size:13.5px}
+  figcaption .r{margin-left:auto;font-family:"JetBrains Mono",monospace;font-size:11px;color:#fff;background:var(--teal700);padding:3px 8px;border-radius:6px}
+  figcaption .r.amber{background:var(--amber);color:var(--ink)}
+  .note{font-size:12px;color:#8fc4b4;margin-top:14px}
+  footer{margin-top:64px;font-size:12px;color:#7fb8a8;border-top:1px solid rgba(225,245,238,.16);padding-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <div class="kicker">UI Design Overview</div>
+    <h1>Zamzam Super App</h1>
+    <p class="lede">Nepal's mobility, logistics, tourism, commerce &amp; services ecosystem — one identity, one wallet, every service. Mobile-first React 19 app rendered inside a phone frame at every width, with three desktop consoles for operations.</p>
+    <p class="meta"><b>16 screens</b> · <b>9 roles</b> · React 19 + Vite · Tailwind · Framer Motion · Leaflet · captured live from the running dev server</p>
+
+    <div class="legend">
+      <div class="panel">
+        <h3>The Six — brand palette</h3>
+        <div class="swatches">
+          <div class="sw"><span class="chip" style="background:#04342C"></span><span class="nm">teal&#8209;900</span> <span class="role">deep surfaces</span><code>#04342C</code></div>
+          <div class="sw"><span class="chip" style="background:#085041"></span><span class="nm">teal&#8209;700</span> <span class="role">primary brand</span><code>#085041</code></div>
+          <div class="sw"><span class="chip" style="background:#E1F5EE"></span><span class="nm">teal&#8209;100</span> <span class="role">tinted fills</span><code>#E1F5EE</code></div>
+          <div class="sw"><span class="chip" style="background:#EF9F27"></span><span class="nm">amber&#8209;500</span> <span class="role">the accent</span><code>#EF9F27</code></div>
+          <div class="sw"><span class="chip" style="background:#1E2723"></span><span class="nm">ink</span> <span class="role">body text</span><code>#1E2723</code></div>
+          <div class="sw"><span class="chip" style="background:#FBFAF7"></span><span class="nm">paper</span> <span class="role">app bg</span><code>#FBFAF7</code></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Type</h3>
+        <div class="tk"><span>Display</span><span>Plus Jakarta Sans</span></div>
+        <div class="tk"><span>Body</span><span>Public Sans</span></div>
+        <div class="tk"><span>Mono</span><span>JetBrains Mono</span></div>
+        <div class="tk"><span>Scale</span><span>28 / 22 / 17 / 14 / 12 / 11</span></div>
+        <div class="tk"><span>Floor</span><span>11px — legal incl.</span></div>
+      </div>
+
+      <div class="panel">
+        <h3>Form &amp; motion</h3>
+        <div class="tk"><span>Radius</span><span>8 · 12 · 20 · 28</span></div>
+        <div class="tk"><span>CTA radius</span><span>12 — never pill</span></div>
+        <div class="tk"><span>Elevation</span><span>2 levels only (e1 · e2)</span></div>
+        <div class="tk"><span>Accent rule</span><span>1 amber fill / screen</span></div>
+        <div class="tk"><span>Easing</span><span>cubic&#8209;bezier(.16,1,.3,1)</span></div>
+      </div>
+
+      <div class="panel">
+        <h3>Status set</h3>
+        <div class="sw"><span class="chip" style="background:#1E7A4C"></span><span class="nm">success</span><code>#1E7A4C</code></div>
+        <div class="sw"><span class="chip" style="background:#B8860B"></span><span class="nm">warning</span><code>#B8860B</code></div>
+        <div class="sw"><span class="chip" style="background:#C4432E"></span><span class="nm">error</span><code>#C4432E</code></div>
+        <div class="sw"><span class="chip" style="background:#2B6CB0"></span><span class="nm">info</span><code>#2B6CB0</code></div>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <div class="sechead"><span class="no">01</span><h2>Front door &amp; onboarding</h2><span class="cnt">public · no auth</span></div>
+    <div class="grid g-phone">
+      <figure><img class="shot" src="ui-capture/01-apphome.png" alt="App home"><figcaption><span class="t">App home · service picker</span><span class="r">/</span></figcaption></figure>
+      <figure><img class="shot" src="ui-capture/02-login.png" alt="Login"><figcaption><span class="t">Sign in</span><span class="r">/login</span></figcaption></figure>
+      <figure><img class="shot" src="ui-capture/03-register.png" alt="Register"><figcaption><span class="t">Create account</span><span class="r">/register</span></figcaption></figure>
+      <figure><img class="shot" src="ui-capture/04-x-admin-login.png" alt="Super admin login"><figcaption><span class="t">Super-admin login</span><span class="r">/x-admin/login</span></figcaption></figure>
+      <figure><img class="shot" src="ui-capture/05-404.png" alt="Not found"><figcaption><span class="t">Not found</span><span class="r">/404</span></figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead"><span class="no">02</span><h2>Customer app</h2><span class="cnt">role · customer</span></div>
+    <div class="grid g-phone">
+      <figure><img class="shot" src="ui-capture/06-customer-home.png" alt="Marketplace home"><figcaption><span class="t">Marketplace home</span><span class="r amber">/app</span></figcaption></figure>
+      <figure><img class="shot" src="ui-capture/07-customer-book-taxi.png" alt="Service booking"><figcaption><span class="t">Service booking</span><span class="r">/app/book/taxi</span></figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead"><span class="no">03</span><h2>Partner portals</h2><span class="cnt">6 roles · phone-frame dashboards</span></div>
+    <div class="grid g-phone">
+      <figure><img class="shot" src="ui-capture/08-driver.png" alt="Driver"><figcaption><span class="t">Driver</span><span class="r">/driver</span></figcaption></figure>
+      <figure><img class="shot" src="ui-capture/09-operator.png" alt="Bus operator"><figcaption><span class="t">Bus operator</span><span class="r">/operator</span></figcaption></figure>
+      <figure><img class="shot" src="ui-capture/10-freight.png" alt="Freight"><figcaption><span class="t">Freight</span><span class="r">/freight</span></figcaption></figure>
+      <figure><img class="shot" src="ui-capture/11-hotel.png" alt="Hotel"><figcaption><span class="t">Hotel</span><span class="r">/hotel</span></figcaption></figure>
+      <figure><img class="shot" src="ui-capture/12-restaurant.png" alt="Restaurant"><figcaption><span class="t">Restaurant</span><span class="r">/restaurant</span></figcaption></figure>
+      <figure><img class="shot" src="ui-capture/13-grocery.png" alt="Grocery"><figcaption><span class="t">Grocery</span><span class="r">/grocery</span></figcaption></figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead"><span class="no">04</span><h2>Operations consoles</h2><span class="cnt">admin · super-admin · marketing</span></div>
+    <div class="grid g-phone" style="margin-bottom:24px">
+      <figure><img class="shot" src="ui-capture/14-admin.png" alt="Admin command center"><figcaption><span class="t">Command center — admin</span><span class="r">/admin</span></figcaption></figure>
+    </div>
+    <div class="grid g-wide">
+      <figure><img class="shot" src="ui-capture/16-superadmin.png" alt="Super admin console"><figcaption><span class="t">360° Command Center — super-admin (desktop)</span><span class="r">/x-admin</span></figcaption></figure>
+      <figure><img class="shot" src="ui-capture/15-landing.png" alt="Marketing landing"><figcaption><span class="t">Marketing landing (desktop)</span><span class="r">/about</span></figcaption></figure>
+    </div>
+  </section>
+
+  <p class="note">Phone cards are cropped to the top of each screen for a uniform board; full-length captures live in <code>design/ui-capture/</code>. Dashboards show empty / "no data" states because they were captured against the frontend dev server with no backend attached — the layouts, components and design tokens are all real.</p>
+
+  <footer>Captured live from <b>localhost:5173</b> · Zamzam design system v2 · This board: <b>design/ui-overview.html</b></footer>
+</div>
+</body>
+</html>

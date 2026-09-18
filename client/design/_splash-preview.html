@@ -1,0 +1,80 @@
+<!doctype html>
+<!-- Static critique frame for the "Ascent" launch animation. Not shipped —
+     it just lets me eyeball the composition (colors, depth, halo, comet glow)
+     since the live splash is a GPU-composited layer headless screenshots skip.
+     This shows a near-settled frame: ridge fully drawn, comet cresting toward
+     the end, lockup resolved. -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Splash — critique frame</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    display:grid;place-items:center;
+    background:#0a0a0a;font-family:"Plus Jakarta Sans",system-ui,sans-serif;
+  }
+  /* Phone frame at a real device size (approx 390x844 CSS px). */
+  .phone{
+    position:relative;width:390px;height:844px;overflow:hidden;border-radius:44px;
+    box-shadow:0 40px 120px rgba(0,0,0,.6), inset 0 0 0 10px #0d0d0f, inset 0 0 0 12px #26262b;
+    background:radial-gradient(120% 92% at 50% 8%, #0A4A3D 0%, #04342C 46%, #021B16 100%);
+  }
+  .layer{position:absolute;inset:0}
+  .range{position:absolute;inset-inline:0;bottom:0;height:288px}
+  .ridge{position:absolute;inset-inline:0;bottom:0;height:256px}
+  .ridge svg,.range svg{width:100%;height:100%;display:block}
+  .comet{
+    position:absolute;width:14px;height:14px;border-radius:999px;transform:translate(-50%,-50%);
+    background:radial-gradient(circle,#FFF4DE 0%,#EF9F27 42%,rgba(239,159,39,0) 72%);
+    box-shadow:0 0 22px 7px rgba(239,159,39,.7);
+  }
+  .lock{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;transform:translateY(-6%)}
+  .markbox{position:relative;display:flex;align-items:center;justify-content:center}
+  .halo{position:absolute;left:50%;top:50%;width:160px;height:160px;border-radius:999px;transform:translate(-50%,-50%);
+    background:radial-gradient(circle,rgba(239,159,39,.42) 0%,rgba(239,159,39,0) 68%)}
+  .tile{position:relative;display:grid;place-items:center;width:64px;height:64px;border-radius:16px;background:#fff;box-shadow:0 12px 44px rgba(0,0,0,.42)}
+  .word{position:relative;margin-top:20px;font-weight:800;font-size:36px;letter-spacing:-.02em;color:#FBFAF7}
+  .tag{position:relative;margin-top:12px;font-size:11.2px;font-weight:600;letter-spacing:.28em;text-transform:uppercase;color:rgba(225,245,238,.6)}
+</style>
+</head>
+<body>
+  <div class="phone">
+    <!-- distant range (depth) -->
+    <div class="range">
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none">
+        <path d="M0 40 L0 33 L16 28 L30 32 L46 23 L60 30 L74 22 L86 28 L100 26 L100 40 Z" fill="#E1F5EE" fill-opacity="0.05"/>
+      </svg>
+    </div>
+    <!-- main ridge -->
+    <div class="ridge">
+      <svg viewBox="0 0 100 40" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="f" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#EF9F27" stop-opacity="0.18"/>
+            <stop offset="100%" stop-color="#EF9F27" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M0 30 L12 22 L22 27 L34 12 L44 20 L56 8 L68 18 L78 14 L88 24 L100 19 L100 40 L0 40 Z" fill="url(#f)"/>
+        <path d="M0 30 L12 22 L22 27 L34 12 L44 20 L56 8 L68 18 L78 14 L88 24 L100 19" fill="none" stroke="#EF9F27" stroke-width="3.5" stroke-opacity="0.28" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" style="filter:blur(2.5px)"/>
+        <path d="M0 30 L12 22 L22 27 L34 12 L44 20 L56 8 L68 18 L78 14 L88 24 L100 19" fill="none" stroke="#EF9F27" stroke-width="1.4" stroke-opacity="0.7" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+      </svg>
+      <!-- comet cresting near the summit (x≈56 → left 56%, y=8 → top 20%) -->
+      <div class="comet" style="left:56%;top:20%"></div>
+    </div>
+    <!-- lockup -->
+    <div class="lock">
+      <div class="markbox">
+        <div class="halo"></div>
+        <div class="tile">
+          <img src="/src/assets/brand/logo-glyph.png" width="46" height="46" alt="" style="object-fit:contain" />
+        </div>
+      </div>
+      <div class="word">zamzam</div>
+      <div class="tag">Nepal&rsquo;s everything app</div>
+    </div>
+  </div>
+</body>
+</html>
