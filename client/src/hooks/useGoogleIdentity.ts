@@ -91,7 +91,7 @@ export function useGoogleIdentity() {
       onUnavailable?.();
       return;
     }
-        callbackRef.current = onToken;
+    callbackRef.current = onToken;
     window.google.accounts.id.prompt((notification) => {
       const dismissedForSuccess =
         notification.isDismissedMoment() && notification.getDismissedReason() === "credential_returned";
