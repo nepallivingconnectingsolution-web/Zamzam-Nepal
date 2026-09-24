@@ -286,6 +286,29 @@ describe("PhoneStep", () => {
     render(<PhoneStep view={makeView()} sendOtp={reject} verifyOtp={reject} onNext={onNext} />);
     expect(screen.getByText("Phone number verified")).toBeInTheDocument();
   });
+
+  it("shows the code and fills it in on tap when the server returns a devCode (console SMS testing mode)", async () => {
+    const user = userEvent.setup();
+    const view = makeView({ profile: profile({ phoneVerifiedAt: null }) });
+    const sendOtp = vi.fn(async () => ({ sentTo: "98*****678", expiresInSeconds: 300, devCode: "654321" }));
+    render(<PhoneStep view={view} sendOtp={sendOtp} verifyOtp={vi.fn()} onNext={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: /send my code/i }));
+    await user.click(await screen.findByText(/654321/));
+
+    const boxes = screen.getAllByRole("textbox");
+    expect(boxes.map((b) => (b as HTMLInputElement).value).join("")).toBe("654321");
+  });
+
+  it("shows no devCode banner for a real SMS send", async () => {
+    const view = makeView({ profile: profile({ phoneVerifiedAt: null }) });
+    const sendOtp = vi.fn(async () => ({ sentTo: "98*****678", expiresInSeconds: 300 }));
+    render(<PhoneStep view={view} sendOtp={sendOtp} verifyOtp={vi.fn()} onNext={vi.fn()} />);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: /send my code/i }));
+    await screen.findByText("98*****678");
+    expect(screen.queryByText(/no real sms was sent/i)).not.toBeInTheDocument();
+  });
 });
 
 describe("ApplicationStatusPage", () => {

@@ -15,6 +15,7 @@ const RESEND_SECONDS = 30;
 export function PhoneStep({ view, sendOtp, verifyOtp, onNext }: Props) {
   const verified = !!view?.profile?.phoneVerifiedAt;
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [devCode, setDevCode] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState<"send" | "verify" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +34,7 @@ export function PhoneStep({ view, sendOtp, verifyOtp, onNext }: Props) {
     try {
       const r = await sendOtp();
       setSentTo(r.sentTo);
+      setDevCode(r.devCode ?? null);
       setWait(RESEND_SECONDS);
     } catch (err) {
       setError(errorMessage(err, "We couldn't send the code. Please try again."));
@@ -99,10 +101,15 @@ export function PhoneStep({ view, sendOtp, verifyOtp, onNext }: Props) {
           >
             {wait > 0 ? `Send again in ${wait}s` : "Send a new code"}
           </button>
-          {import.meta.env.DEV && (
-            <p className="rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted-fg">
-              Development build: with SMS_PROVIDER=console the code is printed in the server log.
-            </p>
+          {devCode && (
+            <button
+              type="button"
+              onClick={() => setCode(devCode)}
+              className="w-full rounded-lg bg-warning/10 px-3 py-2 text-left text-xs text-warning"
+            >
+              No real SMS was sent (test mode) — your code is{" "}
+              <span className="font-mono font-semibold">{devCode}</span>. Tap to fill it in.
+            </button>
           )}
         </div>
       )}

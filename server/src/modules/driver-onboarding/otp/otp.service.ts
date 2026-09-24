@@ -6,6 +6,7 @@ import { driverProfiles, phoneOtps, users } from '../../../database/schema';
 import { apiError } from '../../../common/exceptions';
 import { id } from '../../../common/id';
 import { SmsProvider } from '../../../common/sms/sms.provider';
+import { ConsoleSmsProvider } from '../../../common/sms/console-sms.provider';
 
 const TTL_SECONDS = 300;
 const MAX_SENDS = 3;
@@ -27,7 +28,7 @@ export class OtpService {
   ) {}
 
   /** Codes are only ever sent to the account's own mobile number, never to an arbitrary number. */
-  async send(userId: string): Promise<{ sentTo: string; expiresInSeconds: number }> {
+  async send(userId: string): Promise<{ sentTo: string; expiresInSeconds: number; devCode?: string }> {
     const [user] = await this.db.select({ mobile: users.mobile }).from(users).where(eq(users.id, userId)).limit(1);
     if (!user?.mobile) apiError(400, 'Add a mobile number to your account first.', 'NO_MOBILE');
 
@@ -62,7 +63,12 @@ export class OtpService {
       await this.db.delete(phoneOtps).where(eq(phoneOtps.id, rowId));
       throw err;
     }
-    return { sentTo: mask(user.mobile), expiresInSeconds: TTL_SECONDS };
+    // Only ever set when the console/no-real-SMS provider is actually wired
+    // in (dev, or ALLOW_CONSOLE_SMS_IN_PRODUCTION for manual QA) — a real
+    // SmsProvider (Sparrow) never reaches this branch, so a real user's code
+    // never appears in the response body.
+    const devCode = this.sms instanceof ConsoleSmsProvider ? code : undefined;
+    return { sentTo: mask(user.mobile), expiresInSeconds: TTL_SECONDS, ...(devCode && { devCode }) };
   }
 
   async verify(userId: string, code: string): Promise<{ verified: true }> {

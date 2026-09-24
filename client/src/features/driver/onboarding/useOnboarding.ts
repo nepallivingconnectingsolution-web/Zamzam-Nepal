@@ -56,7 +56,7 @@ export function useOnboarding() {
     reload: () => load(),
     refresh: () => load(true),
 
-    sendOtp: () => api.post<{ sentTo: string; expiresInSeconds: number }>(e.otpSend),
+    sendOtp: () => api.post<{ sentTo: string; expiresInSeconds: number; devCode?: string }>(e.otpSend),
     verifyOtp: async (code: string) => {
       await api.post(e.otpVerify, { code });
       await load(true);
