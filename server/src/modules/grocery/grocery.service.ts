@@ -27,6 +27,8 @@ import type {
 } from './dto/grocery.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PartnerDocumentsService } from '../partner-documents/partner-documents.service';
+import { BusinessImageUploadService, MAX_BUSINESS_PHOTOS } from '../../common/uploads/business-image-upload.service';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 
 
 const SERVICE_FEE_RATE = 0.02; // Same platform commission as every other vertical.
@@ -63,10 +65,13 @@ function todayIso(): string {
 
 @Injectable()
 export class GroceryService {
-  constructor(@Inject(DATABASE_CONNECTION) private readonly db: Database,
+  constructor(
+    @Inject(DATABASE_CONNECTION) private readonly db: Database,
     private readonly notifications: NotificationsService,
     private readonly partnerDocuments: PartnerDocumentsService,
-) {}
+    private readonly businessImages: BusinessImageUploadService,
+    private readonly cloudinary: CloudinaryService,
+  ) {}
 
   /* ───────────────────────────── Customer-facing ─────────────────────── */
 
@@ -475,9 +480,36 @@ export class GroceryService {
     };
   }
 
+  async addStorePhotos(partnerId: string, storeId: string, files: Express.Multer.File[]) {
+    const store = await this.assertOwnedStore(partnerId, storeId);
+    if (store.photos.length + files.length > MAX_BUSINESS_PHOTOS) {
+      apiError(400, `You can have at most ${MAX_BUSINESS_PHOTOS} photos — delete some before adding more.`);
+    }
+    const uploaded = await Promise.all(files.map((f) => this.businessImages.upload(f, 'grocery')));
+    const photos = [...store.photos, ...uploaded.map((u) => u.url)];
+    const [updated] = await this.db.update(groceryStores).set({ photos }).where(eq(groceryStores.id, storeId)).returning();
+    return updated;
+  }
+
+  async deleteStorePhoto(partnerId: string, storeId: string, publicId: string) {
+    const store = await this.assertOwnedStore(partnerId, storeId);
+    const url = store.photos.find((p) => this.cloudinary.publicIdFromUrl(p) === publicId);
+    if (!url) apiError(404, 'Photo not found.');
+    const photos = store.photos.filter((p) => p !== url);
+    const [updated] = await this.db.update(groceryStores).set({ photos }).where(eq(groceryStores.id, storeId)).returning();
+    await this.cloudinary.deleteImage(publicId);
+    return updated;
+  }
+
   async deleteStore(partnerId: string, storeId: string) {
-    await this.assertOwnedStore(partnerId, storeId);
+    const store = await this.assertOwnedStore(partnerId, storeId);
     await this.db.delete(groceryStores).where(eq(groceryStores.id, storeId));
+    await Promise.allSettled(
+      store.photos.map((url) => {
+        const publicId = this.cloudinary.publicIdFromUrl(url);
+        return publicId ? this.cloudinary.deleteImage(publicId) : Promise.resolve();
+      }),
+    );
     return { ok: true };
   }
 
@@ -585,9 +617,34 @@ export class GroceryService {
     return { ...updated, price: Number(updated.price), mrp: updated.mrp != null ? Number(updated.mrp) : null };
   }
 
+  async setProductPhoto(partnerId: string, storeId: string, productId: string, file: Express.Multer.File) {
+    const product = await this.assertOwnedProduct(partnerId, storeId, productId);
+    const uploaded = await this.businessImages.upload(file, 'grocery-product');
+    if (product.photo) {
+      const oldPublicId = this.cloudinary.publicIdFromUrl(product.photo);
+      if (oldPublicId) await this.cloudinary.deleteImage(oldPublicId);
+    }
+    const [updated] = await this.db.update(products).set({ photo: uploaded.url }).where(eq(products.id, productId)).returning();
+    return { ...updated, price: Number(updated.price), mrp: updated.mrp != null ? Number(updated.mrp) : null };
+  }
+
+  async deleteProductPhoto(partnerId: string, storeId: string, productId: string) {
+    const product = await this.assertOwnedProduct(partnerId, storeId, productId);
+    if (product.photo) {
+      const publicId = this.cloudinary.publicIdFromUrl(product.photo);
+      if (publicId) await this.cloudinary.deleteImage(publicId);
+    }
+    const [updated] = await this.db.update(products).set({ photo: null }).where(eq(products.id, productId)).returning();
+    return { ...updated, price: Number(updated.price), mrp: updated.mrp != null ? Number(updated.mrp) : null };
+  }
+
   async deleteProduct(partnerId: string, storeId: string, productId: string) {
-    await this.assertOwnedProduct(partnerId, storeId, productId);
+    const product = await this.assertOwnedProduct(partnerId, storeId, productId);
     await this.db.delete(products).where(eq(products.id, productId));
+    if (product.photo) {
+      const publicId = this.cloudinary.publicIdFromUrl(product.photo);
+      if (publicId) await this.cloudinary.deleteImage(publicId);
+    }
     return { ok: true };
   }
 

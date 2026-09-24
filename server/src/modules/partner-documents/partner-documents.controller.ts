@@ -9,6 +9,7 @@ import { PARTNER_DOCUMENT_CATALOG, type PartnerType } from './dto/partner-docume
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { AllowPending } from '../../common/decorators/allow-pending.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/jwt.strategy';
 
@@ -18,6 +19,8 @@ const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 @Controller('partner/documents')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('hotel', 'restaurant', 'grocery', 'bus_operator', 'freight')
+// Unapproved businesses sign in precisely to upload these documents.
+@AllowPending()
 export class PartnerDocumentsController {
   constructor(private readonly documents: PartnerDocumentsService) {}
 

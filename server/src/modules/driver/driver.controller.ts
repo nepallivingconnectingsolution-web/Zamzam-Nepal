@@ -63,7 +63,12 @@ export class DriverController {
   @UseGuards(RolesGuard)
   @Roles('driver')
   updateLocation(@CurrentUser() user: AuthenticatedUser, @Body() dto: UpdateLocationDto) {
-    return this.driver.updateLocation(user.id, dto.lat, dto.lng);
+    return this.driver.updateLocation(user.id, dto.lat, dto.lng, {
+      accuracy: dto.accuracy,
+      heading: dto.heading,
+      speed: dto.speed,
+      ts: dto.timestamp,
+    });
   }
 }
 

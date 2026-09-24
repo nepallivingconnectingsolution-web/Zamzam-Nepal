@@ -35,6 +35,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Something went wrong. Please try again.';
     let code: string | undefined;
+    let details: unknown;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -51,6 +52,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
           message = b.message;
         }
         if (typeof b.code === 'string') code = b.code;
+        // Optional structured payload (e.g. the list of reasons a submit was blocked).
+        if (b.details !== undefined) details = b.details;
       }
     } else if (exception instanceof Error) {
       this.logger.error(exception.message, exception.stack);
@@ -65,6 +68,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.error(`${request.method} ${request.url} -> ${status}: ${message}`);
     }
 
-    response.status(status).json(code ? { message, code } : { message });
+    response.status(status).json({ message, ...(code ? { code } : {}), ...(details !== undefined ? { details } : {}) });
   }
 }

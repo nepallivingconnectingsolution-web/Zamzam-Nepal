@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, useParams } from "react-router-dom";
 import { PortalLayout } from "@/components/layout/portal-layout";
 import { ScaffoldPage } from "@/components/shared/scaffold-page";
 import { RequireRole } from "@/components/auth/RequireRole";
@@ -25,6 +25,10 @@ const AppHome = lazy(() => import("@/features/home/AppHome").then((m) => ({ defa
 const LandingPage = lazy(() => import("@/features/marketing/LandingPage").then((m) => ({ default: m.LandingPage })));
 const LoginPage = lazy(() => import("@/features/auth/LoginPage").then((m) => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import("@/features/auth/RegisterPage").then((m) => ({ default: m.RegisterPage })));
+const VerifyAccountPage = lazy(() => import("@/features/auth/VerifyAccountPage").then((m) => ({ default: m.VerifyAccountPage })));
+const PartnerVerificationPage = lazy(() =>
+  import("@/features/partner/PartnerVerificationPage").then((m) => ({ default: m.PartnerVerificationPage })),
+);
 const ProfileSetupPage = lazy(() =>
   import("@/features/auth/ProfileSetupPage").then((m) => ({ default: m.ProfileSetupPage })),
 );
@@ -143,6 +147,12 @@ const DriverDashboard = lazy(() =>
   import("@/features/driver/DriverDashboard").then((m) => ({ default: m.DriverDashboard })),
 );
 const VehiclePage = lazy(() => import("@/features/driver/VehiclePage").then((m) => ({ default: m.VehiclePage })));
+const DriverOnboardingPage = lazy(() =>
+  import("@/features/driver/onboarding/OnboardingPage").then((m) => ({ default: m.OnboardingPage })),
+);
+const RequireApprovedDriver = lazy(() =>
+  import("@/features/driver/RequireApprovedDriver").then((m) => ({ default: m.RequireApprovedDriver })),
+);
 const DriverDocumentsPage = lazy(() =>
   import("@/features/driver/DriverDocumentsPage").then((m) => ({ default: m.DriverDocumentsPage })),
 );
@@ -190,17 +200,12 @@ const SuperAdminUsers = lazy(() =>
 const SuperAdminApprovals = lazy(() =>
   import("@/features/super-admin/pages/SuperAdminApprovals").then((m) => ({ default: m.SuperAdminApprovals })),
 );
-const SuperAdminVehicles = lazy(() =>
-  import("@/features/super-admin/pages/SuperAdminVehicles").then((m) => ({ default: m.SuperAdminVehicles })),
+const SuperAdminReview = lazy(() =>
+  import("@/features/super-admin/pages/SuperAdminReview").then((m) => ({ default: m.SuperAdminReview })),
 );
 const SuperAdminPartnerDocuments = lazy(() =>
   import("../features/super-admin/pages/SuperAdminPartnerDocuments").then((m) => ({
     default: m.SuperAdminPartnerDocuments,
-  })),
-);
-const SuperAdminRegistrationReview = lazy(() =>
-  import("@/features/super-admin/pages/SuperAdminRegReview").then((m) => ({
-    default: m.SuperAdminRegistrationReview,
   })),
 );
 const SuperAdminPartners = lazy(() =>
@@ -283,6 +288,12 @@ function RootEntry() {
   return <AppHome />;
 }
 
+/** Old /x-admin/registrations/:id links (bookmarks, notifications) open the unified review page. */
+function RedirectToReview() {
+  const { id = "" } = useParams();
+  return <Navigate to={`/x-admin/approvals/${id}`} replace />;
+}
+
 export const router = createBrowserRouter([
   // "/" is the app's front door on every platform — see RootEntry.
   // /about is where the marketing site lives now, and stays a permanent route
@@ -292,7 +303,10 @@ export const router = createBrowserRouter([
   { path: "/about", element: <LandingPage /> },
   { path: "/login", element: <LoginPage /> },
   { path: "/register", element: <RegisterPage /> },
+  { path: "/verify-account", element: <VerifyAccountPage /> },
   { path: "/profile/setup", element: <ProfileSetupPage /> },
+  // Where an unapproved business uploads its documents; see RequireRole.
+  { path: "/verification", element: <PartnerVerificationPage /> },
 
   /* ── Super Admin (hidden entry) ─────────────────────────────────────── */
   { path: "/x-admin/login", element: <SuperAdminLoginPage /> },
@@ -306,8 +320,12 @@ export const router = createBrowserRouter([
           { index: true, element: <SuperAdminOverview /> },
           { path: "users", element: <SuperAdminUsers /> },
           { path: "approvals", element: <SuperAdminApprovals /> },
-          { path: "registrations/:id", element: <SuperAdminRegistrationReview /> },
-          { path: "drivers", element: <SuperAdminVehicles /> },
+          { path: "approvals/:userId", element: <SuperAdminReview /> },
+          // Drivers and their applications are reviewed in Partner approvals now;
+          // these keep old bookmarks and links working.
+          { path: "drivers", element: <Navigate to="/x-admin/approvals?type=driver" replace /> },
+          { path: "driver-applications", element: <Navigate to="/x-admin/approvals?type=driver" replace /> },
+          { path: "registrations/:id", element: <RedirectToReview /> },
           { path: "partners", element: <SuperAdminPartners /> },
           { path: "partners/:id", element: <SuperAdminPartnerDetail /> },
           { path: "partner-documents", element: <SuperAdminPartnerDocuments /> },
@@ -369,24 +387,32 @@ export const router = createBrowserRouter([
     path: "/driver",
     element: <RequireRole role="driver" />,
     children: [
+      // Sign-up and verification live outside the portal shell: someone who
+      // isn't approved yet has no dashboard to look at.
+      { path: "onboarding", element: <DriverOnboardingPage /> },
       {
-        element: <PortalLayout role="driver" />,
+        element: <RequireApprovedDriver />,
         children: [
           {
-            // Mounted once for the whole driver portal: keeps online status,
-            // GPS broadcasting, and incoming-request/current-job polling
-            // alive across every driver page, not just the dashboard.
-            element: <DriverPortalProvider />,
+            element: <PortalLayout role="driver" />,
             children: [
-              { index: true, element: <DriverDashboard /> },
-              { path: "buses", element: <OperatorBusManager title="Buses" subtitle="Register buses, publish routes and track ticket sales." /> },
-              { path: "requests", element: <RideRequestsPage /> },
-              { path: "trip", element: <CurrentTripPage /> },
-              { path: "earnings", element: <DriverEarningsPage /> },
-              { path: "wallet", element: <DriverWalletPage /> },
-              { path: "ratings", element: <DriverRatingsPage /> },
-             { path: "vehicle", element: <VehiclePage /> },
-              { path: "documents", element: <DriverDocumentsPage /> },
+              {
+                // Mounted once for the whole driver portal: keeps online status,
+                // GPS broadcasting, and incoming-request/current-job polling
+                // alive across every driver page, not just the dashboard.
+                element: <DriverPortalProvider />,
+                children: [
+                  { index: true, element: <DriverDashboard /> },
+                  { path: "buses", element: <OperatorBusManager title="Buses" subtitle="Register buses, publish routes and track ticket sales." /> },
+                  { path: "requests", element: <RideRequestsPage /> },
+                  { path: "trip", element: <CurrentTripPage /> },
+                  { path: "earnings", element: <DriverEarningsPage /> },
+                  { path: "wallet", element: <DriverWalletPage /> },
+                  { path: "ratings", element: <DriverRatingsPage /> },
+                  { path: "vehicle", element: <VehiclePage /> },
+                  { path: "documents", element: <DriverDocumentsPage /> },
+                ],
+              },
             ],
           },
         ],

@@ -22,6 +22,6 @@ COPY --from=build /app/drizzle.config.ts ./drizzle.config.ts
 # Backup scripts (backup.sh, prune-b2.ts) run via sh and npx tsx at runtime
 COPY scripts ./scripts
 RUN npm install tsx --no-save
-RUN mkdir -p uploads
+RUN mkdir -p uploads private-uploads
 EXPOSE 4000
 CMD ["node", "dist/main.js"]

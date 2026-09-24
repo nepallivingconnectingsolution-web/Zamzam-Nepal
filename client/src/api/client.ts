@@ -86,13 +86,17 @@ async function tryRefreshAccessToken(): Promise<string | null> {
   return refreshInFlight;
 }
 
-type Method = "GET" | "POST" | "PATCH" | "DELETE";
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-async function parseErrorBody(res: Response): Promise<{ message: string; code?: string }> {
+async function parseErrorBody(res: Response): Promise<{ message: string; code?: string; details?: unknown }> {
   try {
     const body = await res.json();
     if (body && typeof body.message === "string") {
-      return { message: body.message, code: typeof body.code === "string" ? body.code : undefined };
+      return {
+        message: body.message,
+        code: typeof body.code === "string" ? body.code : undefined,
+        details: body.details,
+      };
     }
   } catch {
     // fall through to generic message
@@ -139,7 +143,7 @@ async function request<T>(method: Method, path: string, body?: unknown, _retried
   }
 
   if (res.status === 403) {
-    const { code } = await parseErrorBody(res.clone());
+    const { code, message } = await parseErrorBody(res.clone());
     // Only ever fired by RolesGuard when the token's real role doesn't
     // match what this page required to render in the first place — i.e.
     // the session in *this* tab went stale mid-flow (most commonly:
@@ -152,15 +156,27 @@ async function request<T>(method: Method, path: string, body?: unknown, _retried
     if (code === "ROLE_MISMATCH") {
       signOutAndRedirect("Your session changed in another tab. Please sign in again.");
     }
+    // A business partner's account was suspended while it was signed in (an
+    // unapproved one never reaches a guarded page: RequireRole sends it to
+    // /verification). Nothing on this page can work again, so end the session
+    // with the server's reason.
+    if (code === "PARTNER_NOT_APPROVED") {
+      signOutAndRedirect(message);
+    }
   }
 
   if (!res.ok) {
-    const { message, code } = await parseErrorBody(res);
-    throw new ApiError(res.status, message, code ? { message, code } : { message });
+    const { message, code, details } = await parseErrorBody(res);
+    throw new ApiError(res.status, message, errorDetail(message, code, details));
   }
 
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
+}
+
+/** `{ message, code?, details? }` — the shape every ApiError.detail carries. */
+function errorDetail(message: string, code?: string, details?: unknown) {
+  return { message, ...(code ? { code } : {}), ...(details !== undefined ? { details } : {}) };
 }
 
 interface RequestOptions {
@@ -204,9 +220,78 @@ async function upload<T>(path: string, formData: FormData, _retried = false): Pr
   return (await res.json()) as T;
 }
 
+/**
+ * Fetches a private file (an onboarding document) with the caller's token and
+ * returns its bytes. Private files are never public URLs, so an <img src>
+ * cannot load them; callers turn the Blob into an object URL instead.
+ */
+async function getBlob(path: string, _retried = false): Promise<Blob> {
+  const token = authToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    cache: "no-store",
+  });
+  if (res.status === 401 && token && !_retried && (await tryRefreshAccessToken())) {
+    return getBlob(path, true);
+  }
+  if (!res.ok) {
+    const { message, code } = await parseErrorBody(res);
+    throw new ApiError(res.status, message, errorDetail(message, code));
+  }
+  return res.blob();
+}
+
+/**
+ * Multipart upload with a progress callback (fetch cannot report upload
+ * progress, XMLHttpRequest can). Same one-shot silent token refresh as the
+ * other calls. A dropped connection surfaces as ApiError(0) so the UI can
+ * offer a Retry instead of failing silently.
+ */
+function uploadWithProgress<T>(
+  path: string,
+  formData: FormData,
+  onProgress?: (percent: number) => void,
+  _retried = false,
+): Promise<T> {
+  const token = authToken();
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_BASE_URL}${path}`);
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onerror = () =>
+      reject(new ApiError(0, "Connection lost. Check your internet and try again.", { message: "Connection lost." }));
+    xhr.ontimeout = xhr.onerror;
+    xhr.onload = async () => {
+      if (xhr.status === 401 && token && !_retried && (await tryRefreshAccessToken())) {
+        uploadWithProgress<T>(path, formData, onProgress, true).then(resolve, reject);
+        return;
+      }
+      let body: { message?: string; code?: string; details?: unknown } | null = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        // non-JSON body: fall through
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(body as T);
+        return;
+      }
+      const message = body?.message ?? "Something went wrong. Please try again.";
+      reject(new ApiError(xhr.status, message, errorDetail(message, body?.code, body?.details)));
+    };
+    xhr.send(formData);
+  });
+}
+
 export const api = {
   get: <T>(path: string, _opts?: RequestOptions) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown, _opts?: RequestOptions) => request<T>("POST", path, body),
+  put: <T>(path: string, body?: unknown, _opts?: RequestOptions) => request<T>("PUT", path, body),
+  blob: getBlob,
+  uploadWithProgress,
   patch: <T>(path: string, body?: unknown, _opts?: RequestOptions) => request<T>("PATCH", path, body),
   delete: <T>(path: string, _opts?: RequestOptions) => request<T>("DELETE", path),
   upload: <T>(path: string, formData: FormData) => upload<T>(path, formData),
@@ -228,6 +313,10 @@ export const endpoints = {
     forgotPassword: "/auth/forgot-password",
     verifyResetOtp: "/auth/verify-reset-otp",
     resetPassword: "/auth/reset-password",
+    verifyEmail: "/auth/verify-email",
+    verifyMobile: "/auth/verify-mobile",
+    resendEmailOtp: "/auth/resend-email-otp",
+    resendMobileOtp: "/auth/resend-mobile-otp",
   },
   superAdminAuth: {
     login: "/super-admin/auth/login",
@@ -280,6 +369,8 @@ bookings: { list: "/bookings" },
   op: {
     buses: '/operator/buses',
     bus: (id: string) => `/operator/buses/${id}`,
+    busPhotos: (id: string) => `/operator/buses/${id}/photos`,
+    busPhotoDelete: (id: string, publicId: string) => `/operator/buses/${id}/photos/${publicId}`,
     metrics: '/operator/buses/metrics',
     schedules: '/operator/buses/schedules',
     schedule: (id: string) => `/operator/buses/schedules/${id}`,
@@ -307,6 +398,11 @@ bookings: { list: "/bookings" },
       hotel: (id: string) => `/hotel/hotels/${id}`,
       roomTypes: (hotelId: string) => `/hotel/hotels/${hotelId}/room-types`,
       roomType: (hotelId: string, roomTypeId: string) => `/hotel/hotels/${hotelId}/room-types/${roomTypeId}`,
+      hotelPhotos: (id: string) => `/hotel/hotels/${id}/photos`,
+      hotelPhotoDelete: (id: string, publicId: string) => `/hotel/hotels/${id}/photos/${publicId}`,
+      roomTypePhotos: (hotelId: string, roomTypeId: string) => `/hotel/hotels/${hotelId}/room-types/${roomTypeId}/photos`,
+      roomTypePhotoDelete: (hotelId: string, roomTypeId: string, publicId: string) =>
+        `/hotel/hotels/${hotelId}/room-types/${roomTypeId}/photos/${publicId}`,
       bookings: "/hotel/hotels/bookings/all",
       bookingDetail: (bookingId: string) => `/hotel/hotels/bookings/${bookingId}`,
       cancelBooking: (bookingId: string) => `/hotel/hotels/bookings/${bookingId}/cancel`,
@@ -326,10 +422,13 @@ bookings: { list: "/bookings" },
     partner: {
       restaurants: "/restaurant/restaurants",
       restaurant: (id: string) => `/restaurant/restaurants/${id}`,
+      restaurantPhotos: (id: string) => `/restaurant/restaurants/${id}/photos`,
+      restaurantPhotoDelete: (id: string, publicId: string) => `/restaurant/restaurants/${id}/photos/${publicId}`,
       categories: (restaurantId: string) => `/restaurant/restaurants/${restaurantId}/categories`,
       category: (restaurantId: string, categoryId: string) => `/restaurant/restaurants/${restaurantId}/categories/${categoryId}`,
       items: (restaurantId: string) => `/restaurant/restaurants/${restaurantId}/items`,
       item: (restaurantId: string, itemId: string) => `/restaurant/restaurants/${restaurantId}/items/${itemId}`,
+      itemPhoto: (restaurantId: string, itemId: string) => `/restaurant/restaurants/${restaurantId}/items/${itemId}/photo`,
       orders: "/restaurant/restaurants/orders/all",
       orderDetail: (orderId: string) => `/restaurant/restaurants/orders/${orderId}`,
       orderStatus: (orderId: string) => `/restaurant/restaurants/orders/${orderId}/status`,
@@ -349,10 +448,13 @@ bookings: { list: "/bookings" },
   partner: {
     stores: "/grocery/stores",
     store: (id: string) => `/grocery/stores/${id}`,
+    storePhotos: (id: string) => `/grocery/stores/${id}/photos`,
+    storePhotoDelete: (id: string, publicId: string) => `/grocery/stores/${id}/photos/${publicId}`,
     categories: (storeId: string) => `/grocery/stores/${storeId}/categories`,
     category: (storeId: string, categoryId: string) => `/grocery/stores/${storeId}/categories/${categoryId}`,
     products: (storeId: string) => `/grocery/stores/${storeId}/products`,
     product: (storeId: string, productId: string) => `/grocery/stores/${storeId}/products/${productId}`,
+    productPhoto: (storeId: string, productId: string) => `/grocery/stores/${storeId}/products/${productId}/photo`,
     restock: (storeId: string, productId: string) => `/grocery/stores/${storeId}/products/${productId}/restock`,
     orders: "/grocery/stores/orders/all",
     orderDetail: (orderId: string) => `/grocery/stores/orders/${orderId}`,
@@ -378,10 +480,33 @@ bookings: { list: "/bookings" },
     reviewSummary: "/driver/reviews/summary",
   },
   drivers: { nearby: "/drivers/nearby" },
+  // Driver onboarding, verification and dispatch (server modules driver-onboarding + driver-dispatch).
+  driverOnboarding: {
+    application: "/driver/application",
+    profile: "/driver/application/profile",
+    vehicle: "/driver/application/vehicle",
+    files: "/driver/application/files",
+    file: (docId: string) => `/driver/application/files/${docId}`,
+    submit: "/driver/application/submit",
+    reopen: "/driver/application/reopen",
+    requirements: (vehicleType: string) => `/driver/requirements?vehicleType=${vehicleType}`,
+    otpSend: "/driver/otp/send",
+    otpVerify: "/driver/otp/verify",
+    fileBlob: (fileId: string) => `/driver/files/${fileId}`,
+    eligibility: "/driver/eligibility",
+    goOnline: "/driver/go-online",
+    goOffline: "/driver/go-offline",
+    offersPending: "/driver/offers/pending",
+    offerAccept: (id: string) => `/driver/offers/${id}/accept`,
+    offerDecline: (id: string) => `/driver/offers/${id}/decline`,
+    stream: "/driver/stream",
+  },
 vehicles: {
     register: "/vehicles",
     mine: "/vehicles/mine",
     update: (id: string) => `/vehicles/${id}`,
+    photos: (id: string) => `/vehicles/${id}/photos`,
+    photoDelete: (id: string, publicId: string) => `/vehicles/${id}/photos/${publicId}`,
     activate: (id: string) => `/vehicles/${id}/activate`,
     remove: (id: string) => `/vehicles/${id}`,
   },

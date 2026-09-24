@@ -93,8 +93,9 @@ export function SuperAdminNotifications() {
         // Non-critical — a stale read state self-corrects on next load.
       }
     }
-    if (n.entityType === "partner" && n.entityId) {
-      navigate(`/x-admin/partners/${n.entityId}`);
+    // A new registration or an uploaded document both belong in the approvals inbox.
+    if ((n.entityType === "partner" || n.entityType === "partner_document") && n.entityId) {
+      navigate(`/x-admin/approvals/${n.entityId}`);
     }
   }
 

@@ -1,4 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, UseInterceptors, UploadedFiles, UploadedFile, BadRequestException,
+} from '@nestjs/common';
+import { FilesInterceptor, FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { Throttle } from '@nestjs/throttler';
 import { RestaurantService } from './restaurant.service';
 import {
   CreateCategoryDto,
@@ -75,6 +80,27 @@ export class PartnerRestaurantsController {
     return this.restaurant.updateRestaurant(user.id, restaurantId, dto);
   }
 
+  @Post(':id/photos')
+  @Throttle({ default: { limit: 20, ttl: 300_000 } })
+  @UseInterceptors(FilesInterceptor('files', 10, { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
+  uploadPhotos(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') restaurantId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    if (!files?.length) throw new BadRequestException('Attach at least one photo.');
+    return this.restaurant.addRestaurantPhotos(user.id, restaurantId, files);
+  }
+
+  @Delete(':id/photos/:publicId')
+  deletePhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') restaurantId: string,
+    @Param('publicId') publicId: string,
+  ) {
+    return this.restaurant.deleteRestaurantPhoto(user.id, restaurantId, publicId);
+  }
+
   @Delete(':id')
   deleteRestaurant(@CurrentUser() user: AuthenticatedUser, @Param('id') restaurantId: string) {
     return this.restaurant.deleteRestaurant(user.id, restaurantId);
@@ -139,6 +165,28 @@ export class PartnerRestaurantsController {
     @Body() dto: UpdateMenuItemDto,
   ) {
     return this.restaurant.updateMenuItem(user.id, restaurantId, itemId, dto);
+  }
+
+  @Post(':id/items/:itemId/photo')
+  @Throttle({ default: { limit: 20, ttl: 300_000 } })
+  @UseInterceptors(FileInterceptor('files', { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
+  uploadMenuItemPhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') restaurantId: string,
+    @Param('itemId') itemId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Attach a photo.');
+    return this.restaurant.setMenuItemPhoto(user.id, restaurantId, itemId, file);
+  }
+
+  @Delete(':id/items/:itemId/photo')
+  deleteMenuItemPhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') restaurantId: string,
+    @Param('itemId') itemId: string,
+  ) {
+    return this.restaurant.deleteMenuItemPhoto(user.id, restaurantId, itemId);
   }
 
   @Delete(':id/items/:itemId')

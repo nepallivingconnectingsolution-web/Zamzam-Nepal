@@ -16,18 +16,21 @@ import type {
 } from './dto/hotel.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PartnerDocumentsService } from '../partner-documents/partner-documents.service';
+import { BusinessImageUploadService, MAX_BUSINESS_PHOTOS } from '../../common/uploads/business-image-upload.service';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 
 
 const SERVICE_FEE_RATE = 0.02;
 
 @Injectable()
 export class HotelService {
-  constructor(@Inject(DATABASE_CONNECTION) private readonly db: Database,  
-  private readonly notifications: NotificationsService,
+  constructor(
+    @Inject(DATABASE_CONNECTION) private readonly db: Database,
+    private readonly notifications: NotificationsService,
     private readonly partnerDocuments: PartnerDocumentsService,
-
-
-) {}
+    private readonly businessImages: BusinessImageUploadService,
+    private readonly cloudinary: CloudinaryService,
+  ) {}
 
   /* ───────────────────────────── Customer-facing ─────────────────────── */
 
@@ -112,6 +115,7 @@ export class HotelService {
         totalRooms: r.totalRooms,
         maxGuests: r.maxGuests,
         amenities: r.amenities,
+        photos: r.photos,
       })),
     };
   }
@@ -505,9 +509,36 @@ export class HotelService {
     return updated;
   }
 
+  async addHotelPhotos(partnerId: string, hotelId: string, files: Express.Multer.File[]) {
+    const hotel = await this.assertOwnedHotel(partnerId, hotelId);
+    if (hotel.photos.length + files.length > MAX_BUSINESS_PHOTOS) {
+      apiError(400, `You can have at most ${MAX_BUSINESS_PHOTOS} photos — delete some before adding more.`);
+    }
+    const uploaded = await Promise.all(files.map((f) => this.businessImages.upload(f, 'hotel')));
+    const photos = [...hotel.photos, ...uploaded.map((u) => u.url)];
+    const [updated] = await this.db.update(hotels).set({ photos }).where(eq(hotels.id, hotelId)).returning();
+    return updated;
+  }
+
+  async deleteHotelPhoto(partnerId: string, hotelId: string, publicId: string) {
+    const hotel = await this.assertOwnedHotel(partnerId, hotelId);
+    const url = hotel.photos.find((p) => this.cloudinary.publicIdFromUrl(p) === publicId);
+    if (!url) apiError(404, 'Photo not found.');
+    const photos = hotel.photos.filter((p) => p !== url);
+    const [updated] = await this.db.update(hotels).set({ photos }).where(eq(hotels.id, hotelId)).returning();
+    await this.cloudinary.deleteImage(publicId);
+    return updated;
+  }
+
   async deleteHotel(partnerId: string, hotelId: string) {
-    await this.assertOwnedHotel(partnerId, hotelId);
+    const hotel = await this.assertOwnedHotel(partnerId, hotelId);
     await this.db.delete(hotels).where(eq(hotels.id, hotelId));
+    await Promise.allSettled(
+      hotel.photos.map((url) => {
+        const publicId = this.cloudinary.publicIdFromUrl(url);
+        return publicId ? this.cloudinary.deleteImage(publicId) : Promise.resolve();
+      }),
+    );
     return { ok: true };
   }
 
@@ -557,9 +588,36 @@ export class HotelService {
     return { ...updated, pricePerNight: Number(updated.pricePerNight) };
   }
 
+  async addRoomTypePhotos(partnerId: string, hotelId: string, roomTypeId: string, files: Express.Multer.File[]) {
+    const room = await this.assertOwnedRoomType(partnerId, hotelId, roomTypeId);
+    if (room.photos.length + files.length > MAX_BUSINESS_PHOTOS) {
+      apiError(400, `You can have at most ${MAX_BUSINESS_PHOTOS} photos — delete some before adding more.`);
+    }
+    const uploaded = await Promise.all(files.map((f) => this.businessImages.upload(f, 'hotel-room')));
+    const photos = [...room.photos, ...uploaded.map((u) => u.url)];
+    const [updated] = await this.db.update(roomTypes).set({ photos }).where(eq(roomTypes.id, roomTypeId)).returning();
+    return { ...updated, pricePerNight: Number(updated.pricePerNight) };
+  }
+
+  async deleteRoomTypePhoto(partnerId: string, hotelId: string, roomTypeId: string, publicId: string) {
+    const room = await this.assertOwnedRoomType(partnerId, hotelId, roomTypeId);
+    const url = room.photos.find((p) => this.cloudinary.publicIdFromUrl(p) === publicId);
+    if (!url) apiError(404, 'Photo not found.');
+    const photos = room.photos.filter((p) => p !== url);
+    const [updated] = await this.db.update(roomTypes).set({ photos }).where(eq(roomTypes.id, roomTypeId)).returning();
+    await this.cloudinary.deleteImage(publicId);
+    return { ...updated, pricePerNight: Number(updated.pricePerNight) };
+  }
+
   async deleteRoomType(partnerId: string, hotelId: string, roomTypeId: string) {
-    await this.assertOwnedRoomType(partnerId, hotelId, roomTypeId);
+    const room = await this.assertOwnedRoomType(partnerId, hotelId, roomTypeId);
     await this.db.delete(roomTypes).where(eq(roomTypes.id, roomTypeId));
+    await Promise.allSettled(
+      room.photos.map((url) => {
+        const publicId = this.cloudinary.publicIdFromUrl(url);
+        return publicId ? this.cloudinary.deleteImage(publicId) : Promise.resolve();
+      }),
+    );
     return { ok: true };
   }
 

@@ -65,6 +65,7 @@ export interface OperatorBus {
   totalRows: number;
   amenities: string[];
   busPhoto: string | null;
+  photos: string[];
   isActive: boolean;
   createdAt: string;
 }

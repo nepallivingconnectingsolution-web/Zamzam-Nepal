@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PartnerDocumentsModule } from '../partner-documents/partner-documents.module';
+import { BusinessUploadsModule } from '../../common/uploads/business-uploads.module';
 import { RestaurantsController } from './restaurants.controller';
 import {
   PartnerRestaurantsController,
@@ -8,7 +9,7 @@ import {
 import { RestaurantService } from './restaurant.service';
 
 @Module({
-  imports: [PartnerDocumentsModule],
+  imports: [PartnerDocumentsModule, BusinessUploadsModule],
   controllers: [RestaurantsController, PartnerRestaurantsController, PartnerRestaurantMetricsController],
   providers: [RestaurantService],
   exports: [RestaurantService],

@@ -5,6 +5,7 @@ import { driverStatus, rideReviews, rides, users, vehicles } from '../../databas
 import { apiError } from '../../common/exceptions';
 import { SERVICE_CATEGORIES } from '../vehicles/vehicles.service';
 import { etaMinutes, haversineKm } from '../../common/geo';
+import { PresenceService } from '../driver-dispatch/presence.service';
 
 /**
  * How recent a driver's last GPS ping must be for them to count as
@@ -19,7 +20,10 @@ const NEARBY_RADIUS_KM = 10;
 
 @Injectable()
 export class DriverService {
-  constructor(@Inject(DATABASE_CONNECTION) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE_CONNECTION) private readonly db: Database,
+    private readonly presence: PresenceService,
+  ) {}
 
   private async isOnline(userId: string): Promise<boolean> {
     const [row] = await this.db
@@ -141,70 +145,32 @@ export class DriverService {
   }
 
   /**
-   * Going online now enforces the architecture's availability gates: the
-   * driver must have picked an active vehicle, and that vehicle must still
-   * be APPROVED. Going offline is always allowed.
+   * Legacy online/offline toggle (POST /driver/status). Going online now runs the
+   * full eligibility check (approved driver, approved vehicle, valid licence and
+   * documents, not suspended, no active trip). It has no coordinates, so it
+   * reuses the last known position and otherwise waits for the first ping;
+   * new clients use POST /driver/go-online, which requires a location.
    */
   async setStatus(userId: string, online: boolean) {
     if (online) {
-      const [row] = await this.db
-        .select({ vehicle: vehicles })
-        .from(driverStatus)
-        .innerJoin(vehicles, eq(driverStatus.activeVehicleId, vehicles.id))
-        .where(eq(driverStatus.userId, userId))
-        .limit(1);
-
-      if (!row) {
-        apiError(
-          400,
-          'Select an active vehicle before going online. Register one under Vehicle, wait for admin approval, then activate it.',
-          'NO_ACTIVE_VEHICLE',
-        );
-      }
-      if (row.vehicle.verificationStatus !== 'APPROVED' || !row.vehicle.isActive) {
-        apiError(
-          400,
-          'Your active vehicle is not verified right now, so you cannot go online with it.',
-          'VEHICLE_NOT_VERIFIED',
-        );
-      }
+      await this.presence.goOnline(userId, undefined, { allowNoLocation: true });
+      return { online: true };
     }
-
-    await this.db
-      .insert(driverStatus)
-      .values({ userId, online })
-      .onConflictDoUpdate({ target: driverStatus.userId, set: { online, updatedAt: new Date() } });
-    return { online };
+    await this.presence.goOffline(userId);
+    return { online: false };
   }
 
   /**
-   * Live GPS ping — the "Broadcasting location" gate. Called repeatedly by
-   * the driver app while online. Writes are cheap single-row updates; at
-   * real scale this moves to Redis GEO per the architecture doc, but
-   * Postgres is entirely adequate for launch volumes.
+   * Live GPS ping. Positions go to the location store (Redis GEO in
+   * production); Postgres only gets a coarse copy about once a minute.
    */
-  async updateLocation(userId: string, lat: number, lng: number) {
-    const [row] = await this.db
-      .select({ online: driverStatus.online })
-      .from(driverStatus)
-      .where(eq(driverStatus.userId, userId))
-      .limit(1);
-
-    if (!row?.online) {
-      apiError(400, 'Go online before broadcasting your location.', 'DRIVER_OFFLINE');
-    }
-
-    await this.db
-      .update(driverStatus)
-      .set({
-        lat: lat.toFixed(7),
-        lng: lng.toFixed(7),
-        lastLocationAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(driverStatus.userId, userId));
-
-    return { ok: true };
+  async updateLocation(
+    userId: string,
+    lat: number,
+    lng: number,
+    extra: { accuracy?: number; heading?: number; speed?: number; ts?: number } = {},
+  ) {
+    return this.presence.ping(userId, { lat, lng, ...extra });
   }
 
   /**

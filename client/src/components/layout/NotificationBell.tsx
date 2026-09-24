@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, CalendarCheck, CheckCheck, Info, RefreshCcw, ShieldAlert, Truck, XCircle } from "lucide-react";
+import { Bell, BellRing, CalendarCheck, CheckCheck, ClipboardCheck, Info, RefreshCcw, ShieldAlert, Truck, XCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useResource } from "@/hooks/useResource";
@@ -9,7 +9,7 @@ import { toast } from "@/stores/toast.store";
 
 interface NotificationItem {
   id: string;
-  type: "booking_confirmed" | "booking_cancelled" | "refund_processed" | "refund_failed" | "order_update" | "ride_update" | "system";
+  type: "booking_confirmed" | "booking_cancelled" | "refund_processed" | "refund_failed" | "order_update" | "ride_update" | "system" | "driver_application" | "ride_offer";
   title: string;
   message: string;
   entityType: string | null;
@@ -34,6 +34,8 @@ const TYPE_ICON: Record<NotificationItem["type"], LucideIcon> = {
   order_update: Truck,
   ride_update: Truck,
   system: Info,
+  driver_application: ClipboardCheck,
+  ride_offer: BellRing,
 };
 
 function timeAgo(iso: string): string {
@@ -175,7 +177,8 @@ export function NotificationBell() {
               ) : (
                 <ul className="divide-y divide-border">
                   {feed.data!.items.map((n) => {
-                    const Icon = TYPE_ICON[n.type];
+                    // A type this screen has no icon for must never crash the header.
+                    const Icon = TYPE_ICON[n.type] ?? Info;
                     return (
                       <li key={n.id}>
                         <button

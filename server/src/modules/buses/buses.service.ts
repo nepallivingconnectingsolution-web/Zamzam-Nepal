@@ -9,6 +9,8 @@ import { computeCancellationPolicy, durationBetween, todayIso } from './bus-time
 import { generateTripsForSchedule } from './trip-generator';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PartnerDocumentsService } from '../partner-documents/partner-documents.service';
+import { BusinessImageUploadService, MAX_BUSINESS_PHOTOS } from '../../common/uploads/business-image-upload.service';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import type {
   BookBusDto, CancelTicketDto, CreateScheduleDto, CreateTicketReviewDto, RegisterBusDto,
 } from './dto/buses.dto';
@@ -21,6 +23,8 @@ export class BusesService {
     @Inject(DATABASE_CONNECTION) private readonly db: Database,
     private readonly notifications: NotificationsService,
     private readonly partnerDocuments: PartnerDocumentsService,
+    private readonly businessImages: BusinessImageUploadService,
+    private readonly cloudinary: CloudinaryService,
   ) {}
 
   /* ═══════════════════════════ Bus service — customer-facing ═══════════════════════════ */
@@ -39,9 +43,11 @@ export class BusesService {
         price: trips.price, totalSeats: trips.totalSeats, bookedSeats: trips.bookedSeats,
         type: trips.type, amenities: trips.amenities,
         operatorName: users.name, businessName: users.businessName,
+        busPhotos: buses.photos, legacyBusPhoto: buses.busPhoto,
       })
       .from(trips)
       .innerJoin(users, eq(users.id, trips.operatorId))
+      .innerJoin(buses, eq(buses.id, trips.busId))
       .where(and(...conditions))
       .orderBy(asc(trips.date));
 
@@ -53,6 +59,7 @@ export class BusesService {
       price: Number(t.price),
       seatsLeft: t.totalSeats - t.bookedSeats.length,
       type: t.type, amenities: t.amenities,
+      busPhoto: t.busPhotos[0] ?? t.legacyBusPhoto ?? null,
     }));
   }
 
@@ -64,6 +71,10 @@ export class BusesService {
       .select({ name: users.name, businessName: users.businessName })
       .from(users).where(eq(users.id, t.operatorId)).limit(1);
 
+    const [bus] = await this.db
+      .select({ photos: buses.photos, legacyBusPhoto: buses.busPhoto })
+      .from(buses).where(eq(buses.id, t.busId)).limit(1);
+
     return {
       id: t.id,
       operator: operator?.businessName ?? operator?.name ?? 'Operator',
@@ -74,6 +85,7 @@ export class BusesService {
       type: t.type, amenities: t.amenities,
       totalSeats: t.totalSeats, totalRows: t.totalRows, bookedSeats: t.bookedSeats,
       status: t.status === 'scheduled' ? ('active' as const) : t.status,
+      busPhoto: bus?.photos[0] ?? bus?.legacyBusPhoto ?? null,
     };
   }
 
@@ -296,11 +308,43 @@ export class BusesService {
     return partner?.businessName ?? partner?.name ?? 'A partner';
   }
 
-  async deleteBus(operatorId: string, busId: string) {
+  private async ownedBusOrFail(operatorId: string, busId: string) {
     const [bus] = await this.db.select().from(buses).where(eq(buses.id, busId)).limit(1);
     if (!bus) apiError(404, 'Bus not found.');
     if (bus.operatorId !== operatorId) throw new ForbiddenException('Not your bus.');
+    return bus;
+  }
+
+  async addBusPhotos(operatorId: string, busId: string, files: Express.Multer.File[]) {
+    const bus = await this.ownedBusOrFail(operatorId, busId);
+    if (bus.photos.length + files.length > MAX_BUSINESS_PHOTOS) {
+      apiError(400, `You can have at most ${MAX_BUSINESS_PHOTOS} photos — delete some before adding more.`);
+    }
+    const uploaded = await Promise.all(files.map((f) => this.businessImages.upload(f, 'bus')));
+    const photos = [...bus.photos, ...uploaded.map((u) => u.url)];
+    const [updated] = await this.db.update(buses).set({ photos }).where(eq(buses.id, busId)).returning();
+    return updated;
+  }
+
+  async deleteBusPhoto(operatorId: string, busId: string, publicId: string) {
+    const bus = await this.ownedBusOrFail(operatorId, busId);
+    const url = bus.photos.find((p) => this.cloudinary.publicIdFromUrl(p) === publicId);
+    if (!url) apiError(404, 'Photo not found.');
+    const photos = bus.photos.filter((p) => p !== url);
+    const [updated] = await this.db.update(buses).set({ photos }).where(eq(buses.id, busId)).returning();
+    await this.cloudinary.deleteImage(publicId);
+    return updated;
+  }
+
+  async deleteBus(operatorId: string, busId: string) {
+    const bus = await this.ownedBusOrFail(operatorId, busId);
     await this.db.delete(buses).where(eq(buses.id, busId)); // cascades to schedules -> trips via FK
+    await Promise.allSettled(
+      bus.photos.map((url) => {
+        const publicId = this.cloudinary.publicIdFromUrl(url);
+        return publicId ? this.cloudinary.deleteImage(publicId) : Promise.resolve();
+      }),
+    );
     return { ok: true };
   }
 

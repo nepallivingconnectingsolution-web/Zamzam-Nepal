@@ -13,6 +13,7 @@ import { BusesModule } from './modules/buses/buses.module';
 import { DriverModule } from './modules/driver/driver.module';
 import { VehiclesModule } from './modules/vehicles/vehicles.module';
 import { DriverDocumentsModule } from './modules/driver-documents/driver-documents.module';
+import { DriverOnboardingModule } from './modules/driver-onboarding/driver-onboarding.module';
 import { PartnerDocumentsModule } from './modules/partner-documents/partner-documents.module';
 import { OperatorModule } from './modules/operator/operator.module';
 import { FreightModule } from './modules/freight/freight.module';
@@ -26,6 +27,7 @@ import { SupportModule } from './modules/support/support.module';
 import { MaintenanceGuard } from './common/guards/maintenance.guard';
 import { MailerModule } from './common/mailer/mailer.module';
 import { PasswordResetModule } from './common/password-reset/password-reset.module';
+import { AccountVerificationModule } from './common/account-verification/account-verification.module';
 import { buildThrottlerStorage } from './common/throttler/redis-throttler-storage';
 
 
@@ -53,6 +55,7 @@ import { buildThrottlerStorage } from './common/throttler/redis-throttler-storag
     NotificationsModule,
     MailerModule,
     PasswordResetModule,
+    AccountVerificationModule,
     AuthModule,
     ProfileModule,
     WalletModule,
@@ -62,6 +65,7 @@ import { buildThrottlerStorage } from './common/throttler/redis-throttler-storag
     DriverModule,
     VehiclesModule,
     DriverDocumentsModule,
+    DriverOnboardingModule,
     PartnerDocumentsModule,
     OperatorModule,
     FreightModule,

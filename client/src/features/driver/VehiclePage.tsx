@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
+import { PhotoUploader } from "@/components/shared/photo-uploader";
 import { useResource } from "@/hooks/useResource";
 import { api, ApiError, endpoints } from "@/api/client";
 import { toast } from "@/stores/toast.store";
@@ -21,6 +22,7 @@ interface Vehicle {
   color: string | null;
   maxWeightKg: number;
   seats: number;
+  photos: string[];
   verificationStatus: "PENDING" | "APPROVED" | "SUSPENDED";
   isCurrentVehicle: boolean;
 }
@@ -240,6 +242,15 @@ export function VehiclePage() {
                   <Button size="sm" variant="ghost" disabled={busyId === v.id} onClick={() => remove(v.id)} aria-label="Remove vehicle">
                     <Trash2 className="size-4" />
                   </Button>
+                </div>
+                <div className="w-full">
+                  <p className="mb-2 text-xs font-medium text-muted-fg">Photos</p>
+                  <PhotoUploader
+                    photos={v.photos}
+                    uploadUrl={endpoints.vehicles.photos(v.id)}
+                    deleteUrl={(publicId) => endpoints.vehicles.photoDelete(v.id, publicId)}
+                    onChange={vehicles.refetch}
+                  />
                 </div>
                 {v.verificationStatus === "SUSPENDED" && (
                   <p className="flex w-full items-center gap-1.5 text-xs text-danger">

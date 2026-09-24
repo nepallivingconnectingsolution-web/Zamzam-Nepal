@@ -1,4 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, UseInterceptors, UploadedFiles, BadRequestException,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { Throttle } from '@nestjs/throttler';
 import { HotelService } from './hotel.service';
 import { CreateHotelDto, CreateRoomTypeDto, UpdateHotelDto, UpdateRoomTypeDto } from './dto/hotel.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -37,6 +42,29 @@ export class PartnerHotelsController {
     return this.hotel.deleteHotel(user.id, hotelId);
   }
 
+  @Post(':id/photos')
+  @Throttle({ default: { limit: 20, ttl: 300_000 } })
+  @UseInterceptors(
+    FilesInterceptor('files', 10, { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }),
+  )
+  uploadPhotos(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') hotelId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    if (!files?.length) throw new BadRequestException('Attach at least one photo.');
+    return this.hotel.addHotelPhotos(user.id, hotelId, files);
+  }
+
+  @Delete(':id/photos/:publicId')
+  deletePhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') hotelId: string,
+    @Param('publicId') publicId: string,
+  ) {
+    return this.hotel.deleteHotelPhoto(user.id, hotelId, publicId);
+  }
+
   @Get(':id/room-types')
   roomTypes(@CurrentUser() user: AuthenticatedUser, @Param('id') hotelId: string) {
     return this.hotel.hotelRoomTypes(user.id, hotelId);
@@ -59,6 +87,31 @@ export class PartnerHotelsController {
     @Body() dto: UpdateRoomTypeDto,
   ) {
     return this.hotel.updateRoomType(user.id, hotelId, roomTypeId, dto);
+  }
+
+  @Post(':id/room-types/:roomTypeId/photos')
+  @Throttle({ default: { limit: 20, ttl: 300_000 } })
+  @UseInterceptors(
+    FilesInterceptor('files', 10, { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }),
+  )
+  uploadRoomTypePhotos(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') hotelId: string,
+    @Param('roomTypeId') roomTypeId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    if (!files?.length) throw new BadRequestException('Attach at least one photo.');
+    return this.hotel.addRoomTypePhotos(user.id, hotelId, roomTypeId, files);
+  }
+
+  @Delete(':id/room-types/:roomTypeId/photos/:publicId')
+  deleteRoomTypePhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') hotelId: string,
+    @Param('roomTypeId') roomTypeId: string,
+    @Param('publicId') publicId: string,
+  ) {
+    return this.hotel.deleteRoomTypePhoto(user.id, hotelId, roomTypeId, publicId);
   }
 
   @Delete(':id/room-types/:roomTypeId')

@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { cn, initials, npr } from "./utils";
 
+describe("cn with the project type scale", () => {
+  it("keeps a text colour when a custom font size is also present (the size is not a colour)", () => {
+    expect(cn("text-white", "text-h2")).toBe("text-white text-h2");
+    expect(cn("text-white", "text-body-sm")).toBe("text-white text-body-sm");
+  });
+  it("still lets a later font size or colour win over an earlier one of the same kind", () => {
+    expect(cn("text-h1", "text-h2")).toBe("text-h2");
+    expect(cn("text-white", "text-ink")).toBe("text-ink");
+  });
+});
+
 describe("cn", () => {
   it("merges class names and resolves Tailwind conflicts (last wins)", () => {
     expect(cn("p-2", "p-4")).toBe("p-4");

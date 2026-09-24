@@ -3,6 +3,9 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { useResource } from "@/hooks/useResource";
 import { api, ApiError, endpoints } from "@/api/client";
 import { toast } from "@/stores/toast.store";
+import { currentPosition, positionExtras } from "./geo";
+import { useDriverStream } from "./offers/useDriverStream";
+import { OfferSheet } from "./offers/OfferSheet";
 
 export interface SeriesPoint {
   label: string;
@@ -64,6 +67,10 @@ interface DriverPortalState {
   /** The driver's own last-known GPS fix, captured by the same ping that broadcasts it. */
   myLocation: { lat: number; lng: number } | null;
   toggleOnline: () => void;
+  /** Why going online failed, in plain language (eligibility, location permission...). Cleared on the next try. */
+  onlineError: string | null;
+  /** True when the live offers stream is connected (otherwise offers arrive by polling). */
+  streamConnected: boolean;
   earnings: ReturnType<typeof useResource<Earnings>>;
   requests: ReturnType<typeof useResource<IncomingRequest[]>>;
   job: ReturnType<typeof useResource<CurrentJob | null>>;
@@ -105,6 +112,8 @@ const [online, setOnline] = useState(false);
   const [broadcasting, setBroadcasting] = useState(false);
   const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
+  const [onlineError, setOnlineError] = useState<string | null>(null);
+  const [offerBusy, setOfferBusy] = useState(false);
   const geoWarned = useRef(false);
 
   // ── Post-trip recap state ────────────────────────────────────────────────
@@ -193,6 +202,8 @@ const [online, setOnline] = useState(false);
             await api.post(endpoints.driver.location, {
               lat: pos.coords.latitude,
               lng: pos.coords.longitude,
+              ...positionExtras(pos),
+              timestamp: pos.timestamp,
             });
             if (!cancelled) setBroadcasting(true);
           } catch {
@@ -221,19 +232,86 @@ const [online, setOnline] = useState(false);
     };
   }, [online]);
 
+  /**
+   * Going online asks the server, which checks everything (approved driver and
+   * vehicle, valid licence and documents, not suspended, no active trip) and
+   * needs a location. Nothing is assumed: the button only flips once the
+   * server says yes, and every refusal is shown in plain words.
+   */
   async function toggleOnline() {
-    const next = !online;
+    if (toggling) return;
+    const goingOnline = !online;
     setToggling(true);
-    setOnline(next); // optimistic
+    setOnlineError(null);
     try {
-      await api.post(endpoints.driver.status, { online: next });
-      toast.success(next ? "You're online — matching with riders." : "You're offline.");
+      if (goingOnline) {
+        const pos = await currentPosition();
+        await api.post(endpoints.driverOnboarding.goOnline, {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          ...positionExtras(pos),
+        });
+        setMyLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setOnline(true);
+        toast.success("You're online.", "Ride requests will appear here.");
+      } else {
+        await api.post(endpoints.driverOnboarding.goOffline);
+        setOnline(false);
+        toast.success("You're offline.");
+      }
       requests.refetch();
     } catch (err) {
-      setOnline(!next); // revert on rejection
-      toast.error(err instanceof ApiError ? err.message : "Couldn't update your status. Try again.");
+      const message = err instanceof Error ? err.message : "Couldn't update your status. Try again.";
+      if (goingOnline) setOnlineError(message);
+      toast.error(goingOnline ? "You can't go online yet" : "Couldn't go offline", message);
     } finally {
       setToggling(false);
+    }
+  }
+
+  // Live offers: server-sent events, falling back to polling.
+  const stream = useDriverStream(online, {
+    onStatus: (d) => {
+      if (!d.online) {
+        setOnline(false);
+        toast.error("You've been taken offline", d.reason);
+        earnings.refetch();
+      }
+    },
+    onRideCancelled: () => {
+      toast.info("The rider cancelled this trip.");
+      rawJob.refetch();
+    },
+  });
+
+  async function acceptOffer(offerId: string) {
+    setOfferBusy(true);
+    try {
+      await api.post(endpoints.driverOnboarding.offerAccept(offerId));
+      stream.dismiss(offerId);
+      toast.success("Ride accepted", "Head to the pickup point.");
+      requests.refetch();
+      rawJob.refetch();
+      navigate("/driver/trip");
+    } catch (err) {
+      // Lost the race, expired, or no longer eligible: the message says which.
+      stream.dismiss(offerId);
+      toast.error(err instanceof ApiError ? err.message : "Couldn't accept this ride.");
+      requests.refetch();
+    } finally {
+      setOfferBusy(false);
+    }
+  }
+
+  async function declineOffer(offerId: string) {
+    setOfferBusy(true);
+    try {
+      await api.post(endpoints.driverOnboarding.offerDecline(offerId));
+    } catch {
+      // Already gone (expired or taken): dropping it locally is the right outcome either way.
+    } finally {
+      stream.dismiss(offerId);
+      setOfferBusy(false);
     }
   }
 
@@ -328,9 +406,17 @@ setLastTrip({ id: current.id, service: current.service, from: current.from, to: 
 
   return (
     <DriverPortalContext.Provider
-      value={{ online, toggling, broadcasting, myLocation, toggleOnline, earnings, requests, job, rating, actionBusy, acceptRequest, advanceJob, settleCash, lastTrip, clearLastTrip }}
+      value={{ online, toggling, broadcasting, myLocation, toggleOnline, onlineError, streamConnected: stream.connected, earnings, requests, job, rating, actionBusy, acceptRequest, advanceJob, settleCash, lastTrip, clearLastTrip }}
     >
       <Outlet />
+      <OfferSheet
+        offers={stream.offers}
+        skewMs={stream.skewMs}
+        busy={offerBusy}
+        onAccept={acceptOffer}
+        onDecline={declineOffer}
+        onExpire={stream.dismiss}
+      />
     </DriverPortalContext.Provider>
   );
 }

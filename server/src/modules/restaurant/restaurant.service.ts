@@ -27,6 +27,8 @@ import type {
 } from './dto/restaurant.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PartnerDocumentsService } from '../partner-documents/partner-documents.service';
+import { BusinessImageUploadService, MAX_BUSINESS_PHOTOS } from '../../common/uploads/business-image-upload.service';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 
 
 const SERVICE_FEE_RATE = 0.02; // Zamzam's platform commission, same rate as hotels.
@@ -64,10 +66,13 @@ function todayIso(): string {
 
 @Injectable()
 export class RestaurantService {
-  constructor(@Inject(DATABASE_CONNECTION) private readonly db: Database,
-  private readonly notifications: NotificationsService,
+  constructor(
+    @Inject(DATABASE_CONNECTION) private readonly db: Database,
+    private readonly notifications: NotificationsService,
     private readonly partnerDocuments: PartnerDocumentsService,
-) {}
+    private readonly businessImages: BusinessImageUploadService,
+    private readonly cloudinary: CloudinaryService,
+  ) {}
 
   /* ───────────────────────────── Customer-facing ─────────────────────── */
 
@@ -453,9 +458,36 @@ export class RestaurantService {
     return { ...updated, deliveryFee: Number(updated.deliveryFee), minOrder: Number(updated.minOrder) };
   }
 
+  async addRestaurantPhotos(partnerId: string, restaurantId: string, files: Express.Multer.File[]) {
+    const restaurant = await this.assertOwnedRestaurant(partnerId, restaurantId);
+    if (restaurant.photos.length + files.length > MAX_BUSINESS_PHOTOS) {
+      apiError(400, `You can have at most ${MAX_BUSINESS_PHOTOS} photos — delete some before adding more.`);
+    }
+    const uploaded = await Promise.all(files.map((f) => this.businessImages.upload(f, 'restaurant')));
+    const photos = [...restaurant.photos, ...uploaded.map((u) => u.url)];
+    const [updated] = await this.db.update(restaurants).set({ photos }).where(eq(restaurants.id, restaurantId)).returning();
+    return updated;
+  }
+
+  async deleteRestaurantPhoto(partnerId: string, restaurantId: string, publicId: string) {
+    const restaurant = await this.assertOwnedRestaurant(partnerId, restaurantId);
+    const url = restaurant.photos.find((p) => this.cloudinary.publicIdFromUrl(p) === publicId);
+    if (!url) apiError(404, 'Photo not found.');
+    const photos = restaurant.photos.filter((p) => p !== url);
+    const [updated] = await this.db.update(restaurants).set({ photos }).where(eq(restaurants.id, restaurantId)).returning();
+    await this.cloudinary.deleteImage(publicId);
+    return updated;
+  }
+
   async deleteRestaurant(partnerId: string, restaurantId: string) {
-    await this.assertOwnedRestaurant(partnerId, restaurantId);
+    const restaurant = await this.assertOwnedRestaurant(partnerId, restaurantId);
     await this.db.delete(restaurants).where(eq(restaurants.id, restaurantId));
+    await Promise.allSettled(
+      restaurant.photos.map((url) => {
+        const publicId = this.cloudinary.publicIdFromUrl(url);
+        return publicId ? this.cloudinary.deleteImage(publicId) : Promise.resolve();
+      }),
+    );
     return { ok: true };
   }
 
@@ -560,9 +592,34 @@ export class RestaurantService {
     return { ...updated, price: Number(updated.price) };
   }
 
+  async setMenuItemPhoto(partnerId: string, restaurantId: string, itemId: string, file: Express.Multer.File) {
+    const item = await this.assertOwnedMenuItem(partnerId, restaurantId, itemId);
+    const uploaded = await this.businessImages.upload(file, 'restaurant-menu-item');
+    if (item.photo) {
+      const oldPublicId = this.cloudinary.publicIdFromUrl(item.photo);
+      if (oldPublicId) await this.cloudinary.deleteImage(oldPublicId);
+    }
+    const [updated] = await this.db.update(menuItems).set({ photo: uploaded.url }).where(eq(menuItems.id, itemId)).returning();
+    return { ...updated, price: Number(updated.price) };
+  }
+
+  async deleteMenuItemPhoto(partnerId: string, restaurantId: string, itemId: string) {
+    const item = await this.assertOwnedMenuItem(partnerId, restaurantId, itemId);
+    if (item.photo) {
+      const publicId = this.cloudinary.publicIdFromUrl(item.photo);
+      if (publicId) await this.cloudinary.deleteImage(publicId);
+    }
+    const [updated] = await this.db.update(menuItems).set({ photo: null }).where(eq(menuItems.id, itemId)).returning();
+    return { ...updated, price: Number(updated.price) };
+  }
+
   async deleteMenuItem(partnerId: string, restaurantId: string, itemId: string) {
-    await this.assertOwnedMenuItem(partnerId, restaurantId, itemId);
+    const item = await this.assertOwnedMenuItem(partnerId, restaurantId, itemId);
     await this.db.delete(menuItems).where(eq(menuItems.id, itemId));
+    if (item.photo) {
+      const publicId = this.cloudinary.publicIdFromUrl(item.photo);
+      if (publicId) await this.cloudinary.deleteImage(publicId);
+    }
     return { ok: true };
   }
 

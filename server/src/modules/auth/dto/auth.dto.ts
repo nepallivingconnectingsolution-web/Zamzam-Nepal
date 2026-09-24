@@ -47,3 +47,18 @@ export class GoogleSignInDto {
   @MinLength(1, { message: 'Missing Google credential.' })
   idToken!: string;
 }
+
+export class VerifyAccountOtpDto {
+  @IsString()
+  @MinLength(1, { message: 'Missing account id.' })
+  userId!: string;
+
+  @Matches(/^\d{6}$/, { message: 'Enter the 6-digit code.' })
+  otp!: string;
+}
+
+export class ResendAccountOtpDto {
+  @IsString()
+  @MinLength(1, { message: 'Missing account id.' })
+  userId!: string;
+}

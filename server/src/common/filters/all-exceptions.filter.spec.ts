@@ -40,3 +40,21 @@ describe('AllExceptionsFilter — Sentry reporting', () => {
     expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 });
+
+describe('AllExceptionsFilter — response shape', () => {
+  const filter = new AllExceptionsFilter();
+
+  it('keeps the plain { message } shape', () => {
+    const { host, status, json } = makeHost();
+    filter.catch(new HttpException({ message: 'nope' }, 400), host);
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith({ message: 'nope' });
+  });
+
+  it('passes an optional structured details field through untouched', () => {
+    const { host, json } = makeHost();
+    const details = [{ code: 'DOCUMENT_MISSING', message: 'Upload your insurance.' }];
+    filter.catch(new HttpException({ message: 'Blocked', code: 'SUBMIT_BLOCKED', details }, 400), host);
+    expect(json).toHaveBeenCalledWith({ message: 'Blocked', code: 'SUBMIT_BLOCKED', details });
+  });
+});

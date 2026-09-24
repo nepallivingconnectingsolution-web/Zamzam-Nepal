@@ -79,7 +79,10 @@ export function LoginPage() {
   function enterUserSession(res: { accessToken: string; refreshToken: string; user: User; profileComplete: boolean }) {
     setSession(res.accessToken, res.user, res.refreshToken);
     toast.success("Signed in", `Welcome back, ${res.user.name.split(" ")[0]}.`);
-    if (!res.profileComplete) {
+    // A driver's profile IS their onboarding application, so the generic
+    // business form would be a redundant, confusing detour: their portal sends
+    // anyone not yet approved straight to it.
+    if (!res.profileComplete && res.user.role !== "driver") {
       navigate("/profile/setup", { state: { from } });
     } else if (from && res.user.role === "customer") {
       navigate(from);
@@ -104,13 +107,18 @@ export function LoginPage() {
       // whose profile is already complete goes straight to their portal.
       enterUserSession(res);
     } catch (e) {
-      const detail = e instanceof ApiError ? (e.detail as { code?: string; message?: string }) : null;
+      const detail = e instanceof ApiError ? (e.detail as { code?: string; message?: string; details?: { userId?: string } }) : null;
       if (detail?.code === "PENDING_APPROVAL") {
         setPending(detail.message ?? "Your account is awaiting super-admin verification.");
         return;
       }
       if (detail?.code === "SUSPENDED") {
         setError(detail.message ?? "Account suspended.");
+        return;
+      }
+      if (detail?.code === "VERIFICATION_REQUIRED" && detail.details?.userId) {
+        toast.info("Almost there", "Enter the codes we sent to confirm your email and mobile number.");
+        navigate("/verify-account", { state: { userId: detail.details.userId, email, from } });
         return;
       }
 

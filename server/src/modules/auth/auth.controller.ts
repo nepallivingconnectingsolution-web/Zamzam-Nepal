@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, RefreshDto, GoogleSignInDto } from './dto/auth.dto';
+import { RegisterDto, LoginDto, RefreshDto, GoogleSignInDto, VerifyAccountOtpDto, ResendAccountOtpDto } from './dto/auth.dto';
 import { ForgotPasswordDto, ResetPasswordDto, VerifyResetOtpDto } from '../../common/password-reset/password-reset.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -36,6 +36,35 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   googleSignIn(@Body() dto: GoogleSignInDto) {
     return this.auth.googleSignIn(dto);
+  }
+
+  @Post('verify-email')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  verifyEmail(@Body() dto: VerifyAccountOtpDto) {
+    return this.auth.verifyEmail(dto.userId, dto.otp);
+  }
+
+  @Post('verify-mobile')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  verifyMobile(@Body() dto: VerifyAccountOtpDto) {
+    return this.auth.verifyMobile(dto.userId, dto.otp);
+  }
+
+  // Tighter than login/register: each send costs a real email or SMS.
+  @Post('resend-email-otp')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  resendEmailOtp(@Body() dto: ResendAccountOtpDto) {
+    return this.auth.resendEmailOtp(dto.userId);
+  }
+
+  @Post('resend-mobile-otp')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  resendMobileOtp(@Body() dto: ResendAccountOtpDto) {
+    return this.auth.resendMobileOtp(dto.userId);
   }
 
   @Get('me')

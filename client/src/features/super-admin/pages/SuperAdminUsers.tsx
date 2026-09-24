@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { useResource } from "@/hooks/useResource";
 import { useSuperAdminApi } from "@/features/super-admin/useSuperAdminApi";
+import { isPartnerRole } from "@/features/super-admin/approvals.types";
 
 interface UserRow {
   id: string;
@@ -106,9 +107,11 @@ export function SuperAdminUsers() {
             {new Date(u.createdAt).toLocaleDateString("en-NP")}
           </td>
           <td className="px-5 py-3">
-            <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate(`/x-admin/registrations/${u.id}`)}>
-              View
-            </Button>
+            {isPartnerRole(u.role) && (
+              <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate(`/x-admin/approvals/${u.id}`)}>
+                View
+              </Button>
+            )}
           </td>
         </tr>
       ))}
@@ -131,9 +134,11 @@ export function SuperAdminUsers() {
           {u.email && <p className="truncate text-xs text-muted-fg">{u.email}</p>}
           <p className="mt-0.5 text-xs text-muted-fg">{u.mobile}</p>
         </div>
-        <Button variant="ghost" size="sm" className="shrink-0 text-xs" onClick={() => navigate(`/x-admin/registrations/${u.id}`)}>
-          View
-        </Button>
+        {isPartnerRole(u.role) && (
+          <Button variant="ghost" size="sm" className="shrink-0 text-xs" onClick={() => navigate(`/x-admin/approvals/${u.id}`)}>
+            View
+          </Button>
+        )}
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Badge variant="outline" className="text-[10px]">{u.role}</Badge>

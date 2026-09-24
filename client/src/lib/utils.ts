@@ -1,5 +1,20 @@
 import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+/**
+ * tailwind-merge only knows Tailwind's built-in font sizes. This project's
+ * type scale (tailwind.config.ts fontSize: display, h1, h2, body, body-sm,
+ * caption) would otherwise be read as text COLOURS, so `text-white` was silently
+ * dropped whenever a button also had `text-h2` / `text-body-sm`, leaving dark
+ * text on a dark fill. Registering them as font sizes stops that.
+ */
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      "font-size": [{ text: ["display", "h1", "h2", "body", "body-sm", "caption"] }],
+    },
+  },
+});
 
 /** Merge Tailwind classes without conflicts (shadcn convention). */
 export function cn(...inputs: ClassValue[]) {

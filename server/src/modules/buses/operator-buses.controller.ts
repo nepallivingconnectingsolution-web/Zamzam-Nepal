@@ -1,4 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, UseInterceptors, UploadedFiles, BadRequestException,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { Throttle } from '@nestjs/throttler';
 import { BusesService } from './buses.service';
 import { CreateScheduleDto, RegisterBusDto, UpdateTripStatusDto } from './dto/buses.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -16,6 +21,27 @@ export class OperatorBusesController {
   @Get() fleet(@CurrentUser() user: AuthenticatedUser) { return this.buses.operatorFleet(user.id); }
   @Post() registerBus(@CurrentUser() user: AuthenticatedUser, @Body() dto: RegisterBusDto) { return this.buses.registerBus(user.id, dto); }
   @Delete(':id') deleteBus(@CurrentUser() user: AuthenticatedUser, @Param('id') busId: string) { return this.buses.deleteBus(user.id, busId); }
+
+  @Post(':id/photos')
+  @Throttle({ default: { limit: 20, ttl: 300_000 } })
+  @UseInterceptors(FilesInterceptor('files', 10, { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
+  uploadPhotos(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') busId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    if (!files?.length) throw new BadRequestException('Attach at least one photo.');
+    return this.buses.addBusPhotos(user.id, busId, files);
+  }
+
+  @Delete(':id/photos/:publicId')
+  deletePhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') busId: string,
+    @Param('publicId') publicId: string,
+  ) {
+    return this.buses.deleteBusPhoto(user.id, busId, publicId);
+  }
 
   @Get('metrics') metrics(@CurrentUser() user: AuthenticatedUser) { return this.buses.operatorMetrics(user.id); }
 

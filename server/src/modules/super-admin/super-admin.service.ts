@@ -17,6 +17,7 @@ import {
   groceryStores,
   hotels,
   loads,
+  partnerDocuments,
   platformSettings,
   restaurants,
   rides,
@@ -36,6 +37,9 @@ import { id } from '../../common/id';
 import type { SuperAdminLoginDto, UpdateCmsDto, UpdateSettingsDto } from './dto/super-admin.dto';
 import { SERVICE_REGISTRY } from './service-registry';
 import { PasswordResetService } from '../../common/password-reset/password-reset.service';
+import type { PartnerType } from '../partner-documents/dto/partner-documents.dto';
+import { evaluateBusinessGate } from './approval-gate';
+import { BUSINESS_ROLES } from './approvals.service';
 
 const PARTNER_ROLES = ['bus_operator', 'hotel', 'restaurant', 'grocery', 'driver', 'freight'] as const;
 const PARTNER_TYPE_LABEL: Record<(typeof PARTNER_ROLES)[number], string> = {
@@ -181,24 +185,6 @@ export class SuperAdminService {
       limit,
       offset,
     };
-  }
-
-  async listRegistrations() {
-    const rows = await this.db
-      .select({
-        id: users.id,
-        name: users.name,
-        mobile: users.mobile,
-        email: users.email,
-        role: users.role,
-        kycStatus: users.kycStatus,
-        createdAt: users.createdAt,
-      })
-      .from(users)
-      .where(eq(users.kycStatus, 'PENDING'))
-      .orderBy(desc(users.createdAt));
-
-    return { items: rows.map((u) => ({ ...u, createdAt: u.createdAt.toISOString() })) };
   }
 
   async listDisputes(limit?: number) {
@@ -1225,6 +1211,28 @@ export class SuperAdminService {
   async decideKyc(superAdminId: string, userId: string, kycStatus: 'APPROVED' | 'SUSPENDED') {
     const [user] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
     if (!user) apiError(404, 'User not found.');
+
+    if (kycStatus === 'APPROVED') {
+      // A driver is approved through the application review, which checks every
+      // document, the profile and the vehicle. This endpoint would skip all of
+      // that, so it refuses.
+      if (user.role === 'driver') {
+        apiError(
+          409,
+          'Drivers are approved from their application review, which checks their documents and vehicle.',
+          'USE_APPLICATION_REVIEW',
+        );
+      }
+      // A business is approved only once every required document is verified.
+      if ((BUSINESS_ROLES as readonly string[]).includes(user.role)) {
+        const docs = await this.db
+          .select({ type: partnerDocuments.type, status: partnerDocuments.status })
+          .from(partnerDocuments)
+          .where(eq(partnerDocuments.partnerId, userId));
+        const gate = evaluateBusinessGate(user.role as PartnerType, docs);
+        if (!gate.ok) apiError(409, gate.message, 'DOCUMENTS_NOT_VERIFIED');
+      }
+    }
 
     await this.db.update(users).set({ kycStatus, updatedAt: new Date() }).where(eq(users.id, userId));
 

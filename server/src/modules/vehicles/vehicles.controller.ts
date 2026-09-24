@@ -1,4 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, UseInterceptors, UploadedFiles, BadRequestException,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { Throttle } from '@nestjs/throttler';
 import { VehiclesService } from './vehicles.service';
 import { RegisterVehicleDto, UpdateVehicleDto } from './dto/vehicles.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -35,6 +40,27 @@ export class VehiclesController {
     @Body() dto: UpdateVehicleDto,
   ) {
     return this.vehicles.update(user.id, vehicleId, dto);
+  }
+
+  @Post(':id/photos')
+  @Throttle({ default: { limit: 20, ttl: 300_000 } })
+  @UseInterceptors(FilesInterceptor('files', 10, { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
+  uploadPhotos(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') vehicleId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    if (!files?.length) throw new BadRequestException('Attach at least one photo.');
+    return this.vehicles.addVehiclePhotos(user.id, vehicleId, files);
+  }
+
+  @Delete(':id/photos/:publicId')
+  deletePhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') vehicleId: string,
+    @Param('publicId') publicId: string,
+  ) {
+    return this.vehicles.deleteVehiclePhoto(user.id, vehicleId, publicId);
   }
 
   @Post(':id/activate')

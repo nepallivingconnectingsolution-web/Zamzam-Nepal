@@ -68,12 +68,6 @@ export class SuperAdminController {
     return this.superAdmin.listUsers(q, safeLimit, safeOffset);
   }
 
-  @Get('registrations')
-  @UseGuards(SuperAdminAuthGuard)
-  registrations() {
-    return this.superAdmin.listRegistrations();
-  }
-
   @Get('disputes')
   @UseGuards(SuperAdminAuthGuard)
   disputes(@Query('limit') limit?: string) {
@@ -274,7 +268,7 @@ markNotificationRead(@Param('id') notificationId: string) {
     return this.superAdmin.fraudSignals();
   }
 
-  @Patch('users/:id/kyc')@Patch('users/:id/kyc')
+  @Patch('users/:id/kyc')
   @UseGuards(SuperAdminAuthGuard)
   decideKyc(
     @CurrentSuperAdmin() admin: AuthenticatedSuperAdmin,
