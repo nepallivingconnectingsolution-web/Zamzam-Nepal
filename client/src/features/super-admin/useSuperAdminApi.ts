@@ -7,7 +7,7 @@ import { useSuperAdminStore } from "@/stores/super-admin.store";
  * users; see server/src/modules/super-admin). Carries the super-admin
  * token from its own zustand store, never localStorage.zz_token.
  */
-type Method = "GET" | "POST" | "PATCH" | "DELETE";
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 const API_BASE_URL: string = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
 
@@ -15,6 +15,7 @@ export class SuperAdminApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
   ) {
     super(message);
     this.name = "SuperAdminApiError";
@@ -51,13 +52,15 @@ export function useSuperAdminApi() {
 
       if (!res.ok) {
         let message = "Something went wrong. Please try again.";
+        let code: string | undefined;
         try {
           const body = await res.json();
           if (body && typeof body.message === "string") message = body.message;
+          if (body && typeof body.code === "string") code = body.code;
         } catch {
           // ignore, use generic message
         }
-        throw new SuperAdminApiError(res.status, message);
+        throw new SuperAdminApiError(res.status, message, code);
       }
 
       if (res.status === 204) return undefined as T;
@@ -66,5 +69,25 @@ export function useSuperAdminApi() {
     [token, clearSession],
   );
 
-  return { saApi };
+  /**
+   * Private files (driver documents) are not public URLs: fetch the bytes with
+   * the admin token and show them from an in-memory object URL.
+   */
+  const saBlob = useCallback(
+    async (path: string): Promise<Blob> => {
+      const res = await fetch(`${API_BASE_URL}${path}`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        cache: "no-store",
+      });
+      if (res.status === 401) {
+        clearSession();
+        throw new SuperAdminApiError(401, "Your session has expired. Please sign in again.");
+      }
+      if (!res.ok) throw new SuperAdminApiError(res.status, "Couldn't load this file.");
+      return res.blob();
+    },
+    [token, clearSession],
+  );
+
+  return { saApi, saBlob };
 }

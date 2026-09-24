@@ -1,5 +1,5 @@
 import { Body, Controller, ForbiddenException, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, asc, count, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { DATABASE_CONNECTION, type Database } from '../../database/database.module';
 import { driverStatus, foodOrders, groceryOrders, loads, rideMessages, rideReviews, rides, roomBookings, tickets, transactions, users, vehicles } from '../../database/schema';
@@ -14,6 +14,9 @@ import { creditWallet, debitWalletOrFail } from '../../common/wallet.util';
 import { etaMinutes, fareFor, haversineKm } from '../../common/geo';
 import { CancelRideDto, CreateRideDto, CreateRideMessageDto, CreateRideReviewDto, PayRideDto } from './dto/rides.dto';
 import { CATEGORY_SERVICES } from '../vehicles/vehicles.service';
+import { DispatchService } from '../driver-dispatch/dispatch.service';
+import { EligibilityService } from '../driver-dispatch/eligibility.service';
+import { LOCATION_STORE, type LocationStore } from '../driver-dispatch/location.store';
 
 /**
  * A ride in one of these states occupies its customer / driver.
@@ -28,7 +31,14 @@ const REQUEST_RADIUS_KM = 10;
 
 @Injectable()
 export class RidesService {
-  constructor(@Inject(DATABASE_CONNECTION) private readonly db: Database) {}
+  private readonly logger = new Logger(RidesService.name);
+
+  constructor(
+    @Inject(DATABASE_CONNECTION) private readonly db: Database,
+    private readonly dispatch: DispatchService,
+    @Inject(LOCATION_STORE) private readonly locations: LocationStore,
+    private readonly eligibility: EligibilityService,
+  ) {}
 
   /* ───────────────────────────── Customer side ───────────────────────────── */
 
@@ -69,6 +79,12 @@ export class RidesService {
       })
       .returning();
 
+    // Offer it to the nearest eligible drivers. A failure here must never fail
+    // the booking: the request stays open for the driver-side list and the sweeper retries.
+    void this.dispatch.start(row.id).catch((err: Error) => {
+      this.logger.error(`Could not dispatch ride ${row.id}: ${err.message}`);
+    });
+
     return this.toDto(row);
   }
 
@@ -100,14 +116,16 @@ export class RidesService {
 
  if (!row) return null;
     const unreadMessages = row.ride.driverId ? await this.unreadMessagesFor(row.ride.id, 'customer') : 0;
+    // Live position from the location store; the Postgres copy is only a coarse fallback.
+    const live = row.ride.driverId ? await this.locations.get(row.ride.driverId) : null;
     return {
       ...this.toDto(row.ride),
       driverName: row.driverName,
       driverMobile: row.driverMobile,
       vehicleMakeModel: row.vehicleMakeModel,
       vehiclePlate: row.vehiclePlate,
-      driverLat: row.driverLat != null ? Number(row.driverLat) : null,
-      driverLng: row.driverLng != null ? Number(row.driverLng) : null,
+      driverLat: live?.lat ?? (row.driverLat != null ? Number(row.driverLat) : null),
+      driverLng: live?.lng ?? (row.driverLng != null ? Number(row.driverLng) : null),
       unreadMessages,
     };
   }
@@ -128,10 +146,11 @@ export class RidesService {
           inArray(rides.status, ['REQUESTED', 'ACCEPTED']),
         ),
       )
-      .returning({ id: rides.id });
+      .returning({ id: rides.id, driverId: rides.driverId });
     if (result.length === 0) {
       apiError(400, "This booking can't be cancelled anymore.", 'NOT_CANCELLABLE');
     }
+    await this.dispatch.onRideCancelled(rideId, result[0].driverId);
     return { ok: true };
   }
 
@@ -244,8 +263,14 @@ async submitReview(customerId: string, rideId: string, dto: CreateRideReviewDto)
       .where(eq(driverStatus.userId, driverId))
       .limit(1);
 
-    if (!me || !me.status.online || me.status.lat == null || me.status.lng == null) return [];
-    if (me.vehicle.verificationStatus !== 'APPROVED' || !me.vehicle.isActive) return [];
+    if (!me) return [];
+    // The same rules as going online and accepting: approved, not suspended, valid documents, no active trip.
+    const check = await this.eligibility.check(driverId, { requireOnline: true, requireLocation: false });
+    if (!check.eligible) return [];
+    const live = await this.locations.get(driverId);
+    const myLat = live?.lat ?? (me.status.lat != null ? Number(me.status.lat) : null);
+    const myLng = live?.lng ?? (me.status.lng != null ? Number(me.status.lng) : null);
+    if (myLat == null || myLng == null) return [];
 
     const services = CATEGORY_SERVICES[me.vehicle.category] ?? [];
     const serveable = services.filter((s) => s === 'taxi' || s === 'bike' || s === 'parcel');
@@ -258,8 +283,6 @@ async submitReview(customerId: string, rideId: string, dto: CreateRideReviewDto)
       .orderBy(desc(rides.createdAt))
       .limit(50);
 
-    const myLat = Number(me.status.lat);
-    const myLng = Number(me.status.lng);
     const maxKg = me.vehicle.maxWeightKg;
 
     return rows
@@ -291,37 +314,13 @@ async submitReview(customerId: string, rideId: string, dto: CreateRideReviewDto)
   }
 
   /**
-   * Accepting is a conditional single-statement UPDATE — if two drivers tap
-   * Accept at once, exactly one succeeds and the other gets a clean
-   * "already taken", never a double assignment (same race-condition pattern
-   * as the double-booking fix in Nepal Living).
+   * Accepting goes through DispatchService.acceptRide: one transaction that
+   * locks the ride and the driver, re-checks eligibility, and is backstopped by
+   * a unique index. Two drivers can never get the same ride, and one driver can
+   * never get two.
    */
   async accept(driverId: string, rideId: string) {
-    const [me] = await this.db
-      .select({ status: driverStatus, vehicle: vehicles })
-      .from(driverStatus)
-      .innerJoin(vehicles, eq(driverStatus.activeVehicleId, vehicles.id))
-      .where(eq(driverStatus.userId, driverId))
-      .limit(1);
-    if (!me || !me.status.online) apiError(400, 'Go online before accepting requests.', 'DRIVER_OFFLINE');
-    if (me.vehicle.verificationStatus !== 'APPROVED') apiError(400, 'Your active vehicle is not verified.', 'VEHICLE_NOT_VERIFIED');
-
-    const [job] = await this.db
-      .select({ id: rides.id })
-      .from(rides)
-     .where(and(eq(rides.driverId, driverId), inArray(rides.status, ['ACCEPTED', 'ONGOING', 'PAYMENT_PENDING'])))
-      .limit(1);
-    if (job) apiError(409, 'Finish and settle your current trip before accepting another.', 'DRIVER_BUSY');
-
-    const result = await this.db
-      .update(rides)
-      .set({ driverId, vehicleId: me.vehicle.id, status: 'ACCEPTED', updatedAt: new Date() })
-      .where(and(eq(rides.id, rideId), eq(rides.status, 'REQUESTED'), isNull(rides.driverId)))
-      .returning();
-    if (result.length === 0) {
-      apiError(409, 'This request was just taken by another driver.', 'ALREADY_TAKEN');
-    }
-    return this.toDto(result[0]);
+    return this.toDto(await this.dispatch.acceptRide(driverId, rideId));
   }
 
   async start(driverId: string, rideId: string) {
@@ -331,6 +330,7 @@ async submitReview(customerId: string, rideId: string, dto: CreateRideReviewDto)
       .where(and(eq(rides.id, rideId), eq(rides.driverId, driverId), eq(rides.status, 'ACCEPTED')))
       .returning();
     if (result.length === 0) apiError(400, "This trip can't be started.", 'NOT_STARTABLE');
+    await this.dispatch.logRideEvent(driverId, rideId, 'STARTED');
     return this.toDto(result[0]);
   }
 
@@ -349,6 +349,7 @@ async submitReview(customerId: string, rideId: string, dto: CreateRideReviewDto)
       .where(and(eq(rides.id, rideId), eq(rides.driverId, driverId), eq(rides.status, 'ONGOING')))
       .returning();
     if (result.length === 0) apiError(400, "This trip can't be completed.", 'NOT_COMPLETABLE');
+    await this.dispatch.logRideEvent(driverId, rideId, 'COMPLETED');
     return this.toDto(result[0]);
   }
 

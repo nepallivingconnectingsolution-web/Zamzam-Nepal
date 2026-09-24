@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
+import { PhotoUploader } from "@/components/shared/photo-uploader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,6 +83,15 @@ function StoresTab() {
               </button>
               {expandedId === s.id && (
                 <div className="space-y-6 border-t border-border p-5">
+                  <div>
+                    <p className="mb-2 text-xs font-medium text-muted-fg">Store photos</p>
+                    <PhotoUploader
+                      photos={s.photos}
+                      uploadUrl={endpoints.grocery.partner.storePhotos(s.id)}
+                      deleteUrl={(publicId) => endpoints.grocery.partner.storePhotoDelete(s.id, publicId)}
+                      onChange={stores.refetch}
+                    />
+                  </div>
                   <CategoriesPanel storeId={s.id} />
                   <ProductsPanel storeId={s.id} />
                 </div>
@@ -287,33 +297,42 @@ function ProductsPanel({ storeId }: { storeId: string }) {
       >
         <div className="grid gap-2.5 sm:grid-cols-2">
           {items.data?.map((i) => (
-            <div key={i.id} className="flex items-start justify-between rounded-xl border border-border p-3.5">
-              <div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <p className="text-sm font-medium">{i.name}</p>
-                  <Badge variant="outline" className="text-[10px]">{i.unit}</Badge>
-                  {i.stock <= 5 && <Badge variant={i.stock === 0 ? "danger" : "outline"} className="text-[10px]">{i.stock === 0 ? "Out of stock" : `Low: ${i.stock} left`}</Badge>}
-                  {!i.isAvailable && <Badge variant="outline" className="text-[10px]">Hidden</Badge>}
+            <div key={i.id} className="space-y-2 rounded-xl border border-border p-3.5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="text-sm font-medium">{i.name}</p>
+                    <Badge variant="outline" className="text-[10px]">{i.unit}</Badge>
+                    {i.stock <= 5 && <Badge variant={i.stock === 0 ? "danger" : "outline"} className="text-[10px]">{i.stock === 0 ? "Out of stock" : `Low: ${i.stock} left`}</Badge>}
+                    {!i.isAvailable && <Badge variant="outline" className="text-[10px]">Hidden</Badge>}
+                  </div>
+                  <p className="text-xs text-muted-fg">
+                    रू {i.price.toLocaleString()}
+                    {i.mrp != null && i.mrp > i.price && <span className="ml-1 line-through">रू {i.mrp.toLocaleString()}</span>}
+                    {" • "}Stock: {i.stock}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-fg">
-                  रू {i.price.toLocaleString()}
-                  {i.mrp != null && i.mrp > i.price && <span className="ml-1 line-through">रू {i.mrp.toLocaleString()}</span>}
-                  {" • "}Stock: {i.stock}
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1.5">
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" disabled={restockingId === i.id} onClick={() => restock(i)}>
-                    {restockingId === i.id ? "…" : "Restock"}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => toggleAvailability(i)}>
-                    {i.isAvailable ? "Hide" : "Show"}
-                  </Button>
-                  <button type="button" onClick={() => remove(i.id)} className="text-muted-fg hover:text-danger">
-                    <Trash2 className="size-4" />
-                  </button>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={restockingId === i.id} onClick={() => restock(i)}>
+                      {restockingId === i.id ? "…" : "Restock"}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => toggleAvailability(i)}>
+                      {i.isAvailable ? "Hide" : "Show"}
+                    </Button>
+                    <button type="button" onClick={() => remove(i.id)} className="text-muted-fg hover:text-danger">
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
+              <PhotoUploader
+                photos={i.photo ? [i.photo] : []}
+                uploadUrl={endpoints.grocery.partner.productPhoto(storeId, i.id)}
+                deleteUrl={() => endpoints.grocery.partner.productPhoto(storeId, i.id)}
+                onChange={items.refetch}
+                max={1}
+              />
             </div>
           ))}
         </div>

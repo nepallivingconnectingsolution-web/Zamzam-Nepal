@@ -14,13 +14,14 @@ import {
   integer,
   boolean,
   timestamp,
+  date,
   numeric,
   jsonb,
   pgEnum,
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 
 /* ───────────────────────────── Enums ──────────────────────────────────── */
 
@@ -188,6 +189,13 @@ export const users = pgTable(
     businessAddress: text('business_address'),
     businessDocumentRef: text('business_document_ref'),
     refreshTokenHash: text('refresh_token_hash'),
+    // Null until the owner proves control of the address/number via a
+    // one-time code. Login is blocked while either is missing (Google
+    // sign-ups get emailVerifiedAt set immediately — Google already
+    // confirmed it — and have no mobile yet, so only mobile applies to them
+    // once they add one on /profile/setup).
+    emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
+    mobileVerifiedAt: timestamp('mobile_verified_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -264,6 +272,32 @@ export const passwordResetTokens = pgTable(
   }),
 );
 
+/**
+ * Sign-up email verification. Same shape as password_reset_tokens
+ * (id/otpHash/expiresAt/used/attempts) but deliberately a separate table —
+ * this one gates whether an account can log in at all, a different
+ * consequence than resetting a password, so the two are never mixed up by
+ * sharing a row.
+ */
+export const emailVerificationTokens = pgTable(
+  'email_verification_tokens',
+  {
+    id: varchar('id', { length: 32 }).primaryKey(),
+    userId: varchar('user_id', { length: 32 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    email: varchar('email', { length: 255 }).notNull(),
+    otpHash: varchar('otp_hash', { length: 64 }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    used: boolean('used').notNull().default(false),
+    attempts: integer('attempts').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: index('email_verification_tokens_user_idx').on(t.userId),
+  }),
+);
+
 /* ───────────────────────────── Wallets ────────────────────────────────── */
 export const wallets = pgTable('wallets', {
   userId: varchar('user_id', { length: 32 })
@@ -320,6 +354,7 @@ export const buses = pgTable(
     totalRows: integer('total_rows').notNull(),
     amenities: jsonb('amenities').$type<string[]>().notNull().default([]),
     busPhoto: text('bus_photo'),
+    photos: jsonb('photos').$type<string[]>().notNull().default([]),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -543,6 +578,15 @@ export const rides = pgTable(
     driverIdx: index('rides_driver_idx').on(t.driverId),
     // Matching query: "open REQUESTED rides for service X" — see RidesService.
     matchIdx: index('rides_match_idx').on(t.status, t.service),
+    // A driver can hold at most one active ride, enforced by the database.
+    // Active = every status except the two terminal ones. Written as NOT IN
+    // over the two ORIGINAL enum values on purpose: values appended later
+    // (ACCEPTED, PAYMENT_PENDING) cannot be referenced in the same transaction
+    // that added them, and a fresh database migrates in a single transaction.
+    // REQUESTED rows never have a driver, and NULLs don't collide in a unique index.
+    oneActivePerDriver: uniqueIndex('rides_one_active_per_driver_idx')
+      .on(t.driverId)
+      .where(sql`${t.status} NOT IN ('COMPLETED','CANCELLED')`),
   }),
 );
 
@@ -656,7 +700,16 @@ export const vehicles = pgTable(
     maxWeightKg: integer('max_weight_kg').notNull(),
     seats: integer('seats').notNull().default(1), // passenger seats excl. driver
     photoRef: text('photo_ref'),
+    photos: jsonb('photos').$type<string[]>().notNull().default([]),
     documentRef: text('document_ref'), // bluebook / registration document
+    // Uppercase alphanumerics of plateNumber; the uniqueness key (see index below).
+    plateNormalized: varchar('plate_normalized', { length: 24 }).notNull(),
+    make: varchar('make', { length: 40 }),
+    model: varchar('model', { length: 40 }),
+    manufactureYear: integer('manufacture_year'),
+    registrationYear: integer('registration_year'),
+    fuelType: varchar('fuel_type', { length: 16 }),
+    serviceClass: varchar('service_class', { length: 24 }),
     verificationStatus: kycStatusEnum('verification_status').notNull().default('PENDING'),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -665,7 +718,10 @@ export const vehicles = pgTable(
   (t) => ({
     driverIdx: index('vehicles_driver_idx').on(t.driverId),
     verificationIdx: index('vehicles_verification_idx').on(t.verificationStatus),
-    plateIdx: uniqueIndex('vehicles_plate_unique_idx').on(t.plateNumber),
+    // Two ACTIVE vehicles can never share a plate; a soft-deleted vehicle frees it.
+    plateActiveIdx: uniqueIndex('vehicles_plate_normalized_active_unique_idx')
+      .on(t.plateNormalized)
+      .where(sql`${t.isActive} = true`),
   }),
 );
 
@@ -726,6 +782,263 @@ export const driverStatus = pgTable(
   },
   (t) => ({
     onlineIdx: index('driver_status_online_idx').on(t.online),
+  }),
+);
+
+/* ───────────────────── Driver onboarding & verification ─────────────────────
+ * Extends the existing driver stack (users.role='driver', vehicles,
+ * driver_status) with a reviewable application, private files, per-item
+ * document review, offers and OTP. No second user table: everything hangs off
+ * users.id.
+ */
+
+export const applicationStatusEnum = pgEnum('application_status', [
+  'DRAFT',
+  'SUBMITTED',
+  'UNDER_REVIEW',
+  'RESUBMISSION_REQUIRED',
+  'APPROVED',
+  'REJECTED',
+  'SUSPENDED',
+  'EXPIRED',
+]);
+
+export const reviewStatusEnum = pgEnum('review_status', [
+  'PENDING',
+  'APPROVED',
+  'REJECTED',
+  'EXPIRED',
+  'RESUBMISSION_REQUIRED',
+]);
+
+export const offerStatusEnum = pgEnum('offer_status', [
+  'PENDING',
+  'ACCEPTED',
+  'DECLINED',
+  'EXPIRED',
+  'CANCELLED',
+]);
+
+export const docSubjectEnum = pgEnum('doc_subject', ['DRIVER', 'VEHICLE']);
+
+/** Private uploaded files. The bytes live in private storage, never in Postgres. */
+export const storedFiles = pgTable(
+  'stored_files',
+  {
+    id: varchar('id', { length: 32 }).primaryKey(),
+    ownerUserId: varchar('owner_user_id', { length: 32 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    storageKey: text('storage_key').notNull(),
+    originalName: text('original_name').notNull(),
+    mimeType: varchar('mime_type', { length: 100 }).notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    ownerIdx: index('stored_files_owner_idx').on(t.ownerUserId),
+  }),
+);
+
+export const driverProfiles = pgTable('driver_profiles', {
+  userId: varchar('user_id', { length: 32 })
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  legalName: text('legal_name'),
+  photoFileId: varchar('photo_file_id', { length: 32 }).references(() => storedFiles.id, {
+    onDelete: 'set null',
+  }),
+  dateOfBirth: date('date_of_birth'),
+  gender: varchar('gender', { length: 16 }),
+  address: text('address'),
+  city: varchar('city', { length: 80 }),
+  province: varchar('province', { length: 40 }),
+  emergencyContactName: text('emergency_contact_name'),
+  emergencyContactPhone: varchar('emergency_contact_phone', { length: 20 }),
+  language: varchar('language', { length: 8 }),
+  licenceNumber: varchar('licence_number', { length: 40 }),
+  licenceClass: varchar('licence_class', { length: 16 }),
+  licenceAuthority: text('licence_authority'),
+  licenceIssueDate: date('licence_issue_date'),
+  licenceExpiryDate: date('licence_expiry_date'),
+  phoneVerifiedAt: timestamp('phone_verified_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const driverApplications = pgTable(
+  'driver_applications',
+  {
+    id: varchar('id', { length: 32 }).primaryKey(),
+    userId: varchar('user_id', { length: 32 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    status: applicationStatusEnum('status').notNull().default('DRAFT'),
+    currentStep: integer('current_step').notNull().default(1),
+    vehicleId: varchar('vehicle_id', { length: 32 }).references(() => vehicles.id, {
+      onDelete: 'set null',
+    }),
+    /** Drivers approved before this feature existed: document checks are skipped until they resubmit. */
+    isLegacy: boolean('is_legacy').notNull().default(false),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    reviewedBy: varchar('reviewed_by', { length: 64 }),
+    rejectionReason: text('rejection_reason'),
+    suspensionReason: text('suspension_reason'),
+    version: integer('version').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userIdx: uniqueIndex('driver_applications_user_unique_idx').on(t.userId),
+    statusIdx: index('driver_applications_status_idx').on(t.status, t.updatedAt),
+  }),
+);
+
+/**
+ * One row per upload. The "current" row per (application, scope, docType) is
+ * the one with superseded_by_id IS NULL, so resubmission keeps full history.
+ * Vehicle photos are documents whose docType starts with "photo:".
+ */
+export const applicationDocuments = pgTable(
+  'application_documents',
+  {
+    id: varchar('id', { length: 32 }).primaryKey(),
+    applicationId: varchar('application_id', { length: 32 })
+      .notNull()
+      .references(() => driverApplications.id, { onDelete: 'cascade' }),
+    subject: docSubjectEnum('subject').notNull(),
+    /** 'driver' for driver documents, otherwise the vehicle id. Part of the current-row key. */
+    scope: varchar('scope', { length: 32 }).notNull(),
+    vehicleId: varchar('vehicle_id', { length: 32 }).references(() => vehicles.id, {
+      onDelete: 'set null',
+    }),
+    docType: varchar('doc_type', { length: 40 }).notNull(),
+    fileId: varchar('file_id', { length: 32 })
+      .notNull()
+      .references(() => storedFiles.id, { onDelete: 'restrict' }),
+    expiryDate: date('expiry_date'),
+    status: reviewStatusEnum('status').notNull().default('PENDING'),
+    rejectionReason: text('rejection_reason'),
+    reviewedBy: varchar('reviewed_by', { length: 64 }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    supersededById: varchar('superseded_by_id', { length: 32 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    currentIdx: uniqueIndex('application_documents_current_unique_idx')
+      .on(t.applicationId, t.scope, t.docType)
+      .where(sql`${t.supersededById} IS NULL`),
+    statusIdx: index('application_documents_status_idx').on(t.status),
+  }),
+);
+
+/** Admin-editable requirement config. '' in vehicleType / serviceClass means "applies to all". */
+export const documentRequirements = pgTable(
+  'document_requirements',
+  {
+    id: varchar('id', { length: 32 }).primaryKey(),
+    vehicleType: varchar('vehicle_type', { length: 16 }).notNull().default(''),
+    serviceClass: varchar('service_class', { length: 24 }).notNull().default(''),
+    subject: docSubjectEnum('subject').notNull(),
+    docType: varchar('doc_type', { length: 40 }).notNull(),
+    kind: varchar('kind', { length: 8 }).notNull().default('DOCUMENT'), // DOCUMENT | PHOTO
+    label: text('label').notNull(),
+    isRequired: boolean('is_required').notNull().default(true),
+    requiresExpiry: boolean('requires_expiry').notNull().default(false),
+    sortOrder: integer('sort_order').notNull().default(0),
+  },
+  (t) => ({
+    uniq: uniqueIndex('document_requirements_unique_idx').on(
+      t.vehicleType,
+      t.serviceClass,
+      t.subject,
+      t.docType,
+    ),
+  }),
+);
+
+export const verificationReviews = pgTable(
+  'verification_reviews',
+  {
+    id: varchar('id', { length: 32 }).primaryKey(),
+    applicationId: varchar('application_id', { length: 32 })
+      .notNull()
+      .references(() => driverApplications.id, { onDelete: 'cascade' }),
+    targetType: varchar('target_type', { length: 16 }).notNull(), // APPLICATION | DOCUMENT | VEHICLE | DRIVER | NOTE
+    targetId: varchar('target_id', { length: 32 }),
+    action: varchar('action', { length: 40 }).notNull(),
+    fromStatus: varchar('from_status', { length: 32 }),
+    toStatus: varchar('to_status', { length: 32 }),
+    reason: text('reason'),
+    adminId: varchar('admin_id', { length: 64 }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    appIdx: index('verification_reviews_app_idx').on(t.applicationId, t.createdAt),
+  }),
+);
+
+export const rideOffers = pgTable(
+  'ride_offers',
+  {
+    id: varchar('id', { length: 32 }).primaryKey(),
+    rideId: varchar('ride_id', { length: 32 })
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }),
+    driverId: varchar('driver_id', { length: 32 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    status: offerStatusEnum('status').notNull().default('PENDING'),
+    round: integer('round').notNull().default(1),
+    pickupDistanceM: integer('pickup_distance_m').notNull(),
+    etaMin: integer('eta_min').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    rideDriverIdx: uniqueIndex('ride_offers_ride_driver_unique_idx').on(t.rideId, t.driverId),
+    driverStatusIdx: index('ride_offers_driver_status_idx').on(t.driverId, t.status),
+    expiryIdx: index('ride_offers_status_expiry_idx').on(t.status, t.expiresAt),
+  }),
+);
+
+export const phoneOtps = pgTable(
+  'phone_otps',
+  {
+    id: varchar('id', { length: 32 }).primaryKey(),
+    userId: varchar('user_id', { length: 32 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    phone: varchar('phone', { length: 20 }).notNull(),
+    codeHash: varchar('code_hash', { length: 64 }).notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    userCreatedIdx: index('phone_otps_user_created_idx').on(t.userId, t.createdAt),
+  }),
+);
+
+/** Sampled location history: written on ride lifecycle events only, never per GPS ping. */
+export const driverLocationLog = pgTable(
+  'driver_location_log',
+  {
+    id: varchar('id', { length: 32 }).primaryKey(),
+    driverId: varchar('driver_id', { length: 32 })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    rideId: varchar('ride_id', { length: 32 }).references(() => rides.id, { onDelete: 'set null' }),
+    event: varchar('event', { length: 24 }).notNull(), // ONLINE | OFFLINE | ACCEPTED | STARTED | COMPLETED
+    lat: numeric('lat', { precision: 10, scale: 7 }).notNull(),
+    lng: numeric('lng', { precision: 10, scale: 7 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    driverIdx: index('driver_location_log_driver_idx').on(t.driverId, t.createdAt),
   }),
 );
 
@@ -913,6 +1226,7 @@ export const roomTypes = pgTable(
     totalRooms: integer('total_rooms').notNull(),
     maxGuests: integer('max_guests').notNull().default(2),
     amenities: jsonb('amenities').$type<string[]>().notNull().default([]),
+    photos: jsonb('photos').$type<string[]>().notNull().default([]),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1492,6 +1806,9 @@ export const userNotificationTypeEnum = pgEnum('user_notification_type', [
   'order_update',
   'ride_update',
   'system',
+  // Appended so the migration is a safe ADD VALUE.
+  'driver_application',
+  'ride_offer',
 ]);
 
 export const userNotifications = pgTable(

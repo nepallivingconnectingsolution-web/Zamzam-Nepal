@@ -68,4 +68,17 @@ export class MailerService {
     `.trim();
     await this.send({ to, subject, html, text });
   }
+
+  async sendAccountVerificationOtp(to: string, otp: string): Promise<void> {
+    const subject = 'Verify your Zamzam email address';
+    const text = `Your Zamzam verification code is ${otp}. It expires in 10 minutes. If you didn't create a Zamzam account, you can ignore this email.`;
+    const html = `
+      <div style="font-family:sans-serif;max-width:420px;margin:0 auto;padding:24px">
+        <p style="font-size:14px;color:#444">Your Zamzam verification code is:</p>
+        <p style="font-size:32px;font-weight:700;letter-spacing:6px;font-family:monospace;margin:12px 0">${otp}</p>
+        <p style="font-size:13px;color:#777">This code expires in 10 minutes. If you didn't create a Zamzam account, you can safely ignore this email.</p>
+      </div>
+    `.trim();
+    await this.send({ to, subject, html, text });
+  }
 }

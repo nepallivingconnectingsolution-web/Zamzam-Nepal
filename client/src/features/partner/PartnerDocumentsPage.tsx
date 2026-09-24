@@ -75,7 +75,19 @@ const ACCEPTED_TYPES = "image/jpeg,image/png,image/webp,application/pdf";
 const POLL_INTERVAL_MS = 6_000;
 const REDIRECT_DELAY_MS = 3_000;
 
-export function PartnerDocumentsPage({ partnerType }: { partnerType: PartnerType }) {
+/**
+ * `onboarding` is the pre-approval view (the verification screen): the business
+ * is not approved yet, so "all documents verified" must not send it to a portal
+ * it cannot open, and the copy is about completing the application rather than
+ * about publishing.
+ */
+export function PartnerDocumentsPage({
+  partnerType,
+  onboarding = false,
+}: {
+  partnerType: PartnerType;
+  onboarding?: boolean;
+}) {
   const documents = useResource<PartnerDocument[]>(() => api.get(endpoints.partnerDocuments.mine));
   const [uploadingType, setUploadingType] = useState<string | null>(null);
   const [justVerified, setJustVerified] = useState(false);
@@ -108,7 +120,7 @@ export function PartnerDocumentsPage({ partnerType }: { partnerType: PartnerType
   useEffect(() => {
     if (!documents.data) return;
     const allApproved = documents.data.length > 0 && documents.data.every((d) => d.status === "APPROVED");
-    if (wasFullyVerifiedRef.current === false && allApproved) {
+    if (!onboarding && wasFullyVerifiedRef.current === false && allApproved) {
       setJustVerified(true);
       toast.success("You're verified!", "All your documents have been approved.");
     }
@@ -148,7 +160,8 @@ export function PartnerDocumentsPage({ partnerType }: { partnerType: PartnerType
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Documents" subtitle={PAGE_SUBTITLE[partnerType]} />
+      {!onboarding && <PageHeader title="Documents" subtitle={PAGE_SUBTITLE[partnerType]} />}
+      {onboarding && <p className="text-sm text-muted-fg">{PAGE_SUBTITLE[partnerType]}</p>}
 
       {/* Publishing is blocked server-side until every required document is
           uploaded, so say so here rather than letting the partner discover it
@@ -161,7 +174,9 @@ export function PartnerDocumentsPage({ partnerType }: { partnerType: PartnerType
               {outstanding.length} required document{outstanding.length === 1 ? "" : "s"} still needed
             </p>
             <p className="mt-0.5 text-body-sm text-muted-fg">
-              You can't publish listings until you upload {outstanding.map((d) => d.label).join(", ")}.
+              {onboarding
+                ? `Upload ${outstanding.map((d) => d.label).join(", ")} so we can review your business.`
+                : `You can't publish listings until you upload ${outstanding.map((d) => d.label).join(", ")}.`}
             </p>
           </div>
         </Card>
@@ -218,7 +233,7 @@ export function PartnerDocumentsPage({ partnerType }: { partnerType: PartnerType
                     {badge.label}
                   </Badge>
                   <span className="text-caption text-muted-fg">
-                    {doc.required ? "Required to publish" : "Optional"}
+                    {doc.required ? (onboarding ? "Required" : "Required to publish") : "Optional"}
                   </span>
                 </div>
 

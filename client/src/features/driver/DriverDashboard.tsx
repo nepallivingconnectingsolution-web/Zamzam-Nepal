@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { BellRing, Navigation, Power, Wifi } from "lucide-react";
+import { AlertTriangle, BellRing, Navigation, Power, Wifi } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card } from "@/components/ui/card";
@@ -28,6 +28,7 @@ export function DriverDashboard() {
     toggling,
     broadcasting,
     toggleOnline,
+    onlineError,
     earnings,
     requests,
     rating,
@@ -86,6 +87,17 @@ export function DriverDashboard() {
           </Badge>
         )}
       </Card>
+
+      {/* Why going online was refused, in the server's own words. */}
+      {onlineError && !online && (
+        <Card className="flex items-start gap-3 border border-warning/40 bg-warning/5 p-4" role="alert">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warning" />
+          <div>
+            <p className="text-sm font-semibold">You can't go online yet</p>
+            <p className="mt-0.5 text-sm text-muted-fg">{onlineError}</p>
+          </div>
+        </Card>
+      )}
 
       {/* KPIs */}
       <div className="grid gap-4 sm:grid-cols-2">

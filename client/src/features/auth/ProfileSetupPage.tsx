@@ -51,7 +51,10 @@ export function ProfileSetupPage() {
         });
         if (needsMobile) updateUser({ mobile: mobileDigits });
       }
-      toast.success(isBusiness ? "Business saved" : "Profile saved", "You're all set.");
+      toast.success(
+        isBusiness ? "Business saved" : "Profile saved",
+        isBusiness && user!.kycStatus === "PENDING" ? "Next, upload your documents so we can approve your business." : "You're all set.",
+      );
       if (!isBusiness && user!.role === "customer" && from) {
         navigate(from);
       } else {

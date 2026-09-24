@@ -8,7 +8,6 @@ import {
   Bell,
   BrainCircuit,
   Building2,
-  Car,
 ChevronDown,
   FileCheck,
   FileText,
@@ -50,7 +49,6 @@ const SA_NAV: NavItem[] = [
   { label: "Users",          to: "/x-admin/users",          icon: Users },
   { label: "Approvals",      to: "/x-admin/approvals",      icon: UserCheck },
   { label: "Notifications", to: "/x-admin/notifications", icon: Bell },
-  { label: "Drivers",        to: "/x-admin/drivers",        icon: Car },
  { label: "Partners",       to: "/x-admin/partners",       icon: Building2 },
   { label: "Partner Docs",   to: "/x-admin/partner-documents", icon: FileCheck },
   { label: "Wallet & Ledger",to: "/x-admin/wallet",         icon: Wallet },
@@ -81,13 +79,13 @@ const SA_TABS: TabBarItem[] = [
 ];
 
 /**
- * The remaining 16 destinations, grouped by what they're FOR. A flat list of
+ * The remaining destinations, grouped by what they're FOR. A flat list of
  * sixteen links in a sheet is just the old drawer with a different animation;
  * grouping is what makes this actually easier to navigate than what it
  * replaced. Kept in sync with SA_NAV above by path.
  */
 const MORE_GROUPS: { title: string; paths: string[] }[] = [
-  { title: "People", paths: ["/x-admin/users", "/x-admin/drivers", "/x-admin/partner-documents"] },
+  { title: "People", paths: ["/x-admin/users", "/x-admin/partner-documents"] },
   { title: "Money", paths: ["/x-admin/wallet", "/x-admin/revenue", "/x-admin/reports"] },
   {
     title: "Operations",

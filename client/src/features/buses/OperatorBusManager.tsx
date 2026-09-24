@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Bus, CalendarClock, ChevronDown, ChevronUp, Plus, Repeat, Ticket, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
+import { PhotoUploader } from "@/components/shared/photo-uploader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,6 +111,15 @@ function BusCard({ bus, onRemoved }: { bus: OperatorBus; onRemoved: () => void }
         {bus.amenities.map((a) => (
           <span key={a} className="rounded-md bg-surface-2 px-2 py-0.5">{a}</span>
         ))}
+      </div>
+      <div className="mt-4">
+        <p className="mb-2 text-xs font-medium text-muted-fg">Photos (exterior, interior, seating)</p>
+        <PhotoUploader
+          photos={bus.photos}
+          uploadUrl={endpoints.buses.op.busPhotos(bus.id)}
+          deleteUrl={(publicId) => endpoints.buses.op.busPhotoDelete(bus.id, publicId)}
+          onChange={onRemoved}
+        />
       </div>
       <div className="mt-4 flex justify-end">
         <Button variant="ghost" size="sm" disabled={removing} onClick={handleRemove}>

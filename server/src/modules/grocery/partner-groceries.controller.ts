@@ -1,4 +1,9 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, UseInterceptors, UploadedFiles, UploadedFile, BadRequestException,
+} from '@nestjs/common';
+import { FilesInterceptor, FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { Throttle } from '@nestjs/throttler';
 import { GroceryService } from './grocery.service';
 import {
   CreateCategoryDto,
@@ -69,6 +74,27 @@ export class PartnerGroceriesController {
   @Patch(':id')
   updateStore(@CurrentUser() user: AuthenticatedUser, @Param('id') storeId: string, @Body() dto: UpdateStoreDto) {
     return this.grocery.updateStore(user.id, storeId, dto);
+  }
+
+  @Post(':id/photos')
+  @Throttle({ default: { limit: 20, ttl: 300_000 } })
+  @UseInterceptors(FilesInterceptor('files', 10, { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
+  uploadPhotos(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') storeId: string,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    if (!files?.length) throw new BadRequestException('Attach at least one photo.');
+    return this.grocery.addStorePhotos(user.id, storeId, files);
+  }
+
+  @Delete(':id/photos/:publicId')
+  deletePhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') storeId: string,
+    @Param('publicId') publicId: string,
+  ) {
+    return this.grocery.deleteStorePhoto(user.id, storeId, publicId);
   }
 
   @Delete(':id')
@@ -145,6 +171,28 @@ export class PartnerGroceriesController {
     @Body() body: { quantity: number },
   ) {
     return this.grocery.restockProduct(user.id, storeId, productId, Number(body.quantity) || 0);
+  }
+
+  @Post(':id/products/:productId/photo')
+  @Throttle({ default: { limit: 20, ttl: 300_000 } })
+  @UseInterceptors(FileInterceptor('files', { storage: memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
+  uploadProductPhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') storeId: string,
+    @Param('productId') productId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Attach a photo.');
+    return this.grocery.setProductPhoto(user.id, storeId, productId, file);
+  }
+
+  @Delete(':id/products/:productId/photo')
+  deleteProductPhoto(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') storeId: string,
+    @Param('productId') productId: string,
+  ) {
+    return this.grocery.deleteProductPhoto(user.id, storeId, productId);
   }
 
   @Delete(':id/products/:productId')

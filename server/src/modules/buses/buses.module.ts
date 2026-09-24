@@ -4,9 +4,10 @@ import { OperatorBusesController } from './operator-buses.controller';
 import { BusesService } from './buses.service';
 import { BusesCronService } from './buses.cron';
 import { PartnerDocumentsModule } from '../partner-documents/partner-documents.module';
+import { BusinessUploadsModule } from '../../common/uploads/business-uploads.module';
 
 @Module({
-  imports: [PartnerDocumentsModule],
+  imports: [PartnerDocumentsModule, BusinessUploadsModule],
   controllers: [BusesController, OperatorBusesController],
   providers: [BusesService, BusesCronService],
   exports: [BusesService],

@@ -4,7 +4,10 @@ import { DATABASE_CONNECTION, type Database } from '../../database/database.modu
 import { auditLogs, driverStatus, users, vehicles } from '../../database/schema';
 import { apiError } from '../../common/exceptions';
 import { id } from '../../common/id';
+import { assertPlateUsable } from '../driver-onboarding/plate.check';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BusinessImageUploadService, MAX_BUSINESS_PHOTOS } from '../../common/uploads/business-image-upload.service';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import type { RegisterVehicleDto, UpdateVehicleDto, VehicleCategory } from './dto/vehicles.dto.ts';
 
 /**
@@ -36,7 +39,7 @@ export const SERVICE_CATEGORIES: Record<string, VehicleCategory[]> = Object.entr
 }, {});
 
 /** Default carrying capacity (kg) per category when the driver doesn't specify. */
-const DEFAULT_MAX_WEIGHT_KG: Record<VehicleCategory, number> = {
+export const DEFAULT_MAX_WEIGHT_KG: Record<VehicleCategory, number> = {
   bike: 20,
   car: 100,
   van: 800,
@@ -49,36 +52,42 @@ export class VehiclesService {
   constructor(
     @Inject(DATABASE_CONNECTION) private readonly db: Database,
     private readonly notifications: NotificationsService,
+    private readonly businessImages: BusinessImageUploadService,
+    private readonly cloudinary: CloudinaryService,
   ) {}
 
   /* ─────────────────────── Driver / transporter side ─────────────────────── */
 
   async register(driverId: string, dto: RegisterVehicleDto) {
-    // Plate numbers are globally unique (uniqueIndex in schema) — check first
-    // so the driver gets a friendly message instead of a raw constraint error.
-    const [existing] = await this.db
-      .select({ id: vehicles.id })
-      .from(vehicles)
-      .where(eq(vehicles.plateNumber, dto.plateNumber))
-      .limit(1);
-    if (existing) apiError(409, 'A vehicle with this plate number is already registered.');
+    const plateNormalized = await assertPlateUsable(this.db, dto.category, dto.plateNumber);
 
-    const [row] = await this.db
-      .insert(vehicles)
-      .values({
-        id: id('veh'),
-        driverId,
-        category: dto.category,
-        makeModel: dto.makeModel,
-        plateNumber: dto.plateNumber,
-        color: dto.color ?? null,
-        maxWeightKg: dto.maxWeightKg ?? DEFAULT_MAX_WEIGHT_KG[dto.category],
-        seats: dto.seats ?? (dto.category === 'bike' ? 1 : 4),
-        photoRef: dto.photoRef ?? null,
-        documentRef: dto.documentRef ?? null,
-        // Every new vehicle starts PENDING — same trust model as partner KYC.
-      })
-      .returning();
+    let row: typeof vehicles.$inferSelect;
+    try {
+      [row] = await this.db
+        .insert(vehicles)
+        .values({
+          id: id('veh'),
+          driverId,
+          category: dto.category,
+          makeModel: dto.makeModel,
+          plateNumber: dto.plateNumber,
+          plateNormalized,
+          color: dto.color ?? null,
+          maxWeightKg: dto.maxWeightKg ?? DEFAULT_MAX_WEIGHT_KG[dto.category],
+          seats: dto.seats ?? (dto.category === 'bike' ? 1 : 4),
+          photoRef: dto.photoRef ?? null,
+          documentRef: dto.documentRef ?? null,
+          // Every new vehicle starts PENDING — same trust model as partner KYC.
+        })
+        .returning();
+    } catch (err) {
+      // Two drivers registering the same plate at the same instant: the unique
+      // index rejects the loser, who gets the same friendly message.
+      if ((err as { code?: string }).code === '23505') {
+        apiError(409, 'A vehicle with this number plate is already registered.', 'PLATE_TAKEN');
+      }
+      throw err;
+    }
 
     await this.notifications.notify({
       type: 'system',
@@ -111,14 +120,10 @@ export class VehiclesService {
   async update(driverId: string, vehicleId: string, dto: UpdateVehicleDto) {
     const vehicle = await this.ownedVehicleOrFail(driverId, vehicleId);
 
-    if (dto.plateNumber && dto.plateNumber !== vehicle.plateNumber) {
-      const [existing] = await this.db
-        .select({ id: vehicles.id })
-        .from(vehicles)
-        .where(eq(vehicles.plateNumber, dto.plateNumber))
-        .limit(1);
-      if (existing) apiError(409, 'A vehicle with this plate number is already registered.');
-    }
+    const plateChanged = dto.plateNumber !== undefined && dto.plateNumber !== vehicle.plateNumber;
+    const plateNormalized = plateChanged
+      ? await assertPlateUsable(this.db, dto.category ?? vehicle.category, dto.plateNumber!, vehicleId)
+      : undefined;
 
     // Identity-defining fields changed → the admin's earlier approval no
     // longer applies, so verification drops back to PENDING (cosmetic edits
@@ -134,6 +139,7 @@ export class VehiclesService {
         ...(dto.category !== undefined ? { category: dto.category } : {}),
         ...(dto.makeModel !== undefined ? { makeModel: dto.makeModel } : {}),
         ...(dto.plateNumber !== undefined ? { plateNumber: dto.plateNumber } : {}),
+        ...(plateNormalized !== undefined ? { plateNormalized } : {}),
         ...(dto.color !== undefined ? { color: dto.color } : {}),
         ...(dto.maxWeightKg !== undefined ? { maxWeightKg: dto.maxWeightKg } : {}),
         ...(dto.seats !== undefined ? { seats: dto.seats } : {}),
@@ -148,6 +154,27 @@ export class VehiclesService {
     // A vehicle that just lost its APPROVED badge can't stay the active one.
     if (identityChanged) await this.clearIfActive(driverId, vehicleId);
 
+    return this.toDto(row);
+  }
+
+  async addVehiclePhotos(driverId: string, vehicleId: string, files: Express.Multer.File[]) {
+    const vehicle = await this.ownedVehicleOrFail(driverId, vehicleId);
+    if (vehicle.photos.length + files.length > MAX_BUSINESS_PHOTOS) {
+      apiError(400, `You can have at most ${MAX_BUSINESS_PHOTOS} photos — delete some before adding more.`);
+    }
+    const uploaded = await Promise.all(files.map((f) => this.businessImages.upload(f, 'vehicle')));
+    const photos = [...vehicle.photos, ...uploaded.map((u) => u.url)];
+    const [row] = await this.db.update(vehicles).set({ photos, updatedAt: new Date() }).where(eq(vehicles.id, vehicleId)).returning();
+    return this.toDto(row);
+  }
+
+  async deleteVehiclePhoto(driverId: string, vehicleId: string, publicId: string) {
+    const vehicle = await this.ownedVehicleOrFail(driverId, vehicleId);
+    const url = vehicle.photos.find((p) => this.cloudinary.publicIdFromUrl(p) === publicId);
+    if (!url) apiError(404, 'Photo not found.');
+    const photos = vehicle.photos.filter((p) => p !== url);
+    const [row] = await this.db.update(vehicles).set({ photos, updatedAt: new Date() }).where(eq(vehicles.id, vehicleId)).returning();
+    await this.cloudinary.deleteImage(publicId);
     return this.toDto(row);
   }
 
@@ -268,6 +295,7 @@ export class VehiclesService {
       maxWeightKg: row.maxWeightKg,
       seats: row.seats,
       photoRef: row.photoRef,
+      photos: row.photos.length > 0 ? row.photos : row.photoRef ? [row.photoRef] : [],
       documentRef: row.documentRef,
       verificationStatus: row.verificationStatus,
       createdAt: row.createdAt.toISOString(),

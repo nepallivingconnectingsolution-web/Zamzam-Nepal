@@ -122,8 +122,9 @@ export function NotificationBell() {
         // Non-critical — the badge will simply stay accurate on the next poll.
       }
     }
-    if (n.entityType === "partner" && n.entityId) {
-      navigate(`/x-admin/partners/${n.entityId}`);
+    // A new registration or an uploaded document both belong in the approvals inbox.
+    if ((n.entityType === "partner" || n.entityType === "partner_document") && n.entityId) {
+      navigate(`/x-admin/approvals/${n.entityId}`);
     }
   }
 

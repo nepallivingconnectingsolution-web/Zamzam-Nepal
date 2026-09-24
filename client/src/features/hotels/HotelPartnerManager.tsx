@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
+import { PhotoUploader } from "@/components/shared/photo-uploader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,7 +84,16 @@ function PropertiesTab() {
                 {expandedId === h.id ? <ChevronUp className="size-4 text-muted-fg" /> : <ChevronDown className="size-4 text-muted-fg" />}
               </button>
               {expandedId === h.id && (
-                <div className="border-t border-border p-5">
+                <div className="space-y-5 border-t border-border p-5">
+                  <div>
+                    <p className="mb-2 text-xs font-medium text-muted-fg">Property photos</p>
+                    <PhotoUploader
+                      photos={h.photos}
+                      uploadUrl={endpoints.hotels.partner.hotelPhotos(h.id)}
+                      deleteUrl={(publicId) => endpoints.hotels.partner.hotelPhotoDelete(h.id, publicId)}
+                      onChange={hotels.refetch}
+                    />
+                  </div>
                   <RoomTypesPanel hotelId={h.id} />
                 </div>
               )}
@@ -179,16 +189,25 @@ function RoomTypesPanel({ hotelId }: { hotelId: string }) {
       >
         <div className="grid gap-2.5 sm:grid-cols-2">
           {rooms.data?.map((r) => (
-            <div key={r.id} className="flex items-start justify-between rounded-xl border border-border p-3.5">
-              <div>
-                <p className="text-sm font-medium">{r.name}</p>
-                <p className="text-xs text-muted-fg">
-                  रू {r.pricePerNight.toLocaleString()}/night • {r.totalRooms} room(s) • up to {r.maxGuests} guests
-                </p>
+            <div key={r.id} className="space-y-2 rounded-xl border border-border p-3.5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium">{r.name}</p>
+                  <p className="text-xs text-muted-fg">
+                    रू {r.pricePerNight.toLocaleString()}/night • {r.totalRooms} room(s) • up to {r.maxGuests} guests
+                  </p>
+                </div>
+                <button type="button" onClick={() => remove(r.id)} className="text-muted-fg hover:text-danger">
+                  <Trash2 className="size-4" />
+                </button>
               </div>
-              <button type="button" onClick={() => remove(r.id)} className="text-muted-fg hover:text-danger">
-                <Trash2 className="size-4" />
-              </button>
+              <PhotoUploader
+                photos={r.photos}
+                uploadUrl={endpoints.hotels.partner.roomTypePhotos(hotelId, r.id)}
+                deleteUrl={(publicId) => endpoints.hotels.partner.roomTypePhotoDelete(hotelId, r.id, publicId)}
+                onChange={rooms.refetch}
+                max={6}
+              />
             </div>
           ))}
         </div>

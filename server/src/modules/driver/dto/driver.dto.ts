@@ -15,6 +15,20 @@ export class UpdateLocationDto {
   @Min(-180)
   @Max(180)
   lng!: number;
+
+  /** Optional GPS quality fields; older app builds send only lat/lng. */
+  @IsOptional() @IsNumber() @Min(0) @Max(100000)
+  accuracy?: number;
+
+  @IsOptional() @IsNumber() @Min(0) @Max(360)
+  heading?: number;
+
+  @IsOptional() @IsNumber() @Min(0) @Max(200)
+  speed?: number;
+
+  /** Device time of the fix, epoch ms. Ignored if it is in the future. */
+  @IsOptional() @IsNumber()
+  timestamp?: number;
 }
 
 /**

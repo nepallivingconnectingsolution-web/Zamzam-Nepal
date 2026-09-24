@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
+import { PhotoUploader } from "@/components/shared/photo-uploader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,6 +83,15 @@ function RestaurantsTab() {
               </button>
               {expandedId === r.id && (
                 <div className="space-y-6 border-t border-border p-5">
+                  <div>
+                    <p className="mb-2 text-xs font-medium text-muted-fg">Restaurant photos</p>
+                    <PhotoUploader
+                      photos={r.photos}
+                      uploadUrl={endpoints.restaurants.partner.restaurantPhotos(r.id)}
+                      deleteUrl={(publicId) => endpoints.restaurants.partner.restaurantPhotoDelete(r.id, publicId)}
+                      onChange={restaurants.refetch}
+                    />
+                  </div>
                   <CategoriesPanel restaurantId={r.id} />
                   <MenuItemsPanel restaurantId={r.id} />
                 </div>
@@ -260,28 +270,37 @@ function MenuItemsPanel({ restaurantId }: { restaurantId: string }) {
       >
         <div className="grid gap-2.5 sm:grid-cols-2">
           {items.data?.map((i) => (
-            <div key={i.id} className="flex items-start justify-between rounded-xl border border-border p-3.5">
-              <div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <p className="text-sm font-medium">{i.name}</p>
-                  {i.isVeg && <Badge variant="success" className="gap-1 text-[10px]"><Leaf className="size-3" /> Veg</Badge>}
-                  {i.spiceLevel > 0 && (
-                    <span className="inline-flex items-center text-warning">
-                      {Array.from({ length: i.spiceLevel }).map((_, n) => <Flame key={n} className="size-3" />)}
-                    </span>
-                  )}
-                  {!i.isAvailable && <Badge variant="outline" className="text-[10px]">Hidden</Badge>}
+            <div key={i.id} className="space-y-2 rounded-xl border border-border p-3.5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="text-sm font-medium">{i.name}</p>
+                    {i.isVeg && <Badge variant="success" className="gap-1 text-[10px]"><Leaf className="size-3" /> Veg</Badge>}
+                    {i.spiceLevel > 0 && (
+                      <span className="inline-flex items-center text-warning">
+                        {Array.from({ length: i.spiceLevel }).map((_, n) => <Flame key={n} className="size-3" />)}
+                      </span>
+                    )}
+                    {!i.isAvailable && <Badge variant="outline" className="text-[10px]">Hidden</Badge>}
+                  </div>
+                  <p className="text-xs text-muted-fg">रू {i.price.toLocaleString()} • ~{i.prepTimeMin} min</p>
                 </div>
-                <p className="text-xs text-muted-fg">रू {i.price.toLocaleString()} • ~{i.prepTimeMin} min</p>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => toggleAvailability(i)}>
+                    {i.isAvailable ? "Hide" : "Show"}
+                  </Button>
+                  <button type="button" onClick={() => remove(i.id)} className="text-muted-fg hover:text-danger">
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => toggleAvailability(i)}>
-                  {i.isAvailable ? "Hide" : "Show"}
-                </Button>
-                <button type="button" onClick={() => remove(i.id)} className="text-muted-fg hover:text-danger">
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
+              <PhotoUploader
+                photos={i.photo ? [i.photo] : []}
+                uploadUrl={endpoints.restaurants.partner.itemPhoto(restaurantId, i.id)}
+                deleteUrl={() => endpoints.restaurants.partner.itemPhoto(restaurantId, i.id)}
+                onChange={items.refetch}
+                max={1}
+              />
             </div>
           ))}
         </div>

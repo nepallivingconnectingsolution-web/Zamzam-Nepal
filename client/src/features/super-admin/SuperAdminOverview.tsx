@@ -9,6 +9,7 @@ import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { useResource } from "@/hooks/useResource";
 import { useSuperAdminApi } from "@/features/super-admin/useSuperAdminApi";
 import { toast } from "@/stores/toast.store";
+import { isPartnerRole } from "@/features/super-admin/approvals.types";
 
 /** Escape a value for CSV: wrap in quotes, double any embedded quotes. */
 function csvCell(v: string | number): string {
@@ -172,15 +173,17 @@ export function SuperAdminOverview() {
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <Badge variant="outline" className="max-w-[100px] truncate text-[10px]">{u.role}</Badge>
-                      <button
-                        type="button"
-                        title="Review registration"
-                        aria-label="Review registration"
-                        onClick={() => navigate(`/x-admin/registrations/${u.id}`)}
-                        className="rounded-full p-1.5 text-muted-fg hover:bg-surface-2 hover:text-fg"
-                      >
-                        <Eye className="size-4" />
-                      </button>
+                      {isPartnerRole(u.role) && (
+                        <button
+                          type="button"
+                          title="Review registration"
+                          aria-label="Review registration"
+                          onClick={() => navigate(`/x-admin/approvals/${u.id}`)}
+                          className="rounded-full p-1.5 text-muted-fg hover:bg-surface-2 hover:text-fg"
+                        >
+                          <Eye className="size-4" />
+                        </button>
+                      )}
                     </div>
                   </li>
                 ))}
