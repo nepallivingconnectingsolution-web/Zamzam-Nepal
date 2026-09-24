@@ -1,8 +1,8 @@
 node_modules/
 dist/
 dist-test/
-uploads/
-private-uploads/
+/uploads/
+/private-uploads/
 .env
 .env.local
 *.log
