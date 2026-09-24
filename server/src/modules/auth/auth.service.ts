@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
@@ -6,13 +6,21 @@ import { randomBytes, createHash } from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { and, eq, lt } from 'drizzle-orm';
 import { DATABASE_CONNECTION, type Database } from '../../database/database.module';
-import { auditLogs, refreshTokens, superAdmins, users } from '../../database/schema';
+import {
+  auditLogs,
+  driverApplications,
+  driverProfiles,
+  refreshTokens,
+  superAdmins,
+  users,
+} from '../../database/schema';
 import { id } from '../../common/id';
 import { apiError } from '../../common/exceptions';
 import type { RegisterDto, LoginDto, GoogleSignInDto } from './dto/auth.dto';
 import type { Role } from '../../database/schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PasswordResetService } from '../../common/password-reset/password-reset.service';
+import { AccountVerificationService } from '../../common/account-verification/account-verification.service';
 
 
 /** Deterministic hash for refresh-token storage — see refreshTokens in schema.ts for why not bcrypt. */
@@ -42,6 +50,7 @@ const PARTNER_ROLE_LABELS: Record<typeof PARTNER_ROLES[number], string> = {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly googleClient: OAuth2Client;
 
   constructor(
@@ -50,6 +59,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly notifications: NotificationsService,
     private readonly passwordReset: PasswordResetService,
+    private readonly accountVerification: AccountVerificationService,
   ) {
     this.googleClient = new OAuth2Client(this.config.get<string>('GOOGLE_CLIENT_ID'));
   }
@@ -130,7 +140,12 @@ private async issueTokens(userId: string, role: Role) {
       throw new ConflictException('An account with this mobile number already exists.');
     }
 
-    const isPartner = (PARTNER_ROLES as readonly string[]).includes(dto.role);
+    // Drivers are the one partner role that signs in immediately: they must be
+    // logged in to upload their documents. Their kycStatus stays PENDING until
+    // an admin approves the whole application, and what they may DO is gated by
+    // DriverEligibilityService, not by being unable to log in.
+    const isDriver = dto.role === 'driver';
+    const isPartner = !isDriver && (PARTNER_ROLES as readonly string[]).includes(dto.role);
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const newId = id('u');
 
@@ -141,37 +156,62 @@ private async issueTokens(userId: string, role: Role) {
       mobile: dto.mobile,
       passwordHash,
       role: dto.role,
-      kycStatus: isPartner ? 'PENDING' : 'APPROVED',
+      kycStatus: isPartner || isDriver ? 'PENDING' : 'APPROVED',
       profileComplete: false,
     });
 
-    if (isPartner) {
-  const roleLabel = PARTNER_ROLE_LABELS[dto.role as (typeof PARTNER_ROLES)[number]] ?? 'Partner';
-  await this.notifications.notify({
-    type: 'partner_registration',
-    title: 'New partner registration',
-    message: `${dto.name} registered as a ${roleLabel} and is awaiting KYC review.`,
-    entityType: 'partner',
-    entityId: newId,
-  });
+    if (isDriver) {
+      await this.db.insert(driverApplications).values({ id: id('app'), userId: newId });
+      await this.db.insert(driverProfiles).values({ userId: newId, legalName: dto.name });
+      await this.notifications.notify({
+        type: 'partner_registration',
+        title: 'New driver started an application',
+        message: `${dto.name} created a driver account and is completing onboarding.`,
+        entityType: 'partner',
+        entityId: newId,
+      });
+    }
 
-  return {
-    registered: true as const,
-    pending: true as const,
-    message:
-      "Registration submitted. Our team will review your business and notify you once it's approved.",
-  };
-}
+    if (isPartner) {
+      // Businesses sign in straight away, like drivers, so they can complete
+      // their profile and upload verification documents. RolesGuard keeps every
+      // other partner route closed until a super admin approves them.
+      const roleLabel = PARTNER_ROLE_LABELS[dto.role as (typeof PARTNER_ROLES)[number]] ?? 'Partner';
+      await this.notifications.notify({
+        type: 'partner_registration',
+        title: 'New partner registration',
+        message: `${dto.name} registered as a ${roleLabel} and will upload documents for review.`,
+        entityType: 'partner',
+        entityId: newId,
+      });
+    }
+
+    // Email/mobile OTP is optional, not a login gate: best-effort send the
+    // codes so the account can be confirmed later, but a mail/SMS provider
+    // outage must never block registration or the immediate session below.
+    let email: string | undefined;
+    let mobile: string | undefined;
+    try {
+      email = (await this.accountVerification.sendEmailOtp(newId)).sentTo;
+    } catch (err) {
+      this.logger.warn(`Failed to send registration email OTP to ${newId}: ${err instanceof Error ? err.message : err}`);
+    }
+    try {
+      mobile = (await this.accountVerification.sendMobileOtp(newId)).sentTo;
+    } catch (err) {
+      this.logger.warn(`Failed to send registration mobile OTP to ${newId}: ${err instanceof Error ? err.message : err}`);
+    }
 
     const [createdUser] = await this.db.select().from(users).where(eq(users.id, newId)).limit(1);
     const { accessToken, refreshToken } = await this.issueTokens(newId, dto.role);
 
     return {
-      registered: true as const,
       accessToken,
       refreshToken,
       user: this.toPublicUser(createdUser),
       profileComplete: false,
+      email,
+      mobile,
     };
   }
 
@@ -247,13 +287,22 @@ private async issueTokens(userId: string, role: Role) {
       apiError(401, 'Invalid email or password.');
     }
 
-    if (user.kycStatus === 'PENDING') {
-      apiError(403, 'Your account is awaiting super-admin verification.', 'PENDING_APPROVAL');
+    // Partners always get in: a PENDING driver is mid-onboarding, a PENDING
+    // business is uploading its documents, and a SUSPENDED driver needs to see
+    // why. What they may DO is gated separately (DriverEligibilityService for
+    // drivers, RolesGuard for businesses), not by being unable to log in.
+    if (user.role !== 'driver' && !PARTNER_ROLES.includes(user.role as (typeof PARTNER_ROLES)[number])) {
+      if (user.kycStatus === 'PENDING') {
+        apiError(403, 'Your account is awaiting super-admin verification.', 'PENDING_APPROVAL');
+      }
     }
-    if (user.kycStatus === 'SUSPENDED') {
+    if (user.role !== 'driver' && user.kycStatus === 'SUSPENDED') {
       apiError(403, 'This account has been suspended. Contact support for help.', 'SUSPENDED');
     }
 
+    // Email/mobile OTP verification is optional — it no longer gates login.
+    // See AccountVerificationService and the verify-email/verify-mobile
+    // endpoints for the still-available, purely voluntary confirmation flow.
     const { accessToken, refreshToken } = await this.issueTokens(user.id, user.role);
 
     return {
@@ -262,6 +311,42 @@ private async issueTokens(userId: string, role: Role) {
       user: this.toPublicUser(user),
       profileComplete: user.profileComplete,
     };
+  }
+
+  /** Verifies one channel and, once every channel the account has is confirmed, logs it straight in — no separate login step needed after the last code. */
+  private async afterVerification(userId: string) {
+    const fullyVerified = await this.accountVerification.isFullyVerified(userId);
+    if (!fullyVerified) return { verified: true as const, fullyVerified: false as const };
+
+    const [user] = await this.db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) apiError(404, 'Account not found.');
+    const { accessToken, refreshToken } = await this.issueTokens(user.id, user.role);
+    return {
+      verified: true as const,
+      fullyVerified: true as const,
+      accessToken,
+      refreshToken,
+      user: this.toPublicUser(user),
+      profileComplete: user.profileComplete,
+    };
+  }
+
+  async verifyEmail(userId: string, otp: string) {
+    await this.accountVerification.verifyEmailOtp(userId, otp);
+    return this.afterVerification(userId);
+  }
+
+  async verifyMobile(userId: string, otp: string) {
+    await this.accountVerification.verifyMobileOtp(userId, otp);
+    return this.afterVerification(userId);
+  }
+
+  resendEmailOtp(userId: string) {
+    return this.accountVerification.sendEmailOtp(userId);
+  }
+
+  resendMobileOtp(userId: string) {
+    return this.accountVerification.sendMobileOtp(userId);
   }
 
   /**
@@ -335,6 +420,11 @@ private async issueTokens(userId: string, role: Role) {
       kycStatus: 'APPROVED',
       profileComplete: false,
       avatarUrl: payload.picture ?? null,
+      // Google already confirmed this address (email_verified in the id
+      // token) — no OTP needed. No mobile yet, so isFullyVerified() is
+      // already satisfied; whether adding one later on /profile/setup
+      // should also require verification is a separate follow-up.
+      emailVerifiedAt: new Date(),
     });
 
     const [createdUser] = await this.db.select().from(users).where(eq(users.id, newId)).limit(1);

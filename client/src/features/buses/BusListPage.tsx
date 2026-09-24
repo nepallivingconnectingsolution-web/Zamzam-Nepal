@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeftRight, ArrowRight, Bus, ChevronDown, ImageOff, Search, Ticket } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, Bus, ChevronDown, Search, Ticket } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
 import { Card } from "@/components/ui/card";
@@ -167,19 +167,31 @@ export function BusListPage() {
             where the swap button's opaque circle, centered across the whole
             pair, covered most of the From field and all of the To field. */}
         <div className="grid gap-3 md:grid-cols-[2fr_1fr_auto] md:items-end">
-          <div className="relative grid gap-3 md:grid-cols-2">
+          {/* At md+ the two fields sit 40px apart so the 32px swap button lives in the
+              gap instead of on top of either input. The button is positioned by a
+              wrapper, not by itself: framer-motion writes an inline `transform` for
+              the spin, which would silently replace any translate classes on the
+              button and knock it off-centre (onto the To field). */}
+          <div className="relative grid gap-3 md:grid-cols-2 md:gap-x-10">
             <Field label="From"><CityInput value={from} onChange={setFrom} placeholder="Departure city" /></Field>
             <Field label="To"><CityInput value={to} onChange={setTo} placeholder="Destination city" /></Field>
-            <motion.button
-              type="button"
-              onClick={handleSwap}
-              aria-label="Swap departure and destination"
-              animate={{ rotate: swapRotation }}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              className="absolute left-1/2 top-1/2 z-10 grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-border bg-card text-accent shadow-card transition-colors hover:border-accent active:scale-90"
-            >
-              <ArrowLeftRight className="size-4" />
-            </motion.button>
+            {/* Stacked (phones): in the empty right end of the "To" label row, between
+                the two inputs (From's label+input is 66px, the gap 12px, then the To
+                label; 68px puts the 32px button clear of both). Row layout (md+):
+                centred in the column gap, on the inputs' row (h-11 inputs, h-8 button,
+                so 6px from the bottom) rather than on the label above them. */}
+            <div className="absolute right-4 top-[68px] z-10 md:bottom-1.5 md:left-1/2 md:right-auto md:top-auto md:-translate-x-1/2">
+              <motion.button
+                type="button"
+                onClick={handleSwap}
+                aria-label="Swap departure and destination"
+                animate={{ rotate: swapRotation }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                className="grid size-8 place-items-center rounded-full border border-border bg-card text-accent shadow-card transition-colors hover:border-accent active:scale-90"
+              >
+                <ArrowLeftRight className="size-4" />
+              </motion.button>
+            </div>
           </div>
           <DateField label="Date" value={date} onChange={setDate} />
           <Button variant="accent" onClick={() => runSearch(from, to, date)}>
@@ -240,7 +252,7 @@ export function BusListPage() {
             action={typeFilter !== "all" ? <Button variant="accent" onClick={() => setTypeFilter("all")}>Clear filter</Button> : undefined}
           />
         ) : (
-          <div className="space-y-3">
+          <div className="mx-auto max-w-2xl space-y-3">
             {visibleBuses.map((b) => <BusResultCard key={b.id} bus={b} />)}
           </div>
         )}
@@ -264,19 +276,22 @@ function BusResultCard({ bus }: { bus: BusSearchResult }) {
   const soldOut = bus.seatsLeft <= 0;
   const lowSeats = !soldOut && bus.seatsLeft <= LOW_SEATS_THRESHOLD;
   const hiddenAmenities = bus.amenities.slice(5);
-  const canExpand = hiddenAmenities.length > 0 || !!bus.busPhoto;
+  const canExpand = hiddenAmenities.length > 0;
 
   return (
     <Card className="overflow-hidden">
+      {bus.busPhoto && (
+        <img src={bus.busPhoto} alt={`${bus.operator} bus`} className="h-24 w-full rounded-t-2xl object-cover" />
+      )}
       <button
         type="button"
         onClick={() => canExpand && setExpanded((v) => !v)}
-        className={cn("w-full p-5 text-left", canExpand && "cursor-pointer")}
+        className={cn("w-full p-4 text-left", canExpand && "cursor-pointer")}
         aria-expanded={canExpand ? expanded : undefined}
       >
         <div className="flex items-center gap-3">
           <div className="shrink-0">
-            <p className="font-display text-h1 font-extrabold font-tabular leading-none">{bus.departure}</p>
+            <p className="font-display text-h2 font-extrabold font-tabular leading-none">{bus.departure}</p>
             <p className="mt-1 text-caption text-muted-fg">{bus.from}</p>
           </div>
           <div className="min-w-0 flex-1 px-1 text-center text-teal-700 dark:text-accent">
@@ -284,12 +299,12 @@ function BusResultCard({ bus }: { bus: BusSearchResult }) {
             <p className="mt-1 text-caption text-muted-fg">{bus.duration}</p>
           </div>
           <div className="shrink-0 text-right">
-            <p className="font-display text-h1 font-extrabold font-tabular leading-none">{bus.arrival}</p>
+            <p className="font-display text-h2 font-extrabold font-tabular leading-none">{bus.arrival}</p>
             <p className="mt-1 text-caption text-muted-fg">{bus.to}</p>
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-body-sm text-muted-fg">
+        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-body-sm text-muted-fg">
           <Bus className="size-3.5 shrink-0" />
           <span className="font-medium text-fg">{bus.operator}</span>
           <span aria-hidden>·</span>
@@ -302,9 +317,9 @@ function BusResultCard({ bus }: { bus: BusSearchResult }) {
           )}
         </div>
 
-        <div className="mt-4 flex items-end justify-between gap-4 border-t border-border pt-4">
+        <div className="mt-3 flex items-end justify-between gap-4 border-t border-border pt-3">
           <div>
-            <p className="font-display text-h1 font-extrabold font-tabular leading-none">रू {bus.price.toLocaleString()}</p>
+            <p className="font-display text-h2 font-extrabold font-tabular leading-none">रू {bus.price.toLocaleString()}</p>
             {soldOut ? (
               <p className="mt-1 text-caption text-muted-fg">Sold out</p>
             ) : lowSeats ? (
@@ -338,21 +353,12 @@ function BusResultCard({ bus }: { bus: BusSearchResult }) {
             className="overflow-hidden border-t border-border"
           >
             <div className="space-y-3 p-5">
-              {hiddenAmenities.length > 0 && (
-                <div>
-                  <p className="mb-1.5 text-xs font-medium text-muted-fg">All amenities</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {bus.amenities.map((a) => <AmenityChip key={a} id={a} />)}
-                  </div>
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-muted-fg">All amenities</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {bus.amenities.map((a) => <AmenityChip key={a} id={a} />)}
                 </div>
-              )}
-              {bus.busPhoto ? (
-                <img src={bus.busPhoto} alt={`${bus.operator} bus`} className="h-40 w-full rounded-xl border border-border object-cover" />
-              ) : (
-                <div className="flex h-24 items-center justify-center gap-2 rounded-xl border border-dashed border-border text-xs text-muted-fg">
-                  <ImageOff className="size-4" /> No bus photo yet
-                </div>
-              )}
+              </div>
             </div>
           </motion.div>
         )}

@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { AsyncBoundary } from "@/components/shared/async-states";
+import { PhotoGallery } from "@/components/shared/photo-gallery";
 import { Card } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -169,9 +170,25 @@ function OrderFlow({ restaurant, onDone }: { restaurant: RestaurantDetail; onDon
       : { label: submitting ? "Placing…" : "Place order", disabled: submitting, onClick: submit };
 
   return (
-    <div className="space-y-6">
+    <div className="lg:grid lg:grid-cols-[1fr_380px] lg:items-start lg:gap-8">
       {/* ── Menu / checkout column ── */}
-      <div className="min-w-0 space-y-6 pb-24">
+      <div className="min-w-0 space-y-6 pb-24 lg:pb-0">
+        <PhotoGallery photos={restaurant.photos} alt={restaurant.name} />
+
+        <div>
+          <h1 className="font-display text-xl font-bold">{restaurant.name}</h1>
+          <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-fg">
+            <MapPin className="size-3.5" /> {restaurant.address}, {restaurant.city}
+          </p>
+          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-fg">
+            <Badge variant="outline">{restaurant.cuisine}</Badge>
+            <span className="flex items-center gap-1.5">
+              <Clock className="size-3.5" /> Open {restaurant.openTime}–{restaurant.closeTime}
+            </span>
+          </p>
+          {restaurant.description && <p className="mt-3 text-sm text-muted-fg">{restaurant.description}</p>}
+        </div>
+
         {step === "menu" &&
           restaurant.categories.map((cat) => (
             <section key={cat.id}>
@@ -222,7 +239,7 @@ function OrderFlow({ restaurant, onDone }: { restaurant: RestaurantDetail; onDon
       </div>
 
       {/* ── Order summary column — desktop only; mobile gets the fixed bottom bar ── */}
-      <div className="hidden">
+      <div className="hidden lg:sticky lg:top-20 lg:block">
         <Card className="p-5">
           <h3 className="flex items-center gap-2 font-display text-base font-semibold">
             <ShoppingBag className="size-4" /> Your order
@@ -276,7 +293,7 @@ function OrderFlow({ restaurant, onDone }: { restaurant: RestaurantDetail; onDon
       {/* bottom-[4.75rem] — the customer shell's own bottom tab bar (see
           CustomerShell) is a separate fixed element pinned to bottom-0; this
           sits directly above it instead of underneath/behind it. */}
-      <div className="fixed inset-x-0 bottom-[4.75rem] z-50 border-t border-border bg-card/95 px-4 py-3 shadow-lift backdrop-blur-xl ">
+      <div className="fixed inset-x-0 bottom-[4.75rem] z-50 border-t border-border bg-card/95 px-4 py-3 shadow-lift backdrop-blur-xl lg:hidden">
         <div className="mx-auto flex max-w-lg items-center gap-3">
           {step === "checkout" && (
             <Button variant="outline" size="icon" aria-label="Back to menu" onClick={() => setStep("menu")}>
@@ -301,7 +318,10 @@ function OrderFlow({ restaurant, onDone }: { restaurant: RestaurantDetail; onDon
 function MenuItemRow({ item, qty, setQty }: { item: MenuItemSummary; qty: number; setQty: (id: string, q: number) => void }) {
   return (
     <Card className="flex items-center justify-between gap-3 p-4">
-      <div className="min-w-0">
+      {item.photo && (
+        <img src={item.photo} alt={item.name} className="size-14 shrink-0 rounded-lg border border-border object-cover" />
+      )}
+      <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-sm font-medium">{item.name}</p>
           {item.isVeg && (

@@ -83,13 +83,20 @@ export function CustomerShell() {
       </header>
 
       {/* 6rem — same reasoning as CustomerShell: the tab bar grew when the
-          active tab gained a label, and it's translucent. */}
-      <main className="flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 lg:overflow-y-auto">
-        <ErrorBoundary>
-          <Suspense fallback={<RouteFallback />}>
-            <Outlet />
-          </Suspense>
-        </ErrorBoundary>
+          active tab gained a label, and it's translucent.
+          lg:max-w-6xl — AppFrame stops capping width at lg (the app reads as
+          a real website there), but without a cap here every screen's own
+          content had to fight the full browser width itself; nothing did,
+          so a 2-column card grid split an ultra-wide window into two
+          oversized cards. Matches PortalLayout's identical fix. */}
+      <main className="flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 lg:overflow-y-auto lg:px-10">
+        <div className="lg:mx-auto lg:max-w-6xl">
+          <ErrorBoundary>
+            <Suspense fallback={<RouteFallback />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
       </main>
 
       <TabBar items={tabs} />

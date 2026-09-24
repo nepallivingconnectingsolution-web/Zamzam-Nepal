@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { AsyncBoundary } from "@/components/shared/async-states";
+import { PhotoGallery } from "@/components/shared/photo-gallery";
 import { Card } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -177,8 +178,25 @@ function BookingFlow({ hotel, onDone }: { hotel: HotelDetail; onDone: () => void
         : { label: submitting ? "Booking…" : `Pay रू ${grandTotal.toLocaleString()}`, disabled: submitting, onClick: submit };
 
   return (
-    <div className="space-y-6">
-      <div className="min-w-0 space-y-6 pb-24">
+    <div className="lg:grid lg:grid-cols-[1fr_380px] lg:items-start lg:gap-8">
+      <div className="min-w-0 space-y-6 pb-24 lg:pb-0">
+        <PhotoGallery photos={hotel.photos} alt={hotel.name} />
+
+        <div>
+          <h1 className="font-display text-xl font-bold">{hotel.name}</h1>
+          <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-fg">
+            <MapPin className="size-3.5" /> {hotel.address}, {hotel.city}
+          </p>
+          {hotel.amenities.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {hotel.amenities.map((a) => (
+                <Badge key={a} variant="outline">{a}</Badge>
+              ))}
+            </div>
+          )}
+          {hotel.description && <p className="mt-3 text-sm text-muted-fg">{hotel.description}</p>}
+        </div>
+
         {/* Stepper */}
         <div className="flex items-center gap-2">
           {(["room", "guest", "payment"] as Step[]).map((s, i, arr) => (
@@ -204,10 +222,13 @@ function BookingFlow({ hotel, onDone }: { hotel: HotelDetail; onDone: () => void
               {hotel.roomTypes.map((r) => (
                 <button key={r.id} type="button" onClick={() => setRoomType(r)}
                   className={cn(
-                    "flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors",
+                    "flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors",
                     roomType?.id === r.id ? "border-teal-700 bg-teal-100 dark:border-accent dark:bg-white/10" : "border-border hover:bg-surface-2",
                   )}
                 >
+                  {r.photos[0] && (
+                    <img src={r.photos[0]} alt={r.name} className="size-12 shrink-0 rounded-lg border border-border object-cover" />
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{r.name}</p>
                     <p className="truncate text-xs text-muted-fg">Sleeps up to {r.maxGuests} guests</p>
@@ -283,7 +304,7 @@ function BookingFlow({ hotel, onDone }: { hotel: HotelDetail; onDone: () => void
       </div>
 
       {/* Summary rail — desktop only; mobile gets the fixed bottom bar instead */}
-      <div className="hidden">
+      <div className="hidden lg:sticky lg:top-20 lg:block lg:space-y-4">
         <Card className="p-5">
           <div className="flex items-center gap-2">
             <div className="grid size-10 place-items-center rounded-xl bg-teal-100 text-teal-700 dark:bg-white/10 dark:text-accent">
@@ -334,7 +355,7 @@ function BookingFlow({ hotel, onDone }: { hotel: HotelDetail; onDone: () => void
       {/* bottom-[4.75rem] — the customer shell's own bottom tab bar (see
           CustomerShell) is a separate fixed element pinned to bottom-0; this
           sits directly above it instead of underneath/behind it. */}
-      <div className="fixed inset-x-0 bottom-[4.75rem] z-50 border-t border-border bg-card/95 px-4 py-3 shadow-lift backdrop-blur-xl ">
+      <div className="fixed inset-x-0 bottom-[4.75rem] z-50 border-t border-border bg-card/95 px-4 py-3 shadow-lift backdrop-blur-xl lg:hidden">
         <div className="mx-auto flex max-w-lg items-center gap-3">
           {step !== "room" && (
             <Button variant="outline" size="icon" aria-label="Back" onClick={() => setStep(step === "payment" ? "guest" : "room")}>
