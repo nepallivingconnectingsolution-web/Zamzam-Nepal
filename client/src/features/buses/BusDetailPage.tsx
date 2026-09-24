@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Armchair, Bus, CheckCircle2, Clock, CreditCard, MapPin, Printer, Users } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { AsyncBoundary } from "@/components/shared/async-states";
+import { PhotoGallery } from "@/components/shared/photo-gallery";
 import { Card } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -101,10 +102,10 @@ function BookingFlow({ bus, onDone }: { bus: BusScheduleDetail; onDone: () => vo
         : { label: submitting ? "Booking…" : `Pay रू ${grandTotal.toLocaleString()}`, disabled: submitting, onClick: submit };
 
   return (
-    <div className="space-y-6">
-      <div className="min-w-0 space-y-6 pb-24">
+    <div className="lg:grid lg:grid-cols-[1fr_380px] lg:items-start lg:gap-8">
+      <div className="min-w-0 space-y-6 pb-24 lg:pb-0">
+        <PhotoGallery photos={bus.busPhoto ? [bus.busPhoto] : []} alt={`${bus.operator} bus`} />
         <Stepper step={step} />
-        <TripSummary bus={bus} />
 
         {step === "seats" && <SeatPicker bus={bus} selected={selected} setSelected={setSelected} />}
         {step === "passengers" && <PassengerForm seats={selected} passengers={passengers} setPassengers={setPassengers} />}
@@ -113,8 +114,33 @@ function BookingFlow({ bus, onDone }: { bus: BusScheduleDetail; onDone: () => vo
         {error && <p className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">{error}</p>}
       </div>
 
-      {/* Sticky booking bar — the one Level-2 element on this screen. */}
-      <div className="fixed inset-x-0 bottom-[4.75rem] z-50 border-t border-border bg-card/95 px-4 py-3 shadow-e2 backdrop-blur-xl">
+      {/* Trip + fare summary — desktop only; mobile gets the fixed bottom bar instead */}
+      <div className="hidden lg:sticky lg:top-20 lg:block lg:space-y-4">
+        <TripSummary bus={bus} />
+        <Card className="p-5">
+          <h3 className="mb-3 font-display text-sm font-semibold">Fare summary</h3>
+          <dl className="space-y-2 text-sm">
+            <Row label={`${selected.length} seat(s) × रू ${bus.price.toLocaleString()}`} value={`रू ${totalPrice.toLocaleString()}`} />
+            <Row label="Service fee (2%)" value={`रू ${serviceFee.toLocaleString()}`} />
+            <div className="border-t border-border pt-2">
+              <Row label="Total" value={`रू ${grandTotal.toLocaleString()}`} bold />
+            </div>
+          </dl>
+          <div className="mt-4 flex gap-2">
+            {step !== "seats" && (
+              <Button variant="outline" className="flex-1" onClick={() => setStep(step === "payment" ? "passengers" : "seats")}>
+                <ArrowLeft className="size-4" /> Back
+              </Button>
+            )}
+            <Button variant="accent" className="flex-1" loading={submitting} disabled={primaryAction.disabled} onClick={primaryAction.onClick}>
+              {primaryAction.label}
+            </Button>
+          </div>
+        </Card>
+      </div>
+
+      {/* Sticky booking bar — mobile only; the sidebar above takes over at lg. */}
+      <div className="fixed inset-x-0 bottom-[4.75rem] z-50 border-t border-border bg-card/95 px-4 py-3 shadow-e2 backdrop-blur-xl lg:hidden">
         <div className="mx-auto flex max-w-lg items-center gap-3">
           {step !== "seats" && (
             <Button variant="secondary" size="icon" aria-label="Back" onClick={() => setStep(step === "payment" ? "passengers" : "seats")}>

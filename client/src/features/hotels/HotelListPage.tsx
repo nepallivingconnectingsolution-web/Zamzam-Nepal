@@ -1,22 +1,16 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, BedDouble, CalendarCheck, MapPin, Search, Wifi, Coffee, Car } from "lucide-react";
+import { BedDouble, CalendarCheck, Search } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { AsyncBoundary, EmptyState } from "@/components/shared/async-states";
+import { ListingCard } from "@/components/shared/listing-card";
 import { Card } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useResource } from "@/hooks/useResource";
 import { api, endpoints } from "@/api/client";
 import type { HotelSearchResult } from "./types";
-
-const amenityIcon: Record<string, React.ReactNode> = {
-  "Free WiFi": <Wifi className="size-3.5" />,
-  "Breakfast included": <Coffee className="size-3.5" />,
-  "Parking": <Car className="size-3.5" />,
-};
 
 export function HotelListPage() {
   const [city, setCity] = useState("");
@@ -72,7 +66,7 @@ export function HotelListPage() {
           />
         }
       >
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-6 xl:grid-cols-4">
           {hotels.data?.map((h) => (
             <HotelCard key={h.id} hotel={h} />
           ))}
@@ -84,46 +78,17 @@ export function HotelListPage() {
 
 function HotelCard({ hotel }: { hotel: HotelSearchResult }) {
   return (
-    <Link to={`/app/hotels/${hotel.id}`}>
-      <Card className="h-full overflow-hidden transition-shadow hover:shadow-md">
-        <div className="flex h-36 items-center justify-center bg-gradient-to-br from-vertical-hotel/15 to-vertical-hotel/0">
-          <BedDouble className="size-10 text-vertical-hotel/70" />
-        </div>
-        <div className="p-4">
-          <h3 className="font-display text-base font-semibold">{hotel.name}</h3>
-          <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-fg">
-            <MapPin className="size-3.5" /> {hotel.city}
-          </p>
-          {hotel.amenities.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {hotel.amenities.slice(0, 3).map((a) => (
-                <span
-                  key={a}
-                  className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-2 py-0.5 text-xs text-muted-fg"
-                >
-                  {amenityIcon[a]} {a}
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="mt-3 flex items-center justify-between">
-            <div>
-              {hotel.fromPrice != null ? (
-                <>
-                  <span className="text-xs text-muted-fg">From </span>
-                  <span className="font-display text-lg font-bold font-tabular">रू {hotel.fromPrice.toLocaleString()}</span>
-                  <span className="text-xs text-muted-fg"> /night</span>
-                </>
-              ) : (
-                <Badge variant="outline" className="text-[10px]">No rooms listed yet</Badge>
-              )}
-            </div>
-            <span className="flex items-center gap-1 text-xs font-medium text-accent">
-              View <ArrowRight className="size-3.5" />
-            </span>
-          </div>
-        </div>
-      </Card>
-    </Link>
+    <ListingCard
+      to={`/app/hotels/${hotel.id}`}
+      photo={hotel.photos[0] ?? null}
+      fallbackIcon={<BedDouble className="size-10 text-vertical-hotel/70" />}
+      fallbackClassName="from-vertical-hotel/15 to-vertical-hotel/0"
+      title={hotel.name}
+      location={hotel.city}
+      meta={hotel.amenities.slice(0, 3)}
+      price={hotel.fromPrice}
+      priceUnit="/night"
+      emptyPriceLabel="No rooms listed yet"
+    />
   );
 }

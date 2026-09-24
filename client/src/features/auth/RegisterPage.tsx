@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { ArrowRight, Mail, Lock, Clock, ShieldCheck } from "lucide-react";
+import { ArrowRight, Mail, Lock, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/layout/logo";
 import { AppFrame } from "@/components/layout/app-frame";
 import { Button } from "@/components/ui/button";
@@ -25,9 +25,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { toast } from "@/stores/toast.store";
 import type { Role, User } from "@/types";
 
-type RegisterResponse =
-  | { registered: true; pending: true; message: string }
-  | { registered: true; accessToken: string; refreshToken: string; user: User };
+type RegisterResponse = { accessToken: string; refreshToken: string; user: User; profileComplete: boolean };
 
 /**
  * Sign-up has two doors, not one list.
@@ -71,7 +69,6 @@ export function RegisterPage() {
   const from = state?.from;
 
   const [intent, setIntent] = useState<Intent>(state?.intent === "partner" ? "partner" : "customer");
-  const [step, setStep] = useState<"form" | "done">("form");
   const [partnerRole, setPartnerRole] = useState<PartnerRole>("driver");
   const [name, setName] = useState("");
   const [mobile, setMobile] = useState("+977");
@@ -102,18 +99,17 @@ export function RegisterPage() {
         { name, email, password, mobile: `${dial}${national}`.replace("+", ""), role },
         { auth: false },
       );
-      if ("accessToken" in res) {
-        setSession(res.accessToken, res.user, res.refreshToken);
-        toast.success("Account created", "Let's finish setting up your profile.");
-        const actualRole = res.user.role;
-        if (actualRole === "customer") {
-          navigate("/profile/setup", { state: { from } });
-        } else {
-          navigate(ROLE_HOME[actualRole]);
-        }
+      // Email/mobile OTP is optional now, not a gate — registering signs you
+      // straight in, the same as Google sign-in. Codes are still sent in the
+      // background so the account can be confirmed later if the user wants to.
+      setSession(res.accessToken, res.user, res.refreshToken);
+      toast.success("Account created", intent === "partner" ? "You're in — upload your documents to get verified." : "Welcome to Zamzam.");
+      if (!res.profileComplete && res.user.role !== "driver") {
+        navigate("/profile/setup", { state: { from } });
+      } else if (from && res.user.role === "customer") {
+        navigate(from);
       } else {
-        setStep("done");
-        toast.info("Registration submitted", "We'll review your business shortly.");
+        navigate(ROLE_HOME[res.user.role]);
       }
     } catch (e) {
       setError((e instanceof ApiError && (e.detail as { message?: string })?.message) || "Couldn't create your account.");
@@ -197,8 +193,7 @@ export function RegisterPage() {
               : "One account for rides, buses, hotels, food and deliveries."}
           </p>
 
-          {step === "form" && (
-            <div className="mt-6 space-y-3">
+          <div className="mt-6 space-y-3">
               {intent === "partner" && (
                 <div>
                   <p className="mb-2 text-xs font-medium text-muted-fg">What do you run?</p>
@@ -290,20 +285,6 @@ export function RegisterPage() {
                 <Link to="/login" state={{ from }} className="text-accent hover:underline">Sign in</Link>
               </p>
             </div>
-          )}
-
-          {step === "done" && (
-            <div className="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-border bg-surface p-6 text-center shadow-e1">
-              <div className="flex size-12 items-center justify-center rounded-full bg-warning/10 text-warning">
-                <Clock className="size-6" />
-              </div>
-              <h3 className="font-semibold">Registration submitted</h3>
-              <p className="text-sm text-muted-fg">
-                Your account is awaiting verification. Once approved, sign in with your email and password.
-              </p>
-              <Button variant="outline" onClick={() => navigate("/login", { state: { from } })}>Back to sign in</Button>
-            </div>
-          )}
         </div>
         </motion.div>
       </div>
