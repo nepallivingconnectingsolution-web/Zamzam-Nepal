@@ -18,6 +18,7 @@ export interface RoomTypeSummary {
   totalRooms: number;
   maxGuests: number;
   amenities: string[];
+  photos: string[];
 }
 
 export interface HotelDetail {
@@ -110,6 +111,7 @@ export interface PartnerRoomType {
   totalRooms: number;
   maxGuests: number;
   amenities: string[];
+  photos: string[];
   isActive: boolean;
   createdAt: string;
 }
