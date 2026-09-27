@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion, type PanInfo } from "framer-motion";
+import { motion, type PanInfo } from "framer-motion";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -61,8 +61,12 @@ export function PhotoLightbox({ photos, index, open, alt, onClose, onIndexChange
 
   if (count === 0) return null;
 
+  // No AnimatePresence / exit animation on purpose: with 2+ photos the image is
+  // draggable, and a draggable motion child stops AnimatePresence from ever
+  // unmounting the exiting panel. The panel then stayed in the DOM at opacity 0
+  // as an invisible full-screen overlay that swallowed every click on the page.
   return createPortal(
-    <AnimatePresence>
+    <>
       {open && (
         <motion.div
           ref={panelRef}
@@ -72,7 +76,6 @@ export function PhotoLightbox({ photos, index, open, alt, onClose, onIndexChange
           tabIndex={-1}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           className="fixed inset-0 z-[60] flex flex-col bg-black/95"
           onClick={onClose}
@@ -146,7 +149,7 @@ export function PhotoLightbox({ photos, index, open, alt, onClose, onIndexChange
           )}
         </motion.div>
       )}
-    </AnimatePresence>,
+    </>,
     document.body,
   );
 }
