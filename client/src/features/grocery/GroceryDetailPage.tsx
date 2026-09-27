@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, CheckCircle2, Clock, MapPin, Minus, Plus,
-  ShoppingBag, ShoppingBasket, Store, Truck,
+  Search, ShoppingBag, ShoppingBasket, Store, Truck,
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { AsyncBoundary } from "@/components/shared/async-states";
@@ -57,8 +57,9 @@ export function GroceryDetailPage() {
   );
 }
 
-function OrderFlow({ store, onDone }: { store: StoreDetail; onDone: () => void }) {
+export function OrderFlow({ store, onDone }: { store: StoreDetail; onDone: () => void }) {
   const [step, setStep] = useState<Step>("shop");
+  const [search, setSearch] = useState("");
   const [cart, setCart] = useState<Map<string, number>>(new Map());
   const [fulfillment, setFulfillment] = useState<Fulfillment>("delivery");
   const [customerName, setCustomerName] = useState("");
@@ -74,6 +75,27 @@ function OrderFlow({ store, onDone }: { store: StoreDetail; onDone: () => void }
     () => new Map(store.categories.flatMap((c) => c.products).map((p) => [p.id, p])),
     [store],
   );
+
+  // Instant, client-side catalog search — the whole store's products are
+  // already loaded, so there's no round-trip to debounce. Matches name, unit
+  // ("1 kg") and tags, not just the literal product name, same as Instamart/
+  // Zepto's in-store search. A category with no surviving matches is hidden
+  // rather than shown empty.
+  const query = search.trim().toLowerCase();
+  const filteredCategories = useMemo(() => {
+    if (!query) return store.categories;
+    return store.categories
+      .map((cat) => ({
+        ...cat,
+        products: cat.products.filter(
+          (p) =>
+            p.name.toLowerCase().includes(query) ||
+            p.unit.toLowerCase().includes(query) ||
+            p.tags.some((tag) => tag.toLowerCase().includes(query)),
+        ),
+      }))
+      .filter((cat) => cat.products.length > 0);
+  }, [store.categories, query]);
 
   const itemsTotal = useMemo(() => {
     let total = 0;
@@ -191,17 +213,43 @@ function OrderFlow({ store, onDone }: { store: StoreDetail; onDone: () => void }
           {store.description && <p className="mt-3 text-sm text-muted-fg">{store.description}</p>}
         </div>
 
-        {step === "shop" &&
-          store.categories.map((cat) => (
-            <section key={cat.id}>
-              <h3 className="mb-3 font-display text-base font-semibold">{cat.name}</h3>
-              <div className="grid gap-2.5 sm:grid-cols-2">
-                {cat.products.map((p) => (
-                  <ProductRow key={p.id} product={p} qty={cart.get(p.id) ?? 0} setQty={setQty} />
-                ))}
+        {step === "shop" && (
+          <>
+            {/* Sticky just below the shell's own top bar (h-[calc(3.25rem+…)])
+                so it stays reachable while scrolling a long catalog instead
+                of scrolling away with the page. */}
+            <div className="sticky top-[calc(3.25rem+env(safe-area-inset-top))] z-10 -mx-4 bg-bg/95 px-4 py-3 backdrop-blur-xl sm:mx-0 sm:rounded-xl sm:border sm:border-border">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-fg" />
+                <Input
+                  placeholder="Search products, e.g. rice, oil…"
+                  className="pl-9"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
               </div>
-            </section>
-          ))}
+            </div>
+
+            {filteredCategories.length === 0 ? (
+              <Card className="p-8 text-center">
+                <ShoppingBasket className="mx-auto size-8 text-muted-fg" />
+                <p className="mt-3 font-medium">No products match "{search.trim()}"</p>
+                <p className="mt-1 text-sm text-muted-fg">Try a different name, size, or category.</p>
+              </Card>
+            ) : (
+              filteredCategories.map((cat) => (
+                <section key={cat.id}>
+                  <h3 className="mb-3 font-display text-base font-semibold">{cat.name}</h3>
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    {cat.products.map((p) => (
+                      <ProductRow key={p.id} product={p} qty={cart.get(p.id) ?? 0} setQty={setQty} />
+                    ))}
+                  </div>
+                </section>
+              ))
+            )}
+          </>
+        )}
 
         {step === "checkout" && (
           <Card className="p-5">
